@@ -87,22 +87,23 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
 <section class="workspace-view" data-view="meme-section" id="workspace-meme-section" hidden>
 <div class="section-divider" id="meme-section"><span class="section-index">06</span><div><h2 class="section-heading">MEME HUNTER · Solana</h2><div class="section-caption">Ricerca token emergenti: dati pubblici, nessuna esecuzione memecoin</div></div></div>
 <section class="panel meme-quick-panel" id="meme-quick-panel">
- <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin:0">⚡ QUICK TRADE · MEME PAPER SANDBOX</div><div class="sub">Acquisti e vendite virtuali autonomi; le operazioni manuali restano facoltative.</div></div><span class="tag">USD DEMO · NO REAL ORDERS</span></div>
+ <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin:0">⚡ MEME HUNTER · PORTAFOGLIO VIRTUALE</div><div class="sub">Acquisti e vendite virtuali autonomi; le operazioni manuali restano facoltative.</div></div><span class="tag">45 € MEME · PAPER ONLY</span></div>
  <div class="desk-state" style="margin-top:12px"><div>
   <strong id="meme-auto-label">MEME AUTO PAPER · Caricamento…</strong>
   <div class="sub" id="meme-auto-status">Controlli del server ogni 30 secondi, nuove ricerche ogni 5 minuti.</div>
   </div><button id="meme-auto-toggle" class="btn" type="button" disabled>Caricamento…</button></div>
- <div class="sub" style="margin-top:8px">Strategia sperimentale: stop −10%, target +20%, chiusura dopo 2 ore · costi demo 3% per lato. Nessuna garanzia di vendibilità o profitto reale.</div>
+ <div class="sub" style="margin-top:8px">Strategia sperimentale: stop −10%, target +20%, chiusura dopo 2 ore · costi simulati 3% per lato. Nessuna garanzia di vendibilità o profitto reale.</div>
  <div class="meme-quick-stats">
- <div class="meme-quick-stat"><div class="sub">Crediti disponibili</div><b id="meme-demo-cash">—</b></div>
+ <div class="meme-quick-stat"><div class="sub">Liquidità MEME (€)</div><b id="meme-demo-cash">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Equity stimata ultimo prezzo</div><b id="meme-demo-equity">—</b></div>
- <div class="meme-quick-stat"><div class="sub">Test aperti</div><b id="meme-demo-open">—</b></div>
- <div class="meme-quick-stat"><div class="sub">Importo per test</div><b>3 crediti</b></div></div>
- <div class="sub meme-demo-note">45 crediti USD demo iniziali, <b>non sono i €45 del conto MEME</b>. Prezzi indicativi DEX Screener aggiornati dal server circa ogni 30s con AUTO attivo; un dato vecchio viene evidenziato. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume bassi o mancanti generano avvisi, non bloccano i test demo; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
- <div class="flex" style="margin:13px 0 8px;flex-wrap:wrap"><b>Posizioni demo aperte</b><button class="btn" id="meme-demo-refresh" type="button">↻ Aggiorna</button></div>
+ <div class="meme-quick-stat"><div class="sub">Posizioni aperte</div><b id="meme-demo-open">—</b></div>
+ <div class="meme-quick-stat"><div class="sub">Importo per operazione</div><b>3 € virtuali</b></div></div>
+ <div class="sub meme-demo-note">Unico portafoglio MEME da 45 € iniziali, già incluso nel patrimonio NEXUS. Prezzi indicativi DEX Screener aggiornati dal server circa ogni 30s con AUTO attivo; un dato vecchio viene evidenziato. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume bassi o mancanti generano avvisi per gli ordini manuali virtuali; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
+ <div class="sub" id="meme-fx-note" style="margin-top:9px">Cambio di riferimento USD/EUR in caricamento</div>
+ <div class="flex" style="margin:13px 0 8px;flex-wrap:wrap"><b>Posizioni MEME aperte</b><button class="btn" id="meme-demo-refresh" type="button">↻ Aggiorna</button></div>
  <div class="scroll meme-demo-table"><table class="dataTable"><thead><tr><th>Token</th><th>Ingresso</th><th>Prezzo osservato</th><th>Variazione</th><th>P/L stimato</th><th>Ultimo dato</th><th>Operazione</th></tr></thead><tbody id="meme-demo-positions"><tr><td colspan="7" class="muted">Nessun test caricato</td></tr></tbody></table></div>
- <div class="sub" id="meme-demo-message" role="status" style="margin:10px 0">Saldo demo in caricamento…</div>
- <details><summary style="cursor:pointer;color:var(--blue)">Ultime operazioni demo</summary><div class="scroll" id="meme-demo-history"><span class="sub">Storico in caricamento</span></div></details>
+ <div class="sub" id="meme-demo-message" role="status" style="margin:10px 0">Portafoglio MEME in caricamento…</div>
+ <details><summary style="cursor:pointer;color:var(--blue)">Storico operazioni MEME</summary><div class="scroll" id="meme-demo-history"><span class="sub">Storico in caricamento</span></div></details>
  </section><section class="panel" id="meme-hunter">
   <div class="flex" style="flex-wrap:wrap">
     <div><div class="title" style="margin-bottom:3px">MEME SCOUT · Ultimi profili osservati</div><div class="sub">DEX Screener Solana · liquidità e volume osservati · selezione di profili, non l'intero mercato</div></div>
@@ -317,11 +318,12 @@ setInterval(()=>{if(document.visibilityState==='visible'){
  loadMemeAuto().catch(()=>{});
  loadMemeDemo().catch(()=>{});
 }},30000);
-const usdDemo=x=>new Intl.NumberFormat('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(x)||0)+' crediti';
+const eurMeme=x=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:4}).format(Number(x)||0);
 function renderMemeDemo(d){
-  $('meme-demo-cash').textContent=usdDemo(d.cash_credits);
-  $('meme-demo-equity').textContent=usdDemo(d.nominal_last_mark_equity);
-  $('meme-demo-open').textContent=(d.positions||[]).length+' / 3';
+  $('meme-demo-cash').textContent=eurMeme(d.cash_eur);
+  $('meme-demo-equity').textContent=usdDemo(d.equity_eur);
+  $('meme-demo-open').textContent=(d.positions||[]).length+' / '+(d.max_positions||8);
+  $('meme-fx-note').textContent='Cambio USD/EUR: '+(d.fx?Number(d.fx.usd_eur).toFixed(5)+' (riferimento '+d.fx.rate_date+')':'non disponibile')+(d.legacy_demo_positions_archived?' · '+d.legacy_demo_positions_archived+' vecchie posizioni USD demo conservate soltanto in archivio':'');
   const when=t=>new Date(t*1000).toLocaleString('it-IT');
   const price=x=>{
     const n=Number(x);
@@ -334,37 +336,37 @@ function renderMemeDemo(d){
   };
   $('meme-demo-positions').innerHTML=(d.positions||[]).map(p=>{
     const fresh=p.mark_status==='AGGIORNATO';
-    const pnl=Number(p.estimated_pnl_credits);
+    const pnl=Number(p.estimated_pnl_eur);
     const positive=pnl>=0;
     return '<tr>'+
       '<td><strong>'+esc(p.symbol)+'</strong><div class="sub">'+esc(p.address.slice(0,6)+'…'+p.address.slice(-4))+'</div></td>'+
       '<td><strong>'+esc(price(p.entry_price_usd))+'</strong></td>'+
       '<td><strong>'+esc(price(p.last_price_usd))+'</strong><div class="sub">'+(fresh?'● Prezzo recente':'● Prezzo non aggiornato')+'</div></td>'+
       '<td><b class="'+(Number(p.price_change_pct)>=0?'green':'red')+'">'+esc(signed(p.price_change_pct))+'%</b></td>'+
-      '<td><b class="'+(positive?'green':'red')+'">'+esc(signed(p.estimated_pnl_credits,4))+' crediti</b>'+
+      '<td><b class="'+(positive?'green':'red')+'">'+esc(signed(p.estimated_pnl_credits,4))+' € virtuali</b>'+
         '<div class="sub">'+esc(signed(p.estimated_roi_pct))+'% netto stimato</div></td>'+
       '<td><span class="'+(fresh?'green':'red')+'">'+(fresh?'RECENTE':'NON AGGIORNATO')+'</span>'+
         '<div class="sub">'+esc(when(p.last_checked_at))+' · '+esc(p.mark_age_seconds)+'s fa</div></td>'+
       '<td><button class="btn meme-demo-sell" data-mint="'+esc(p.address)+'" type="button">Chiudi test</button></td></tr>';
-  }).join('')||'<tr><td colspan="7" class="muted">Nessuna posizione demo aperta</td></tr>';
+  }).join('')||'<tr><td colspan="7" class="muted">Nessuna posizione MEME aperta</td></tr>';
   $('meme-demo-history').innerHTML=(d.trades||[]).map(t=>
     '<div class="event">'+esc(when(t.timestamp))+' · '+esc(t.symbol)+' · '+esc(t.action)+
-    (t.pnl_usd==null?'':' · <b class="'+(t.pnl_usd<0?'red':'green')+'">'+usdDemo(t.pnl_usd)+'</b>')+
+    (t.pnl_eur==null?'':' · <b class="'+(t.pnl_usd<0?'red':'green')+'">'+usdDemo(t.pnl_usd)+'</b>')+
     '<div class="sub">'+esc(t.note)+'</div></div>'
-  ).join('')||'<div class="sub">Nessuna operazione demo</div>';
+  ).join('')||'<div class="sub">Nessuna operazione MEME</div>';
 }
 async function loadMemeDemo(){
  const r=await fetch('/api/meme-demo',{cache:'no-store'}),d=await r.json();
- if(!r.ok||d.mode!=='DEMO_USD_PAPER')throw Error(d.error||'Sandbox non disponibile');
+ if(!r.ok||d.mode!=='MEME_EUR_PAPER')throw Error(d.error||'Portafoglio MEME non disponibile');
  renderMemeDemo(d);
 }
 $('meme-demo-refresh').addEventListener('click',async()=>{
- try{await loadMemeDemo();$('meme-demo-message').textContent='Saldo e posizioni locali aggiornati';}
+ try{await loadMemeDemo();$('meme-demo-message').textContent='Portafoglio MEME aggiornato';}
  catch(e){$('meme-demo-message').textContent='Errore: '+e.message}
 });
 async function executeMemeDemo(action,mint,button){
  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
- if(!confirm((action==='BUY'?'Aprire test da 3 crediti su ':'Chiudere test su ')+mint+'? Nessun ordine reale.'))return;
+ if(!confirm((action==='BUY'?'Aprire un acquisto virtuale da 3 € su ':'Vendere virtualmente la posizione su ')+mint+'? Nessun ordine reale.'))return;
  button.disabled=true;
  const info=$('meme-demo-message');
  // Show feedback beside the clicked token, not only in the panel above the table.
@@ -377,7 +379,7 @@ async function executeMemeDemo(action,mint,button){
    button.insertAdjacentElement('afterend',status);
  }
  info.textContent='Richiesta '+action+' ricevuta · recupero quotazione…';
- status.textContent='Controllo prezzo e registrazione demo…';
+ status.textContent='Controllo quotazione e cambio EUR/USD…';
  try{
    const r=await fetch('/api/meme-demo-trade?action='+action+'&address='+encodeURIComponent(mint),
      {method:'POST',headers:{'X-NEXUS-Demo-Click':'1'},cache:'no-store'});
@@ -387,9 +389,9 @@ async function executeMemeDemo(action,mint,button){
    const extra=d.trade.warnings&&d.trade.warnings.length?' · Avvisi: '+d.trade.warnings.join('; '):'';
    const source=d.trade.quote_source?' · '+d.trade.quote_source:'';
    info.textContent='Operazione virtuale '+action+' registrata'+
-     (action==='SELL'?' · P/L '+usdDemo(d.trade.pnl_usd):' · importo '+usdDemo(d.trade.cost_usd))+
+     (action==='SELL'?' · P/L '+usdDemo(d.trade.pnl_eur):' · importo '+usdDemo(d.trade.cost_eur))+
      source+extra+' · Nessuna transazione blockchain.';
-   status.textContent='✓ Test '+action+' registrato. Dettagli nel pannello Quick Trade sopra.';
+   status.textContent='✓ Operazione MEME virtuale '+action+' registrata nel portafoglio da 45 €.';
    status.classList.remove('red');status.classList.add('green');
    $('meme-quick-panel').scrollIntoView({block:'start',behavior:'smooth'});
  }catch(e){
@@ -405,7 +407,7 @@ $('meme-rows').addEventListener('click',event=>{
 $('meme-demo-positions').addEventListener('click',event=>{
  const b=event.target.closest('.meme-demo-sell');if(b)executeMemeDemo('SELL',b.dataset.mint,b);
 });
-loadMemeDemo().catch(e=>{$('meme-demo-message').textContent='Sandbox demo non disponibile: '+e.message});
+loadMemeDemo().catch(e=>{$('meme-demo-message').textContent='Portafoglio MEME non disponibile: '+e.message});
 $('meme-scan').addEventListener('click',async()=>{
   const button=$('meme-scan'),info=$('meme-message'),body=$('meme-rows');
   button.disabled=true;info.textContent='Richiesta manuale DEX Screener in corso…';
@@ -418,7 +420,7 @@ $('meme-scan').addEventListener('click',async()=>{
     body.innerHTML=data.candidates.length?data.candidates.map(t=>{
       const warnings=(t.warnings||[]).join('; ')||'Nessun avviso di mercato, sicurezza comunque non verificata';
       const link=t.url?'<a href="'+esc(t.url)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">DEX Screener</a>':'—';
-      return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div><button class="btn meme-quick-btn" style="display:block;margin-top:8px" data-mint="'+esc(t.address)+'" type="button">⚡ Test 3 crediti</button></td>'+
+      return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div><button class="btn meme-quick-btn" style="display:block;margin-top:8px" data-mint="'+esc(t.address)+'" type="button">⚡ Compra 3 € virtuali</button></td>'+
         '<td>'+esc(money(t.price_usd))+'</td><td>'+esc(money(t.liquidity_usd))+'</td><td>'+esc(money(t.volume_24h_usd))+'</td><td>'+esc(age(t.pool_age_hours))+'</td>'+
         '<td><span class="red">NON VERIFICATO</span><div class="sub">'+esc(warnings)+'</div></td><td><button class="btn meme-risk-btn" data-mint="'+esc(t.address)+'" type="button">Controlla</button><span class="meme-analysis-result">Da verificare</span></td><td><button class="btn meme-whale-btn" data-mint="'+esc(t.address)+'" type="button">Analizza</button><span class="meme-analysis-result">Da verificare</span></td><td>'+link+'</td></tr>'
     }).join(''):'<tr><td colspan="9" class="muted">Nessuna coppia Solana valida nel campione di profili disponibile</td></tr>';
