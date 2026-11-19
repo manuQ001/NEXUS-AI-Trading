@@ -2,12 +2,39 @@ import sys, unittest, json
 from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from agents import review, local_ai_advice, attach_market_quality
+from agents import review, local_ai_advice, attach_market_quality, assess_signal_evidence
 
 class TestAgents(unittest.TestCase):
     def setUp(self):
         self.candles=[{'time':1700000000+i*300,'close':100.0} for i in range(100)]
         self.indicator={'buy':True,'atr':1.2,'why':'TEST'}
+    def test_intelligence_is_descriptive_and_read_only(self):
+        initial=repr(self.candles)
+        ind=dict(self.indicator,ema9=102.,ema21=101.,rsi=60.)
+        report=assess_signal_evidence(self.candles,ind)
+        self.assertEqual(report['mode'],'READ ONLY / DESCRIPTIVE')
+        self.assertEqual(report['positive_checks'],4)
+        self.assertEqual(report['known_checks'],4)
+        self.assertEqual(report['uncertainty'],'LIMITED')
+        self.assertEqual(repr(self.candles),initial)
+        self.assertIn('Non misura probabilità',report['limitations'][-1])
+    def test_intelligence_missing_indicators_marks_unknown(self):
+        report=review('BTC',self.candles,self.indicator)
+        intelligence=report['intelligence']
+        self.assertEqual(intelligence['uncertainty'],'HIGH')
+        self.assertTrue(any(x['status']=='UNKNOWN' for x in intelligence['evidence']))
+        self.assertEqual(len(report['agents']),8)
+    def test_intelligence_never_overrides_risk_or_wait(self):
+        ind={'buy':False,'atr':1.,'ema9':105.,'ema21':100.,'rsi':60.,'why':'WAIT'}
+        report=review('BTC',self.candles,ind)
+        self.assertEqual(report['proposal'],'WAIT')
+        self.assertFalse(report['paper_candidate'])
+        blocked=review('BTC',self.candles,dict(ind,buy=True),daily_realized=-4)
+        self.assertTrue(blocked['risk_veto'])
+        self.assertFalse(blocked['paper_candidate'])
+    def test_intelligence_rejects_missing_candles(self):
+        with self.assertRaises(ValueError):
+            assess_signal_evidence([],self.indicator)
     def test_book_pass_only_advisory(self):
         original=review('BTC',self.candles,self.indicator)
         quality={'status':'PASS','reasons':[],'spread_bps':8.0,'bid_ask_drift_bps':2.0,'request_ms_second':120,'observed_at':1700000000}
