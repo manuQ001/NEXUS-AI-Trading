@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from execution import execution_price, execution_fee, sell_settlement
+from execution import execution_price, execution_fee, sell_settlement, hypothetical_partial_fill
 
 
 class TestExecution(unittest.TestCase):
@@ -24,6 +24,38 @@ class TestExecution(unittest.TestCase):
         self.assertAlmostEqual(result['price'],109.945)
         self.assertAlmostEqual(result['exit_fee'],2*109.945*.0025)
         self.assertAlmostEqual(result['pnl'],result['net_proceeds']-200.5)
+    def test_hypothetical_no_liquidity_means_no_fill(self):
+        f=hypothetical_partial_fill('BUY',2,100,0)
+        self.assertEqual(f['status'],'NO_FILL')
+        self.assertEqual(f['filled_qty'],0)
+        self.assertEqual(f['unfilled_qty'],2)
+        self.assertIsNone(f['price'])
+    def test_hypothetical_partial_fill_and_conservation(self):
+        f=hypothetical_partial_fill('BUY',10,100,20,participation_rate=.1,
+                                     spread_bps=10,slippage_bps=5,latency_bps=5)
+        self.assertEqual(f['status'],'PARTIAL')
+        self.assertAlmostEqual(f['filled_qty'],2)
+        self.assertAlmostEqual(f['unfilled_qty'],8)
+        self.assertAlmostEqual(f['filled_qty']+f['unfilled_qty'],10)
+        self.assertAlmostEqual(f['price'],100.15)
+        self.assertAlmostEqual(f['fee'],f['gross']*.0025)
+    def test_hypothetical_sell_side_adverse(self):
+        f=hypothetical_partial_fill('SELL',1,100,100,spread_bps=10,
+                                    slippage_bps=5,latency_bps=5)
+        self.assertEqual(f['status'],'FILLED')
+        self.assertAlmostEqual(f['price'],99.85)
+    def test_hypothetical_scarcity_cannot_improve_fill(self):
+        a=hypothetical_partial_fill('BUY',1,100,1)
+        b=hypothetical_partial_fill('BUY',1,100,10)
+        self.assertLessEqual(a['filled_qty'],b['filled_qty'])
+    def test_hypothetical_invalid_assumptions_fail_closed(self):
+        for kw in ({'available_quantity':-1}, {'spread_bps':float('nan')},
+                   {'latency_bps':10000}, {'participation_rate':1},
+                   {'available_quantity':float('inf')}):
+            kwargs={'side':'BUY','requested_quantity':1,'midpoint':100,'available_quantity':10}
+            kwargs.update(kw)
+            with self.assertRaises(ValueError):
+                hypothetical_partial_fill(**kwargs)
     def test_rejects_invalid_rates_and_prices(self):
         for bad in (0,-1,float('nan'),float('inf')):
             with self.subTest(value=bad):
