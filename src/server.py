@@ -1,5 +1,5 @@
 """Local dashboard server, no third-party packages or external-order execution."""
-import json, sys, threading, webbrowser, time
+import json, sys, threading, webbrowser, time, sqlite3
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -200,7 +200,7 @@ class Handler(BaseHTTPRequestHandler):
                 except (OSError,ValueError,TypeError) as exc:
                     advice['research_journal']={'saved':False,
                         'reason':'JOURNAL_UNAVAILABLE','error_type':type(exc).__name__}
-                except __import__('sqlite3').Error:
+                except sqlite3.Error:
                     advice['research_journal']={'saved':False,
                         'reason':'JOURNAL_UNAVAILABLE','error_type':'DatabaseError'}
             self.out({'ok':True,'advice':advice})
