@@ -36,7 +36,7 @@ class TestExternalAI(unittest.TestCase):
     def tearDown(self):
         external_ai._calls=0
     def test_disabled_without_model_and_key_never_connects(self):
-        with patch.dict('os.environ',{},clear=True),patch('external_ai.urllib.request.urlopen') as http:
+        with patch.dict('os.environ',{},clear=True),patch('external_ai.urllib.request.build_opener') as http:
             result=external_ai.external_ai_advice(self.report)
             self.assertEqual(result['status'],'disabled')
             http.assert_not_called()
@@ -48,7 +48,8 @@ class TestExternalAI(unittest.TestCase):
         def fake_urlopen(req,timeout=None):
             captured.append(req)
             return FakeResponse(response_json())
-        with patch('external_ai.urllib.request.urlopen',side_effect=fake_urlopen):
+        with patch('external_ai.urllib.request.build_opener') as build:
+            build.return_value.open.side_effect=fake_urlopen
             result=external_ai.external_ai_advice(report,model='gpt-4.1-mini',
                                                    api_key='sk-testing-token-123456')
         self.assertEqual(result['status'],'advisory_only')
@@ -67,7 +68,9 @@ class TestExternalAI(unittest.TestCase):
         self.assertNotIn('sk-testing-token-123456',str(result))
         self.assertEqual(external_ai._calls,1)
     def test_session_limit_is_five_calls(self):
-        with patch('external_ai.urllib.request.urlopen',return_value=FakeResponse(response_json())) as http:
+        with patch('external_ai.urllib.request.build_opener') as build:
+            http=build.return_value.open
+            http.return_value=FakeResponse(response_json())
             for _ in range(5):
                 self.assertTrue(external_ai.external_ai_advice(
                     self.report,model='gpt-4.1-mini',api_key='sk-testing-token-123456')['available'])
@@ -76,26 +79,32 @@ class TestExternalAI(unittest.TestCase):
         self.assertEqual(last['status'],'session_limit')
         self.assertEqual(http.call_count,5)
     def test_schema_failure_never_authorizes(self):
-        with patch('external_ai.urllib.request.urlopen',return_value=FakeResponse(response_json(buy='BUY NOW'))):
+        with patch('external_ai.urllib.request.build_opener') as build:
+            build.return_value.open.return_value=FakeResponse(response_json(buy='BUY NOW'))
             result=external_ai.external_ai_advice(self.report,model='gpt-4.1-mini',
                                                   api_key='sk-testing-token-123456')
         self.assertFalse(result['available'])
         self.assertEqual(result['status'],'unavailable')
     def test_http_exception_sanitized_and_counted(self):
-        with patch('external_ai.urllib.request.urlopen',side_effect=OSError('sensitive error string')):
+        with patch('external_ai.urllib.request.build_opener') as build:
+            build.return_value.open.side_effect=OSError('sensitive error string')
             result=external_ai.external_ai_advice(self.report,model='gpt-4.1-mini',
                                                   api_key='sk-testing-token-123456')
         self.assertNotIn('sensitive',str(result))
         self.assertEqual(result['status'],'unavailable')
         self.assertEqual(external_ai._calls,1)
     def test_redirect_is_refused(self):
-        with patch('external_ai.urllib.request.urlopen',
-                   return_value=FakeResponse(response_json(),url='https://other.example/')):
+        with patch('external_ai.urllib.request.build_opener') as build:
+            build.return_value.open.return_value=FakeResponse(response_json(),url='https://other.example/')
             result=external_ai.external_ai_advice(self.report,model='gpt-4.1-mini',
                                                   api_key='sk-testing-token-123456')
         self.assertEqual(result['status'],'unavailable')
+    def test_redirect_handler_does_not_forward_authorization(self):
+        handler=external_ai.NoRedirect()
+        self.assertIsNone(handler.redirect_request(
+            object(),None,302,'Found',{},'https://other.example'))
     def test_invalid_credential_does_not_connect(self):
-        with patch('external_ai.urllib.request.urlopen') as http:
+        with patch('external_ai.urllib.request.build_opener') as http:
             result=external_ai.external_ai_advice(self.report,model='https://bad.example',
                                                   api_key='sk-testing-token-123456')
             self.assertEqual(result['status'],'invalid_model')
