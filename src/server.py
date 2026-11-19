@@ -16,6 +16,10 @@ from maintenance import run_tests, check_updates, VERSION, ROOT
 from downloader import download_if_available, read_staged
 
 LOCK=threading.Lock()
+# Recent manual DEX Scout quote fallback for local USD-credit DEMO ONLY.
+# Bounded to 16 mints and 5 minutes. Never used by the BTC/ETH strategy.
+MEME_SCOUT_QUOTES={}
+MEME_SCOUT_TTL_SECONDS=300
 PAGE=(Path(__file__).parent/'dashboard.html').read_bytes()
 MAINTENANCE_REPORT=ROOT/'maintenance_status.json'
 # Local process state only: no credentials and no scheduled real orders.
@@ -112,7 +116,23 @@ class Handler(BaseHTTPRequestHandler):
             # Manual, bounded public-data research. No SQLite writes, no orders.
             try:
                 from meme_scout import scan
-                self.out(scan())
+                result=scan()
+                # Store only server-retrieved quotes, never prices from the browser.
+                from meme_scout import ADDRESS
+                with LOCK:
+                    MEME_SCOUT_QUOTES.clear()
+                    observed=time.time()
+                    for token in result.get('candidates',[])[:12]:
+                        mint=token.get('address')
+                        price=token.get('price_usd')
+                        if isinstance(mint,str) and ADDRESS.fullmatch(mint) and isinstance(price,(int,float)) and price>0:
+                            MEME_SCOUT_QUOTES[mint]={
+                                'quote':{'price_usd':price,'liquidity_usd':token.get('liquidity_usd'),
+                                         'volume_24h_usd':token.get('volume_24h_usd'),
+                                         'symbol':token.get('symbol')},
+                                'observed_at':observed
+                            }
+                self.out(result)
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
                 self.out({'ok':False,'mode':'READ_ONLY','meme_execution':'BLOCKED',
                           'error':'Fonte memecoin non disponibile o non valida: '+type(exc).__name__},503)
@@ -213,14 +233,28 @@ class Handler(BaseHTTPRequestHandler):
             if not ADDRESS.fullmatch(address) or action not in ('BUY','SELL'):
                 self.out({'ok':False,'error':'Mint o azione non validi'},400);return
             try:
-                # Read fresh indicative market quote outside DB mutex.
-                quote=indicative_quote(address)
+                # First try a current public quote; if unavailable, use a recent
+                # server-side Scout observation for DEMO only. No browser prices.
+                source='DEX Screener richiesta corrente'
+                try:
+                    quote=indicative_quote(address)
+                except (OSError,ValueError,TypeError,KeyError,TimeoutError) as quote_error:
+                    with LOCK:
+                        cached=MEME_SCOUT_QUOTES.get(address)
+                    if not cached or time.time()-cached['observed_at']>MEME_SCOUT_TTL_SECONDS:
+                        raise ValueError('Prezzo non disponibile: aggiorna Analizza Solana e riprova. ('+
+                                         type(quote_error).__name__+')')
+                    quote=dict(cached['quote'])
+                    source='MEME SCOUT: prezzo osservato negli ultimi 5 minuti (non live)'
                 with LOCK:
                     c=connect()
                     try:
                         outcome=quick_trade(c,address,action,quote)
                         state=demo_state(c);c.commit()
                     finally:c.close()
+                outcome['quote_source']=source
+                if source.startswith('MEME SCOUT'):
+                    outcome.setdefault('warnings',[]).append('Prezzo recente da Scout, non aggiornato al momento del click')
                 self.out({'ok':True,'trade':outcome,'account':state})
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError,sqlite3.Error) as exc:
                 self.out({'ok':False,'error':'Quick demo non eseguibile: '+str(exc)[:160]},400)
