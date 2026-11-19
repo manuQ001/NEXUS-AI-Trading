@@ -2,7 +2,7 @@
 import argparse, hashlib, json, shutil, sys, tempfile, zipfile, subprocess, time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
-FILES=['src/core.py','src/server.py','src/dashboard.html','src/selftest.py','src/maintenance.py','src/backtest.py','src/downloader.py','src/agents.py','tests/test_agents.py','tests/test_backtest.py','tests/test_core.py','tests/test_maintenance.py','tests/test_downloader.py','updater.py','README.md','updates.json']
+FILES=['src/core.py','src/server.py','src/dashboard.html','src/selftest.py','src/maintenance.py','src/backtest.py','src/downloader.py','src/agents.py','src/execution.py','tests/test_agents.py','tests/test_execution.py','tests/test_backtest.py','tests/test_core.py','tests/test_maintenance.py','tests/test_downloader.py','updater.py','README.md','updates.json']
 MAX_ZIP=5*1024*1024
 
 def sha256(path):
