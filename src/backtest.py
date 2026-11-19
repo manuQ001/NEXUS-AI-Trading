@@ -2,6 +2,7 @@
 from core import signal, atr, FEE, SLIPPAGE, RISK_PER_TRADE, DAILY_MAX, POSITION_FRACTION
 from datetime import datetime, timezone
 import math
+from execution import execution_price, execution_fee, sell_settlement
 
 def test_strategy(candles, starting_cash=105.0):
     if len(candles)<70: return {'ok':False,'error':'Servono almeno 70 candele chiuse','candles':len(candles)}
@@ -33,11 +34,11 @@ def test_strategy(candles, starting_cash=105.0):
                 raw=pos['target'];reason='TARGET'
             else:raw=None;reason=None
             if raw is not None:
-                out=raw*(1-SLIPPAGE)
-                proceeds=pos['qty']*out
-                exit_fee=proceeds*FEE
-                realized=proceeds-exit_fee-(pos['qty']*pos['entry']+pos['entry_fee'])
-                cash+=proceeds-exit_fee
+                fill=sell_settlement(pos['qty'],pos['entry'],pos['entry_fee'],raw,
+                                     fee_rate=FEE,slippage_rate=SLIPPAGE)
+                out=fill['price']
+                realized=fill['pnl']
+                cash+=fill['net_proceeds']
                 trades.append({'entry_time':pos['time'],'exit_time':c['time'],'entry':round(pos['entry'],6),'exit':round(out,6),'qty':pos['qty'],'pnl':round(realized,6),'exit_reason':reason})
                 daily_realized[day]=daily_realized.get(day,0)+realized
                 pos=None
@@ -49,11 +50,11 @@ def test_strategy(candles, starting_cash=105.0):
             elif daily_realized.get(day,0)<=-initial*DAILY_MAX:
                 blocked+=1
             else:
-                price=c['open']*(1+SLIPPAGE)
+                price=execution_price('BUY',c['open'],SLIPPAGE)
                 distance=max(sig['atr']*1.5,price*.003)
                 qty=min(initial*RISK_PER_TRADE/distance,cash*POSITION_FRACTION/(price*(1+FEE)))
                 if qty>0 and qty*price>=5:
-                    fee=qty*price*FEE;cash-=qty*price+fee
+                    fee=execution_fee(qty,price,FEE);cash-=qty*price+fee
                     pos={'qty':qty,'entry':price,'entry_fee':fee,'stop':price-distance,'target':price+2*distance,'time':c['time']}
                     # No exit on entry bar: conservative about fill/stop ordering in 5m OHLC.
                 else:blocked+=1
