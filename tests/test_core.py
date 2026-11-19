@@ -184,6 +184,21 @@ class TestCore(unittest.TestCase):
         candles=self.candles();process_candles(self.c,'BTC',candles)
         process_candles(self.c,'BTC',candles)
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
+    def test_entry_audit_persists_known_indicators_without_affecting_risk(self):
+        candles=self.candles()
+        ind={'buy':True,'why':'TEST BUY','atr':1.2,'ema9':142.2,'ema21':140.1,'rsi':59.2}
+        decision=try_buy(self.c,'BTC',candles,ind,quote_price=candles[-1]['close'])
+        self.assertTrue(decision['approved'])
+        row=self.c.execute('SELECT details FROM trades WHERE action="BUY"').fetchone()
+        self.assertIn('TEST BUY',row['details'])
+        self.assertIn('EMA9=142.2000',row['details'])
+        self.assertIn('EMA21=140.1000',row['details'])
+        self.assertIn('RSI=59.2000',row['details'])
+        self.assertIn('ATR=1.2000',row['details'])
+        self.assertIn('STOP=',row['details'])
+        self.assertIn('TARGET=',row['details'])
+        self.assertIn('RISK=approvato',row['details'])
+
     def test_buy_close_fee_and_pnl(self):
         cand=self.candles();ind={'buy':True,'atr':1.0,'why':'TEST'}
         try_buy(self.c,'BTC',cand,ind,quote_price=cand[-1]['close'])
