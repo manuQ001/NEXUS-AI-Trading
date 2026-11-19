@@ -42,7 +42,7 @@ class TestMemeAuto(unittest.TestCase):
         self.assertEqual(decide_exit(p,.01,50+900,FX['usd_eur']),'TIMEOUT_15M')
     def test_trailing_peak_persisted_and_sell_when_net_roi_reverses(self):
         trade(self.c,M,'BUY',Q,FX,now=100)
-        prices=[.012, .0114]
+        prices=[.0118, .0112]
         def quote(_):
             return dict(Q,price_usd=prices.pop(0))
         first=tick(self.c,now=110,scout=lambda:{'candidates':[]},quote=quote,fx_rate=fx)
