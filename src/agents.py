@@ -10,7 +10,7 @@ AGENT_NAMES=('SEARCH','HEAD OF DESK','RISK','SNIPER','EXIT','WHALE','RUG','SHILL
 
 
 def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
-           initial_capital=150.0, max_daily_loss=0.02, feed_ok=True):
+           initial_capital=150.0, max_daily_loss=0.02, feed_ok=True, core_cash=None):
     """Return a structured report on the latest closed candle.
 
     RISK is a hard veto. WHALE/SHILL are explicitly unavailable until real
@@ -32,6 +32,13 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
     if not math.isfinite(float(daily_realized)): blocked.append('PnL giornaliero non valido')
     elif daily_realized<=-initial_capital*max_daily_loss: blocked.append('Limite perdite giornaliere')
     if positions: blocked.append('Posizione già aperta')
+    if core_cash is not None:
+        try:
+            cash=float(core_cash)
+            if not math.isfinite(cash) or cash<105.0*.90:
+                blocked.append('Circuit breaker Core: disponibilità sotto il 90% iniziale')
+        except (ValueError,TypeError,OverflowError):
+            blocked.append('Disponibilità Core non valida')
     buy=indicator.get('buy') is True
     if not isinstance(indicator.get('atr'),(int,float)) or not math.isfinite(indicator.get('atr',0)) or indicator.get('atr',0)<=0:
         if buy:blocked.append('Volatilità non validata')
@@ -42,7 +49,7 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
         ('SEARCH','signal' if buy else 'wait',indicator.get('why','Segnale non disponibile')),
         ('HEAD OF DESK','paper_buy_candidate' if approved else ('veto' if buy else 'wait'),
          'Candidato PAPER soltanto: soggetto a verifica RISK' if approved else ('Veto RISK' if buy else 'Nessun ingresso proposto')),
-        ('RISK','approved' if risk_ok else 'blocked',', '.join(blocked) if blocked else 'Limiti preliminari rispettati'),
+        ('RISK','preliminary_ok' if risk_ok else 'blocked',', '.join(blocked) if blocked else 'Solo controlli preliminari: restano necessari ask e valutazione definitiva prima di ogni BUY PAPER'),
         ('SNIPER','paper_ready' if approved else 'idle','Nessun ordine inviato dal protocollo di analisi'),
         ('EXIT','monitor' if positions else 'idle','Uscite gestite separatamente da stop e target nel motore paper'),
         ('WHALE','unavailable','Dati wallet non collegati: nessuna analisi whale'),
@@ -53,7 +60,7 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
             'paper_candidate':approved,'risk_veto':not risk_ok,
             'agents':[{'name':name,'status':status,'reason':reason} for name,status,reason in report],
             'mode':'READ ONLY / PAPER ONLY',
-            'note':'Opinioni a regole, non agenti LLM. La decisione non esegue ordini e non scavalca try_buy.'}
+            'note':'Opinioni a regole, non agenti LLM. La valutazione preliminare non autorizza ordini e non scavalca il veto definitivo in try_buy.'}
 
 
 def local_ai_advice(report, model=None, timeout=25):
