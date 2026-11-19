@@ -218,3 +218,83 @@ def sniper_book_preview(book, *, order_eur=25.0, participation_rate=0.10,
         'mode':'READ ONLY / MIXED OBSERVED DEPTH + HYPOTHETICAL COSTS',
         'warning':'Book osservato, ma quota di partecipazione, slippage e movimento nel ritardo sono ipotesi. Nessun fill garantito, nessun ordine inviato.'
     }
+
+
+def assess_exit_bar(candle, stop, target, *, allow_target=True):
+    """Conservative exit resolution for a COMPLETED OHLC bar.
+
+    With only OHLC there is no ordering of high/low inside a bar:
+    if both are touched, STOP wins. Gap down through stop uses the
+    bar open; favourable gap up through target is capped at target.
+    When historical bars are missing, callers can disable target exits
+    rather than inferring a profitable exit across an unknown interval.
+    This is a pure paper/backtest decision, not a market order.
+    """
+    if not isinstance(candle,dict):
+        raise ValueError('Candela non valida')
+    opening=_positive_finite(candle.get('open'),'Open')
+    high=_positive_finite(candle.get('high'),'High')
+    low=_positive_finite(candle.get('low'),'Low')
+    stop=_positive_finite(stop,'Stop')
+    target=_positive_finite(target,'Target')
+    if not low<=opening<=high or stop>=target:
+        raise ValueError('Dati OHLC o soglie incoerenti')
+    stop_hit=low<=stop
+    target_hit=high>=target
+    if stop_hit:
+        raw=min(stop,opening)
+        return {'reference':raw,'reason':'Stop loss',
+                'ambiguous_both_touched':target_hit,
+                'gap_through_stop':opening<stop,
+                'target_suppressed':False,
+                'evidence':'OHLC_BAR_CONSERVATIVE'}
+    if target_hit and allow_target:
+        return {'reference':target,'reason':'Take profit',
+                'ambiguous_both_touched':False,
+                'gap_through_stop':False,
+                'target_suppressed':False,
+                'evidence':'OHLC_BAR_CONSERVATIVE'}
+    return {'reference':None,'reason':None,
+            'ambiguous_both_touched':False,
+            'gap_through_stop':False,
+            'target_suppressed':bool(target_hit and not allow_target),
+            'evidence':'OHLC_BAR_CONSERVATIVE'}
+
+
+def assess_exit_ticks(ticks, opened_at, stop, target):
+    """Read-only chronological tick replay, for later verified-tick research.
+
+    Ticks must be sorted [(unix_timestamp, traded_price),...].
+    This NEVER pulls real trades or mutates the paper engine.
+    It rejects out-of-order observations and discards pre-entry ticks.
+    Trade prints do NOT guarantee an order's executable bid/ask.
+    """
+    stop=_positive_finite(stop,'Stop')
+    target=_positive_finite(target,'Target')
+    if stop>=target:raise ValueError('Soglie incoerenti')
+    if not isinstance(ticks,(list,tuple)) or len(ticks)>10000:
+        raise ValueError('Tick non validi')
+    try: entry=float(opened_at)
+    except (TypeError,ValueError,OverflowError) as exc:
+        raise ValueError('Ingresso non valido') from exc
+    if not math.isfinite(entry) or entry<=0:raise ValueError('Ingresso non valido')
+    prev=-math.inf
+    for item in ticks:
+        if not isinstance(item,(tuple,list)) or len(item)!=2:
+            raise ValueError('Tick malformato')
+        try: stamp=float(item[0])
+        except (TypeError,ValueError,OverflowError) as exc:
+            raise ValueError('Ora tick non valida') from exc
+        price=_positive_finite(item[1],'Prezzo tick')
+        if not math.isfinite(stamp) or stamp<=0 or stamp<prev:
+            raise ValueError('Tick non ordinati o non validi')
+        prev=stamp
+        if stamp<entry:continue
+        if price<=stop:
+            return {'reason':'Stop loss','observed_price':price,'observed_at':stamp,
+                    'evidence':'TRADE_PRINT_ONLY_NOT_EXECUTABLE'}
+        if price>=target:
+            return {'reason':'Take profit','observed_price':price,'observed_at':stamp,
+                    'evidence':'TRADE_PRINT_ONLY_NOT_EXECUTABLE'}
+    return {'reason':None,'observed_price':None,'observed_at':None,
+            'evidence':'TRADE_PRINT_ONLY_NOT_EXECUTABLE'}
