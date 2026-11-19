@@ -42,6 +42,28 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
 .workspace-view .panel{border-radius:16px}
 @media(max-width:750px){.desk-nav a{flex:1 1 30%}.workspace-view{min-height:48vh}}
 @media(prefers-reduced-motion:reduce){.workspace-view{animation:none}.desk-nav a{transition:none}}
+
+/* Meme Hunter compact data grid and independent detail dialog */
+#meme-hunter .scroll{max-height:500px}
+#meme-hunter .dataTable td{vertical-align:middle}
+#meme-hunter .dataTable td:nth-child(6){max-width:210px;white-space:normal}
+#meme-hunter .dataTable td:nth-child(6) .sub{font-size:11px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.meme-analysis-result{display:block;margin-top:6px;font-size:10px;color:var(--muted);max-width:155px}
+.meme-risk-btn,.meme-whale-btn{white-space:nowrap;padding:7px 10px;font-size:12px}
+.meme-dialog{color:var(--text);border:1px solid #4c6481;background:#101c2b;padding:0;border-radius:18px;box-shadow:0 24px 80px #000b;width:min(600px,calc(100vw - 24px));max-height:min(85dvh,850px);overflow:hidden}
+.meme-dialog::backdrop{background:#030912c7;backdrop-filter:blur(6px)}
+.meme-dialog-head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 18px;border-bottom:1px solid var(--line);background:#16283e}
+.meme-dialog-title{font-size:17px;font-weight:850}
+.meme-dialog-content{overflow:auto;max-height:calc(85dvh - 125px);padding:18px}
+.meme-summary{border:1px solid #46536a;border-radius:12px;background:#1a293a;padding:12px 14px;margin:12px 0}
+.meme-checks{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.meme-check{border:1px solid #2d4057;background:#112136;border-radius:10px;padding:9px}
+.meme-check .sub{font-size:11px}
+.meme-dialog details{margin-top:13px;border-top:1px solid var(--line);padding-top:12px}
+.meme-dialog summary{cursor:pointer;font-weight:750;color:var(--blue)}
+.meme-dialog ul{margin:7px 0;padding-left:19px}
+.meme-dialog li{margin:5px 0}
+@media(max-width:480px){.meme-checks{grid-template-columns:1fr}.meme-dialog-content{padding:12px}}
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> <small style="font-weight:400;color:#7895b2">2.7</small></div><div class="sub">AUTONOMOUS TRADING DESK • LOCAL EDITION</div></div><div class="flex"><span class="chip">● PAPER ONLY • €150</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav" aria-label="Vai alla sezione"><a href="#overview">◎ Panoramica</a><a href="#market">◈ Mercato</a><a href="#agents-section">◆ Agenti</a><a href="#meme-section">◉ Meme Hunter</a><a href="#performance-section">▥ Performance</a><a href="#history-section">▤ Storico</a><a href="#lab-section">⚙ Laboratorio</a></nav>
 <section class="workspace-view" data-view="overview" id="workspace-overview">
@@ -70,6 +92,13 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
   <div class="desk-state" style="margin-top:14px"><div><strong>RUG GUARD 2.0 · Controlli GoPlus su richiesta</strong><div class="sub">Mint, freeze e funzioni token da GoPlus; concentrazione dei token account tramite WHALE. Honeypot, vendibilità e liquidità bloccata restano non verificati.</div></div><span class="state-label bad">ACQUISTI BLOCCATI</span></div>
   <div id="meme-message" class="sub" role="status" style="margin:12px 0">Premi Analizza Solana per richiedere i dati pubblici. Nessun monitoraggio automatico.</div>
   <div class="scroll"><table class="dataTable"><thead><tr><th>Token</th><th>Prezzo USD</th><th>Liquidità USD</th><th>Volume 24h</th><th>Pool</th><th>Rischi / dati mancanti</th><th>RUG GUARD</th><th>WHALE TRACKER</th><th>Fonte</th></tr></thead><tbody id="meme-rows"><tr><td colspan="9" class="muted">Ricerca non eseguita</td></tr></tbody></table></div>
+  <dialog id="meme-analysis-dialog" class="meme-dialog" aria-labelledby="meme-analysis-heading">
+    <div class="meme-dialog-head">
+      <div><div class="meme-dialog-title" id="meme-analysis-heading">Analisi del token</div><div class="sub" id="meme-dialog-subtitle">Verifiche esterne, solo lettura</div></div>
+      <button type="button" class="btn" id="meme-dialog-close" aria-label="Chiudi analisi">✕ Chiudi</button>
+    </div>
+    <div id="meme-dialog-content" class="meme-dialog-content" role="status">In attesa di dati</div>
+  </dialog>
   <p class="sub" style="margin-top:12px">RUG utilizza GoPlus; WHALE consulta gli account token più grandi tramite RPC Solana. SHILL non ha ancora fonti social collegate. Token account e wallet non sono la stessa cosa. Un'elevata liquidità non prova che il token sia sicuro. Budget MEME virtuale €45, nessun ordine autorizzato.</p>
 </section>
 </section>
@@ -256,7 +285,7 @@ async function backtest(asset){const btns=[$('run-backtest'),$('run-eth')];btns.
       const link=t.url?'<a href="'+esc(t.url)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">DEX Screener</a>':'—';
       return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div></td>'+
         '<td>'+esc(money(t.price_usd))+'</td><td>'+esc(money(t.liquidity_usd))+'</td><td>'+esc(money(t.volume_24h_usd))+'</td><td>'+esc(age(t.pool_age_hours))+'</td>'+
-        '<td><span class="red">NON VERIFICATO</span><div class="sub">'+esc(warnings)+'</div></td><td><button class="btn meme-risk-btn" data-mint="'+esc(t.address)+'" type="button">Controlla</button><div class="meme-risk-result sub" style="margin-top:8px">GoPlus: non richiesto</div></td><td><button class="btn meme-whale-btn" data-mint="'+esc(t.address)+'" type="button">Analizza</button><div class="meme-whale-result sub" style="margin-top:8px">Solana RPC: non richiesto</div></td><td>'+link+'</td></tr>'
+        '<td><span class="red">NON VERIFICATO</span><div class="sub">'+esc(warnings)+'</div></td><td><button class="btn meme-risk-btn" data-mint="'+esc(t.address)+'" type="button">Controlla</button><span class="meme-analysis-result">Da verificare</span></td><td><button class="btn meme-whale-btn" data-mint="'+esc(t.address)+'" type="button">Analizza</button><span class="meme-analysis-result">Da verificare</span></td><td>'+link+'</td></tr>'
     }).join(''):'<tr><td colspan="9" class="muted">Nessuna coppia Solana valida nel campione di profili disponibile</td></tr>';
     info.textContent='Campione '+data.sampled_profiles+' profili · '+data.candidates.length+' coppie visualizzate · '+new Date(data.observed_at*1000).toLocaleTimeString('it-IT')+' · '+data.warning;
   }catch(e){
@@ -264,49 +293,79 @@ async function backtest(asset){const btns=[$('run-backtest'),$('run-eth')];btns.
     body.innerHTML='<tr><td colspan="9" class="muted">Non sono disponibili dati verificati per questa richiesta</td></tr>';
   }finally{button.disabled=false}
 });
-$('meme-rows').addEventListener('click',async(event)=>{
-  const b=event.target.closest('.meme-whale-btn');
-  if(!b)return;
-  const mint=b.dataset.mint,output=b.parentElement.querySelector('.meme-whale-result');
+// Inspectors render into a bounded dialog, not into the table row.
+const memeDialog=$('meme-analysis-dialog');
+const memeDialogContent=$('meme-dialog-content');
+$('meme-dialog-close').addEventListener('click',()=>memeDialog.close());
+memeDialog.addEventListener('click',event=>{if(event.target===memeDialog)memeDialog.close()});
+let memeRequestId=0;
+function memeDetailTitle(kind,mint){
+  $('meme-analysis-heading').textContent=kind==='rug'?'RUG GUARD 2.0':'WHALE TRACKER 1.0';
+  $('meme-dialog-subtitle').textContent='Mint '+mint.slice(0,7)+'…'+mint.slice(-6)+' · SOLO ANALISI';
+}
+function memeOpenDetail(kind,mint){
+  memeDetailTitle(kind,mint);
+  memeDialogContent.textContent='Richiesta dati in corso…';
+  if(!memeDialog.open)memeDialog.showModal();
+}
+function memeList(items){
+  return '<ul>'+items.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>';
+}
+function memeRugDetail(d){
+  const checks=(d.checks||[]).map(c=>
+    '<div class="meme-check"><div class="sub">'+esc(c.label)+'</div><b class="'+(c.status==='PRESENTE'?'red':'')+'">'+esc(c.status)+'</b></div>'
+  ).join('');
+  return '<div class="meme-summary"><b class="red">'+esc(d.status)+'</b>'+
+    '<div class="sub">Nessuna approvazione di sicurezza o acquisto</div></div>'+
+    '<div class="meme-checks">'+checks+'</div>'+
+    '<div class="meme-summary">Concentrazione primi 10 holder (GoPlus): <b>'+
+      (d.top10_holder_pct==null?'non disponibile':esc(d.top10_holder_pct)+'%')+'</b></div>'+
+    '<details><summary>Rischi rilevati ('+(d.findings||[]).length+')</summary>'+
+      memeList(d.findings&&d.findings.length?d.findings:['Nessun flag nei campi letti: NON significa sicuro'])+'</details>'+
+    '<details><summary>Dati mancanti ('+(d.missing||[]).length+')</summary>'+
+      memeList(d.missing&&d.missing.length?d.missing:['Nessun dato mancante nei campi letti'])+'</details>'+
+    '<details><summary>Limiti e nota della fonte</summary><p class="sub">'+esc(d.warning)+'</p></details>'+
+    '<p class="red small">ACQUISTI MEMECOIN BLOCCATI</p>';
+}
+function memeWhaleDetail(d){
+  const n=v=>Number(v).toFixed(2)+'%';
+  const rows=(d.accounts||[]).map((a,i)=>
+    '<li>#'+(i+1)+' '+esc(a.address.slice(0,6)+'…'+a.address.slice(-4))+
+    ' · '+esc(n(a.percentage_supply))+' · owner '+esc(a.owner?a.owner.slice(0,7)+'…'+a.owner.slice(-5):'non disponibile')+'</li>'
+  ).join('');
+  return '<div class="meme-summary"><b class="'+(d.top10_token_accounts_pct>=60?'red':'')+'">Top 10 token account: '+
+    esc(n(d.top10_token_accounts_pct))+'</b><div>Top 20 token account: '+esc(n(d.top20_token_accounts_pct))+'</div>'+
+    '<div class="sub">Owner nei principali account: '+(d.owners_resolved?'osservati':'non disponibili')+'</div></div>'+
+    '<p class="sub">Token account ≠ singolo wallet. Pool, exchange e custodi non sono esclusi dal calcolo.</p>'+
+    '<details><summary>Account e proprietari ('+(d.accounts||[]).length+')</summary><ul>'+rows+'</ul></details>'+
+    '<details><summary>Avvisi e limitazioni</summary>'+memeList(d.warnings||[])+
+      '<p class="sub">'+esc(d.warning)+'</p></details>'+
+    '<p class="red small">ACQUISTI MEMECOIN BLOCCATI</p>';
+}
+$('meme-rows').addEventListener('click',async event=>{
+  const button=event.target.closest('.meme-risk-btn,.meme-whale-btn');
+  if(!button)return;
+  const mint=button.dataset.mint;
   if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
-  b.disabled=true;output.textContent='Lettura account Solana in corso…';
+  const rug=button.classList.contains('meme-risk-btn'),kind=rug?'rug':'whale';
+  const status=button.parentElement.querySelector('.meme-analysis-result');
+  const requestId=++memeRequestId;
+  button.disabled=true;
+  memeOpenDetail(kind,mint);
   try{
-    const res=await fetch('/api/meme-whales?address='+encodeURIComponent(mint),{cache:'no-store'});
-    const d=await res.json();
-    if(!res.ok||!d.ok)throw Error(d.error||'RPC non disponibile');
-    const p=v=>Number(v).toFixed(2)+'%';
-    output.innerHTML='<b class="'+(d.top10_token_accounts_pct>=60?'red':'')+'">'+
-      'Top 10 TOKEN ACCOUNT: '+esc(p(d.top10_token_accounts_pct))+'</b>'+
-      '<div>Top 20 account: '+esc(p(d.top20_token_accounts_pct))+'</div>'+
-      '<div>Proprietari: '+(d.owners_resolved?'osservati sui principali account':'non disponibili')+'</div>'+
-      '<div class="sub">'+esc((d.warnings||[]).join('; '))+'</div>'+
-      '<details><summary style="cursor:pointer;color:var(--blue)">Dettaglio account e owner</summary>'+
-      (d.accounts||[]).map((a,i)=>'<div style="margin:5px 0">#'+(i+1)+' '+esc(a.address.slice(0,6))+'…'+esc(a.address.slice(-4))+
-        ' · '+esc(p(a.percentage_supply))+' · owner '+esc(a.owner?a.owner.slice(0,6)+'…'+a.owner.slice(-4):'non risolto')+'</div>').join('')+
-      '<div class="sub">'+esc(d.warning)+'</div></details>'+
-      '<div class="red">Solo analisi · acquisti bloccati</div>';
-  }catch(e){output.textContent='NON VERIFICATO · '+e.message+' · nessun acquisto autorizzato';}
-  finally{b.disabled=false}
-});
-$('meme-rows').addEventListener('click',async(event)=>{
-  const b=event.target.closest('.meme-risk-btn');
-  if(!b)return;
-  const mint=b.dataset.mint,output=b.parentElement.querySelector('.meme-risk-result');
-  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
-  b.disabled=true;output.textContent='Verifica GoPlus in corso…';
-  try{
-    const response=await fetch('/api/meme-risk?address='+encodeURIComponent(mint),{cache:'no-store'});
-    const result=await response.json();
-    if(!response.ok||!result.ok)throw Error(result.error||'Fonte non disponibile');
-    const lines=(result.checks||[]).map(c=>esc(c.label)+': '+esc(c.status)).join(' · ');
-    output.innerHTML='<b class="red">'+esc(result.status)+'</b>'+
-      '<div>'+lines+'</div>'+
-      '<div>Primi 10 holder: '+(result.top10_holder_pct==null?'dato mancante':esc(result.top10_holder_pct)+'%')+'</div>'+
-      '<div class="red">'+esc(result.findings.length?result.findings.join('; '):'Nessun flag nei campi restituiti: NON equivale a sicuro')+'</div>'+
-      '<div>Dati mancanti: '+esc(result.missing.length?result.missing.join('; '):'nessuno per i campi letti')+'</div>'+
-      '<div>'+esc(result.warning)+'</div>';
-  }catch(e){output.textContent='NON VERIFICATO · '+e.message+' · nessun acquisto autorizzato';}
-  finally{b.disabled=false}
+    const endpoint=rug?'/api/meme-risk?address=':'/api/meme-whales?address=';
+    const response=await fetch(endpoint+encodeURIComponent(mint),{cache:'no-store'});
+    const d=await response.json();
+    if(!response.ok||!d.ok)throw Error(d.error||'Dati non disponibili');
+    if(requestId!==memeRequestId)return;
+    memeDialogContent.innerHTML=rug?memeRugDetail(d):memeWhaleDetail(d);
+    status.textContent=rug?d.status:'Top 10: '+Number(d.top10_token_accounts_pct).toFixed(1)+'%';
+    status.className='meme-analysis-result '+(rug&&d.status==='RISCHI_RILEVATI'||!rug&&d.top10_token_accounts_pct>=60?'red':'');
+  }catch(e){
+    if(requestId!==memeRequestId)return;
+    memeDialogContent.textContent='NON VERIFICATO · '+e.message+' · Nessun acquisto autorizzato.';
+    status.textContent='Non verificato';
+  }finally{button.disabled=false}
 });
 $('orderbook-study').addEventListener('click',async()=>{const b=$('orderbook-study');b.disabled=true;$('orderbook-result').textContent='Richiedo book pubblico Kraken…';try{const response=await fetch('/api/orderbook-study?symbol='+symbol);const x=await response.json();if(!response.ok||!x.ok)throw Error(x.error||'Book non disponibile');const a=x.report;$('orderbook-result').innerHTML='<b>'+esc(a.symbol)+' · spread osservato '+esc(a.spread_bps.toFixed(2))+' bps · '+new Date(a.observed_at*1000).toLocaleTimeString('it-IT')+'</b><div class="event">Best bid '+fmt(a.best_bid)+' · best ask '+fmt(a.best_ask)+'</div>'+[['BUY',a.buy],['SELL',a.sell]].map(v=>'<div class="event"><b>'+v[0]+'</b> · '+esc(v[1].status)+' · quantità coperta '+esc(v[1].filled_pct.toFixed(1))+'% · VWAP '+fmt(v[1].vwap)+' · commissione stimata '+fmt(v[1].estimated_fee_eur)+'</div>').join('')+'<div class="event"><b>Controllo qualità: '+esc(a.quality.status)+'</b> · HTTP '+esc(a.quality.request_ms_first)+' / '+esc(a.quality.request_ms_second)+' ms · oscillazione bid/ask '+esc(a.quality.bid_ask_drift_bps)+' bps · età ricezione '+esc(a.quality.age_seconds)+' s</div><div class="sub">'+esc(a.quality.reasons.length?a.quality.reasons.join('; '):'Verifiche locali superate (nessuna garanzia di eseguibilità)')+'</div><p class="sub">'+esc(a.quality.warning)+'</p><p class="sub">'+esc(a.warning)+'</p>'}catch(e){$('orderbook-result').textContent='Book non disponibile: '+e.message}finally{b.disabled=false}});$('execution-study').addEventListener('click',async()=>{const b=$('execution-study');b.disabled=true;$('execution-study-result').textContent='Calcolo scenari sintetici…';try{const r=await fetch('/api/execution-study?symbol='+symbol);const x=await r.json();if(!x.ok)throw Error(x.error||'Studio non disponibile');const a=x.report;$('execution-study-result').innerHTML='<b>'+esc(a.symbol)+' · riferimento '+fmt(a.reference_mid_eur)+' · ordine '+fmt(a.requested_eur)+'</b>'+a.scenarios.map(v=>'<div class="event"><b>'+esc(v.scenario)+'</b> · riempimento '+esc(v.fill_percentage)+'% · controvalore '+fmt(v.filled_eur)+' · commissione '+fmt(v.fee_eur)+'</div>').join('')+'<p class="sub">'+esc(a.warning)+'</p>'}catch(e){$('execution-study-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('run-backtest').addEventListener('click',()=>backtest('BTC'));$('run-eth').addEventListener('click',()=>backtest('ETH'));$('run-suite').addEventListener('click',async()=>{const b=$('run-suite');b.disabled=true;$('suite-result').textContent='Test in corso…';try{const r=await fetch('/api/tests');const d=await r.json();$('suite-result').textContent=(d.ok?'TEST SUPERATI':'TEST FALLITI')+'\n'+(d.output||d.error)}catch(e){$('suite-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('check-update').addEventListener('click',async()=>{const b=$('check-update');b.disabled=true;try{const r=await fetch('/api/updates');const d=await r.json();$('update-result').textContent=d.error||d.note||(d.update_available?'Versione disponibile: '+d.available_version:'Sei sulla versione corrente')}catch(e){$('update-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('selftest').addEventListener('click',async()=>{const b=$('selftest');b.disabled=true;$('selftest-result').textContent='Eseguo il test isolato…';try{const r=await fetch('/api/selftest');const o=await r.json();$('selftest-result').textContent=o.ok?'TEST SUPERATO: '+o.checks.join(' · ')+' — '+o.note:'TEST FALLITO: '+(o.error||'Errore sconosciuto')}catch(e){$('selftest-result').textContent='Errore test: '+e.message}finally{b.disabled=false}});$('sync').addEventListener('click',()=>load(true));document.querySelectorAll('[data-symbol]').forEach(b=>b.addEventListener('click',()=>{symbol=b.dataset.symbol;document.querySelectorAll('[data-symbol]').forEach(x=>x.classList.toggle('selected',x===b));if(data)render(data);paintLive()}));fetch('/api/history').then(r=>r.json()).then(d=>{if(!d.ok)return;const x=d.markets||{};const summary=['BTC','ETH'].map(k=>{const v=x[k]||{};return k+': '+(v.candles||0)+' candele ('+(v.span_days||0)+' giorni di intervallo)'}).join(' · ');$('history-coverage').textContent='Archivio locale · '+summary}).catch(()=>{});fetch('/api/maintenance').then(r=>r.json()).then(d=>{$('maintenance-result').textContent=d.last_run?'Ultimo controllo automatico: '+new Date(d.last_run*1000).toLocaleString('it-IT')+' · '+(d.tests_ok?'TEST OK':'TEST FALLITI'):'Test automatici in preparazione'}).catch(()=>{});load(false);setInterval(()=>{if(document.visibilityState==='visible')load(false)},30000);
 </script></body></html>
