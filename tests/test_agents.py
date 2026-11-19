@@ -13,7 +13,7 @@ class TestAgents(unittest.TestCase):
         ind=dict(self.indicator,ema9=102.,ema21=101.,rsi=60.)
         report=assess_signal_evidence(self.candles,ind)
         self.assertEqual(report['mode'],'READ ONLY / DESCRIPTIVE')
-        self.assertEqual(report['positive_checks'],4)
+        self.assertEqual(report['positive_checks'],3)  # Flat prices: the 20-candle return is not positive.
         self.assertEqual(report['known_checks'],4)
         self.assertEqual(report['uncertainty'],'LIMITED')
         self.assertEqual(repr(self.candles),initial)
