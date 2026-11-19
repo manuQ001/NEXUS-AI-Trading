@@ -3,6 +3,7 @@ import json, math, sqlite3, time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
+from execution import execution_price, execution_fee, sell_settlement
 
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / 'nexus.sqlite3'
@@ -226,7 +227,7 @@ def assess_paper_order(c, symbol, candles, indicator, quote_price=None):
     if last_stop and int(time.time())-int(last_stop['timestamp'])<1800:
         return veto('Pausa obbligatoria di 30 minuti dopo uno stop loss')
 
-    price=ask*(1+SLIPPAGE)
+    price=execution_price('BUY',ask,SLIPPAGE)
     distance=max(atr_value*1.5,price*.003)
     cash_row=c.execute('SELECT cash FROM wallets WHERE strategy="core"').fetchone()
     if cash_row is None:return veto('Portafoglio Core non inizializzato')
@@ -241,7 +242,7 @@ def assess_paper_order(c, symbol, candles, indicator, quote_price=None):
     qty=min(risk_budget/distance,cash*POSITION_FRACTION/(price*(1+FEE)))
     if not math.isfinite(qty) or qty<=0 or qty*price<5:
         return veto('Importo inferiore al minimo prudenziale di €5')
-    fee=qty*price*FEE
+    fee=execution_fee(qty,price,FEE)
     if qty*price+fee>cash+1e-9:
         return veto('Fondi insufficienti, commissioni incluse')
     return {'approved':True,'reason':'Controlli RISK superati','mode':'PAPER ONLY',
@@ -279,9 +280,10 @@ def handle_exit(c,symbol,candle):
     elif candle['high']>=p['target']:
         ref=p['target'];reason='Take profit'
     else: return
-    price=ref*(1-SLIPPAGE);gross=p['qty']*price;fee=gross*FEE
-    pnl=p['qty']*(price-p['entry'])-fee-p['entry_fee']
-    c.execute('UPDATE wallets SET cash=cash+? WHERE strategy="core"',(gross-fee,))
+    settlement=sell_settlement(p['qty'],p['entry'],p['entry_fee'],ref,
+                               fee_rate=FEE,slippage_rate=SLIPPAGE)
+    price=settlement['price'];fee=settlement['exit_fee'];pnl=settlement['pnl']
+    c.execute('UPDATE wallets SET cash=cash+? WHERE strategy="core"',(settlement['net_proceeds'],))
     c.execute('DELETE FROM positions WHERE symbol=?',(symbol,))
     c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',(int(time.time()),symbol,'SELL',p['qty'],price,fee,pnl,reason))
     emit(c,'EXIT',f'{symbol}: {reason} virtuale, P/L €{pnl:+.2f}', 'warning' if pnl<0 else 'info')
