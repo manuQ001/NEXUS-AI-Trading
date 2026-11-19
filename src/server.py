@@ -105,6 +105,14 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
                 self.out({'ok':False,'status':'NON_VERIFICATO','meme_execution':'BLOCKED',
                           'error':'RPC Solana non disponibile o non valido: '+type(exc).__name__},503)
+        elif path=='/api/meme-auto':
+            from meme_auto import status
+            with LOCK:
+                c=connect()
+                try:
+                    result=status(c);c.commit()
+                finally:c.close()
+            self.out(result)
         elif path=='/api/meme-demo':
             from meme_demo import demo_state
             with LOCK:
@@ -215,6 +223,26 @@ class Handler(BaseHTTPRequestHandler):
         else:self.out({'error':'Endpoint non esistente'},404)
     def do_POST(self):
         path=urlsplit(self.path).path
+        if path=='/api/meme-auto-toggle':
+            origin=self.headers.get('Origin')
+            fetch_site=self.headers.get('Sec-Fetch-Site')
+            if (self.headers.get('X-NEXUS-Demo-Click')!='1'
+                    or self.headers.get('Content-Length','0')!='0'
+                    or (origin and origin not in ('http://127.0.0.1:8765','http://localhost:8765'))
+                    or (fetch_site and fetch_site not in ('same-origin','none'))):
+                self.out({'ok':False,'error':'Richiesta demo non autorizzata'},403);return
+            from meme_auto import init_auto,status
+            with LOCK:
+                c=connect()
+                try:
+                    init_auto(c)
+                    current=c.execute('SELECT enabled FROM meme_auto_state WHERE id=1').fetchone()[0]
+                    c.execute('UPDATE meme_auto_state SET enabled=?,last_status=? WHERE id=1',
+                              (0 if current else 1,'SOSPESO' if current else 'ATTIVO'))
+                    c.commit()
+                    report=status(c)
+                finally:c.close()
+            self.out({'ok':True,'auto':report});return
         if path=='/api/meme-demo-trade':
             # Click-only, zero-body, same-origin action. No real exchange integrations.
             from urllib.parse import parse_qs
@@ -353,6 +381,20 @@ def market_monitor_loop(stop, interval_seconds=30):
             break
 
 
+def meme_auto_loop(stop, interval_seconds=30):
+    """Experimental MEME PAPER engine, independent of dashboard and BTC/ETH."""
+    from meme_auto import tick
+    while not stop.is_set():
+        try:
+            with LOCK:
+                c=connect()
+                try:tick(c)
+                finally:c.close()
+        except Exception as exc:
+            print('NEXUS MEME PAPER monitor: '+type(exc).__name__,flush=True)
+        if stop.wait(interval_seconds):break
+
+
 def maintenance_loop(stop):
     # Automated offline validation (no trades, no user database mutations).
     while not stop.is_set():
@@ -375,9 +417,11 @@ def main():
     stop=threading.Event()
     threading.Thread(target=maintenance_loop,args=(stop,),daemon=True).start()
     threading.Thread(target=market_monitor_loop,args=(stop,),daemon=True).start()
+    threading.Thread(target=meme_auto_loop,args=(stop,),daemon=True).start()
     print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
     print('Dashboard: http://127.0.0.1:8765')
     print('Monitoraggio BTC/ETH ogni 30 s mentre il programma resta acceso, anche senza browser.')
+    print('MEME AUTO PAPER: compravendite SIMULATE autonome ogni 30 s, scan ogni 5 minuti; nessuna transazione reale.')
     print('Premi CTRL+C per chiudere. Nessuna operazione reale.')
     if '--no-browser' not in sys.argv:
         threading.Timer(0.8,lambda:webbrowser.open('http://127.0.0.1:8765')).start()
