@@ -315,19 +315,38 @@ async function executeMemeDemo(action,mint,button){
  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
  if(!confirm((action==='BUY'?'Aprire test da 3 crediti su ':'Chiudere test su ')+mint+'? Nessun ordine reale.'))return;
  button.disabled=true;
- const info=$('meme-demo-message');info.textContent='Recupero prezzo indicativo e registro '+action+'…';
+ const info=$('meme-demo-message');
+ // Show feedback beside the clicked token, not only in the panel above the table.
+ let status=button.parentElement.querySelector('.meme-quick-feedback');
+ if(!status){
+   status=document.createElement('div');
+   status.className='meme-quick-feedback sub';
+   status.setAttribute('role','status');
+   status.style.cssText='margin-top:6px;max-width:270px;white-space:normal;overflow-wrap:anywhere';
+   button.insertAdjacentElement('afterend',status);
+ }
+ info.textContent='Richiesta '+action+' ricevuta · recupero quotazione…';
+ status.textContent='Controllo prezzo e registrazione demo…';
  try{
    const r=await fetch('/api/meme-demo-trade?action='+action+'&address='+encodeURIComponent(mint),
      {method:'POST',headers:{'X-NEXUS-Demo-Click':'1'},cache:'no-store'});
    const d=await r.json();
-   if(!r.ok||!d.ok)throw Error(d.error||'Test non registrato');
+   if(!r.ok||!d.ok)throw Error('HTTP '+r.status+' · '+(d.error||'Test non registrato'));
    renderMemeDemo(d.account);
+   const extra=d.trade.warnings&&d.trade.warnings.length?' · Avvisi: '+d.trade.warnings.join('; '):'';
+   const source=d.trade.quote_source?' · '+d.trade.quote_source:'';
    info.textContent='Operazione virtuale '+action+' registrata'+
      (action==='SELL'?' · P/L '+usdDemo(d.trade.pnl_usd):' · importo '+usdDemo(d.trade.cost_usd))+
-     ' · zero transazioni blockchain.'+
-     (d.trade.warnings&&d.trade.warnings.length?' ATTENZIONE: '+d.trade.warnings.join('; ')+'.':'');
- }catch(e){info.textContent='Operazione non effettuata: '+e.message}
- finally{if(button.isConnected)button.disabled=false}
+     source+extra+' · Nessuna transazione blockchain.';
+   status.textContent='✓ Test '+action+' registrato. Dettagli nel pannello Quick Trade sopra.';
+   status.classList.remove('red');status.classList.add('green');
+   $('meme-quick-panel').scrollIntoView({block:'start',behavior:'smooth'});
+ }catch(e){
+   const message='Test NON aperto: '+e.message;
+   info.textContent=message;
+   status.textContent=message;
+   status.classList.remove('green');status.classList.add('red');
+ }finally{if(button.isConnected)button.disabled=false}
 }
 $('meme-rows').addEventListener('click',event=>{
  const b=event.target.closest('.meme-quick-btn');if(b)executeMemeDemo('BUY',b.dataset.mint,b);
