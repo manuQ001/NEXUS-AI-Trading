@@ -47,6 +47,13 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
 <svg id="performance-curve" class="chart" role="img" aria-label="Curva P/L realizzato per operazione chiusa" viewBox="0 0 640 190" style="height:190px"></svg>
 <div id="performance-note" class="sub">Il grafico considera soltanto le operazioni chiuse. Non rappresenta il valore corrente del portafoglio.</div>
 </section>
+<section class="panel" style="margin-top:16px" id="strategy-analyzer">
+  <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin-bottom:4px">STRATEGY ANALYZER · Punto di pareggio</div><div class="sub">Costi del modello PAPER · analisi read-only, nessuna operazione</div></div><span class="tag">MODELLO TEORICO</span></div>
+  <div class="metrics" style="margin-top:14px;grid-template-columns:repeat(3,minmax(0,1fr))" id="cost-metrics">
+    <div class="sub">Parametri del modello in caricamento…</div>
+  </div>
+  <div id="cost-warning" class="sub" style="margin-top:10px">La soglia descrive i costi ipotizzati, non un obiettivo di profitto raccomandato.</div>
+</section>
 <div class="section-divider" id="history-section"><span class="section-index">07</span><div><h2 class="section-heading">Storico & portafogli</h2><div class="section-caption">Motivi di ingresso e uscita, costi e saldi separati</div></div></div><div class="rows"><section class="panel"><div class="title">Storico degli ordini virtuali</div><div class="scroll"><table class="dataTable"><thead><tr><th>Ora</th><th>Asset</th><th>Tipo</th><th>Prezzo</th><th>P/L</th><th>Motivo</th><th>Analisi risultato</th></tr></thead><tbody id="trades"><tr><td colspan="7" class="muted">Nessun trade</td></tr></tbody></table></div></section><section class="panel"><div class="title">Conti separati</div><div id="wallets"></div><div class="sub" style="margin-top:12px">Inizializzazione una sola volta: il database locale conserva gli ordini virtuali al riavvio.</div><div id="feedback" style="margin-top:12px">Decisioni ogni candela chiusa, dati REST ogni 30 secondi; prezzo e grafico tick live via WebSocket quando connesso.</div></section></div>
 <div class="rows"><section class="panel"><div class="flex" style="flex-wrap:wrap"><div class="title">NEXUS LAB · Backtest storico</div><button class="btn" id="run-backtest">▶ Backtest BTC</button><button class="btn" id="run-eth">▶ Backtest ETH</button><button class="btn" id="validate-btc">◉ Verifica BTC 70/30</button><button class="btn" id="validate-eth">◉ Verifica ETH 70/30</button></div><p class="sub">Kraken 5m · solo candele chiuse · ingresso all’apertura della candela successiva · simulazione isolata dal saldo.</p><div class="metrics" style="grid-template-columns:repeat(2,minmax(0,1fr))" id="bt-metrics"><div class="sub">Nessun backtest eseguito</div></div><div id="bt-details" class="sub" style="margin-top:10px"></div><div id="validation-details" class="sub" style="margin-top:10px"></div><div id="bt-trades" class="scroll small"></div><p class="sub">Le candele chiuse vengono archiviate in SQLite durante gli aggiornamenti del mercato. Lo storico crescerà solo mentre NEXUS riceve dati; non è disponibile un recupero automatico di mesi passati. Un esito positivo NON dimostra redditività.</p><div id="history-coverage" class="sub">Archivio locale: verifica disponibile dopo l'aggiornamento.</div></section><section class="panel"><div class="title">Decisioni HEAD OF DESK</div><p class="sub">Ogni nuova candela produce una decisione WAIT, BLOCK o BUY. Nessun ordine viene forzato per generare attività.</p><div id="decisions" class="scroll"><span class="sub">In attesa di nuove candele</span></div><hr style="border:0;border-top:1px solid #27354a"><div class="title">Connettori intelligence</div><div class="sub">WHALE: non collegato (nessun dato wallet).<br>SHILL: non collegato (nessun sentiment).<br>Memecoin: solo osservazione, acquisti vietati.</div></section></div>
 <div class="foot">NEXUS AI 2.7 · Prototipo locale. Dati pubblici di Kraken, quando disponibili. Nessun dato sintetico viene presentato come prezzo reale. Non è una promessa di rendimento né un servizio di gestione patrimoniale. Per arrestare il server: CTRL+C nella console Python.</div></main>
@@ -95,7 +102,20 @@ function renderPerformance(p){
     '<text x="450" y="185" fill="#94a7c1" font-size="10">'+(curve.length-1)+' chiusure</text>';
   $('performance-note').textContent=p.note+' Profit factor N/D se non esistono perdite chiuse.';
 }
-function render(d){data=d;renderPerformance(d.performance);
+function renderCostAnalysis(c){
+  if(!c)return;
+  const rows=[
+    ['Commissione per lato',c.fee_per_side_pct.toFixed(2)+'%'],
+    ['Slippage per lato',c.slippage_per_side_pct.toFixed(2)+'%'],
+    ['Movimento minimo di pareggio',c.round_trip_breakeven_pct.toFixed(3)+'%'],
+    ['Punto di pareggio',c.round_trip_breakeven_bps.toFixed(1)+' bps'],
+    ['Esempio acquisto',fmt(c.example_entry_budget_eur)],
+    ['Perdita a prezzo invariato',fmt(-c.example_flat_market_loss_eur)]
+  ];
+  $('cost-metrics').innerHTML=rows.map(([name,value],i)=>'<div class="panel metric" style="'+(i===2?'border-color:#6f6073;':'')+'"><div class="name">'+esc(name)+'</div><div class="val" style="font-size:clamp(17px,2vw,23px)">'+esc(value)+'</div></div>').join('');
+  $('cost-warning').textContent=c.assumptions+' '+c.note;
+}
+function render(d){data=d;renderPerformance(d.performance);renderCostAnalysis(d.cost_analysis);
 const feeds=d.status||{},monitor=d.monitor||{};
 const feedOk=feeds.BTC==='OK'&&feeds.ETH==='OK';
 const singleOk=feeds.BTC==='OK'||feeds.ETH==='OK';
