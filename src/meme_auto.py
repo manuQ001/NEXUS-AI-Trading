@@ -9,9 +9,11 @@ from meme_portfolio import (initialize,trade,mark,portfolio,get_fx,indicative_qu
                             MAX_POSITIONS, STAKE_EUR, SELL_COST)
 from meme_scout import scan,ADDRESS
 
-STOP_LOSS=-0.10
-TAKE_PROFIT=0.20
-MAX_HOLD_SECONDS=7200
+STOP_LOSS=-0.06
+TAKE_PROFIT=0.12
+TRAIL_ARM=0.08
+TRAIL_GAP=0.04
+MAX_HOLD_SECONDS=900
 SCAN_SECONDS=300
 COOLDOWN_SECONDS=3600
 MIN_AUTO_LIQUIDITY=500.0
@@ -56,6 +58,8 @@ def init_auto(c):
         last_status TEXT NOT NULL DEFAULT 'NON_AVVIATO',
         last_error TEXT NOT NULL DEFAULT '')''')
     c.execute("INSERT OR IGNORE INTO meme_auto_state(id,enabled) VALUES(1,1)")
+    c.execute('''CREATE TABLE IF NOT EXISTS meme_auto_trail(
+        address TEXT PRIMARY KEY,peak_net_roi REAL NOT NULL,updated_at INTEGER NOT NULL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS meme_auto_journal(
         id INTEGER PRIMARY KEY AUTOINCREMENT,timestamp INTEGER NOT NULL,
         address TEXT, action TEXT NOT NULL,note TEXT NOT NULL)''')
@@ -65,8 +69,9 @@ def status(c):
     s=c.execute('SELECT * FROM meme_auto_state WHERE id=1').fetchone()
     return {'enabled':bool(s['enabled']),'last_scan':s['last_scan'],
             'last_tick':s['last_tick'],'status':s['last_status'],
-            'error':s['last_error'],'stop_loss_pct':-10,'take_profit_pct':20,
-            'max_hold_minutes':120,'monitor_seconds':30,'scan_seconds':SCAN_SECONDS,
+            'error':s['last_error'],'stop_loss_pct':-6,'take_profit_pct':12,
+            'trailing_activation_pct':8,'trailing_gap_points':4,
+            'max_hold_minutes':15,'monitor_seconds':15,'scan_seconds':SCAN_SECONDS,
             'max_positions':MAX_POSITIONS,'max_entries_per_scan':MAX_ENTRIES_PER_SCAN,
             'sizing':'DYNAMIC_EUR','min_stake_eur':MIN_STAKE_EUR,'max_initial_fraction':MAX_INITIAL_FRACTION,'cash_reserve_fraction':CASH_RESERVE_FRACTION,
             'mode':'AUTONOMOUS_PAPER_ONLY',
@@ -77,18 +82,23 @@ def _log(c,now,address,action,note):
     c.execute('INSERT INTO meme_auto_journal(timestamp,address,action,note) VALUES(?,?,?,?)',
               (now,address,action,note[:280]))
 
-def decide_exit(p,price,now,fx=None):
-    """Thresholds use expected net EUR proceeds, including model SELL costs."""
+def net_roi(p,price,fx):
+    """Estimated net EUR ROI including modeled exit cost, not executable price."""
     price=_number(price)
-    if price is None or price<=0:return None
     qty=_number(p.get('quantity'))
     cost=_number(p.get('cost_eur'))
-    exchange=_number(fx if fx is not None else p.get('last_fx_usd_eur'))
-    if not qty or not cost or not exchange:return None
-    roi=qty*price*exchange*(1-SELL_COST)/cost-1
+    rate=_number(fx)
+    if not price or not qty or not cost or not rate:return None
+    return qty*price*rate*(1-SELL_COST)/cost-1
+
+def decide_exit(p,price,now,fx=None,peak_roi=None):
+    roi=net_roi(p,price,fx if fx is not None else p.get('last_fx_usd_eur'))
+    if roi is None:return None
     if roi<=STOP_LOSS:return 'STOP_LOSS'
     if roi>=TAKE_PROFIT:return 'TAKE_PROFIT'
-    if now-int(p['opened_at'])>=MAX_HOLD_SECONDS:return 'TIMEOUT_2H'
+    if peak_roi is not None and peak_roi>=TRAIL_ARM and roi<=peak_roi-TRAIL_GAP:
+        return 'TRAILING_STOP'
+    if now-int(p['opened_at'])>=MAX_HOLD_SECONDS:return 'TIMEOUT_15M'
     return None
 
 def eligible_candidates(c,candidates,now,excluded=None):
@@ -129,6 +139,7 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
         fx=fx_rate(c,now=now)
     except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
         messages.append('CAMBIO_USD_EUR_NON_DISPONIBILE '+type(exc).__name__)
+    c.execute('DELETE FROM meme_auto_trail WHERE address NOT IN (SELECT address FROM meme_eur_positions)')
     positions=[dict(p) for p in c.execute('SELECT * FROM meme_eur_positions ORDER BY opened_at')]
     if fx is not None:
         for pos in positions[:MAX_POSITIONS]:
@@ -138,9 +149,17 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 price=_number(q.get('price_usd'))
                 if price is None or price<=0:raise ValueError('Quotazione non valida')
                 mark(c,addr,q,fx,now=now)
-                reason=decide_exit(pos,price,now,fx['usd_eur'])
+                roi=net_roi(pos,price,fx['usd_eur'])
+                old=c.execute('SELECT peak_net_roi FROM meme_auto_trail WHERE address=?',(addr,)).fetchone()
+                peak=max(roi,float(old['peak_net_roi'])) if old else roi
+                c.execute('''INSERT INTO meme_auto_trail(address,peak_net_roi,updated_at)
+                    VALUES(?,?,?) ON CONFLICT(address) DO UPDATE SET
+                    peak_net_roi=excluded.peak_net_roi,updated_at=excluded.updated_at''',
+                    (addr,peak,now))
+                reason=decide_exit(pos,price,now,fx['usd_eur'],peak_roi=peak)
                 if reason:
                     result=trade(c,addr,'SELL',q,fx,now=now)
+                    c.execute('DELETE FROM meme_auto_trail WHERE address=?',(addr,))
                     _log(c,now,addr,'AUTO_SELL',reason+' · pnl_eur='+str(result['pnl_eur']))
                     messages.append('AUTO_SELL '+reason)
             except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
