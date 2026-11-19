@@ -2,6 +2,14 @@
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
 
+## Release 2.8.1 — acquisti MEME autonomi con importo dinamico (paper only)
+
+In modalità MEME AUTO il bot decide **sia se aprire una posizione sia quanto capitale virtuale allocare**, senza cliccare sul token. Gli ingressi variano tra €1,50 e €4,50 a seconda del minore tra liquidità e volume 24h osservati sia in Scout sia nella quotazione di conferma. Nessuna AI generativa controlla gli ordini.
+
+Sono previsti: **massimo 10% del budget MEME iniziale per acquisto**, riserva iniziale di liquidità **20%**, massimo **3 nuovi ingressi per scansione**, massimo **8 posizioni contemporanee** e uscite automatiche simulate già esistenti. Il pulsante "Compra 3 €" non compare più in Meme Hunter; resta la vendita manuale di emergenza. La simulazione continua solo mentre il server locale è attivo e AUTO non è sospeso.
+
+Queste euristiche non verificano la vendibilità o la sicurezza dei token e non garantiscono profitti. Il capitale CORE non viene usato per MEME; nessuna transazione reale è implementata.
+
 ## Release 2.8.0 — portafoglio MEME EUR unificato (solo simulazione)
 
 La versione 2.8 usa **un solo portafoglio MEME virtuale in euro**, inizialmente da €45 e già compreso nei €150 complessivi; non crea un saldo demo USD aggiuntivo. Il vecchio storico demo USD resta archiviato nel database SQLite senza incidere sul saldo. Le nuove posizioni MEME sono denominate in EUR, con cambio USD/EUR giornaliero di riferimento e prezzi DEX Screener indicativi.
