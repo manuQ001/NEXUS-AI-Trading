@@ -351,7 +351,7 @@ function renderMemeDemo(d){
   }).join('')||'<tr><td colspan="7" class="muted">Nessuna posizione MEME aperta</td></tr>';
   $('meme-demo-history').innerHTML=(d.trades||[]).map(t=>
     '<div class="event">'+esc(when(t.timestamp))+' · '+esc(t.symbol)+' · '+esc(t.action)+
-    (t.pnl_eur==null?'':' · <b class="'+(t.pnl_eur<0?'red':'green')+'">'+usdDemo(t.pnl_eur)+'</b>')+
+    (t.pnl_eur==null?'':' · <b class="'+(t.pnl_eur<0?'red':'green')+'">'+eurMeme(t.pnl_eur)+'</b>')+
     '<div class="sub">'+esc(t.note)+'</div></div>'
   ).join('')||'<div class="sub">Nessuna operazione MEME</div>';
 }
@@ -389,7 +389,7 @@ async function executeMemeDemo(action,mint,button){
    const extra=d.trade.warnings&&d.trade.warnings.length?' · Avvisi: '+d.trade.warnings.join('; '):'';
    const source=d.trade.quote_source?' · '+d.trade.quote_source:'';
    info.textContent='Operazione virtuale '+action+' registrata'+
-     (action==='SELL'?' · P/L '+usdDemo(d.trade.pnl_eur):' · importo '+usdDemo(d.trade.cost_eur))+
+     (action==='SELL'?' · P/L '+eurMeme(d.trade.pnl_eur):' · importo '+eurMeme(d.trade.cost_eur))+
      source+extra+' · Nessuna transazione blockchain.';
    status.textContent='✓ Operazione MEME virtuale '+action+' registrata nel portafoglio da 45 €.';
    status.classList.remove('red');status.classList.add('green');
