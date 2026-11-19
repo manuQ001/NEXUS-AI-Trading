@@ -53,6 +53,13 @@ class TestMemeScout(unittest.TestCase):
                       {'chainId':'ethereum','tokenAddress':A}],[pair(A)],NOW)
         self.assertEqual(data['candidates'],[])
         with self.assertRaises(ValueError):analyze({},[],NOW)
+    def test_expanded_sample_is_bounded_to_thirty(self):
+        self.assertEqual(MAX_TOKENS,30)
+        # The provider response may include duplicates, but the collector remains bounded.
+        addresses=[A,B]
+        profiles=[{'chainId':'solana','tokenAddress':a} for a in addresses]
+        results=analyze(profiles,[pair(a) for a in addresses],NOW)
+        self.assertEqual(len(results['candidates']),2)
     def test_bounded_addresses_and_no_pairs_call_on_empty(self):
         calls=[]
         def fake(url):
