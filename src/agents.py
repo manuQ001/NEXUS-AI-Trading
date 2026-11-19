@@ -71,6 +71,81 @@ def assess_signal_evidence(candles, indicator):
             'limitations':reasons+['Non misura probabilità di profitto né qualità di un ordine'],
             'mode':'READ ONLY / DESCRIPTIVE'}
 
+
+def coordinate_advisory(report):
+    """Deterministic HEAD OF DESK reconciliation of independent agent opinions.
+
+    This function ONLY describes the supplied read-only report. It cannot
+    authorize fills, change wallet state, call a model or bypass try_buy.
+    Unknown/missing evidence never becomes agreement or trade approval.
+    """
+    if not isinstance(report,dict) or not isinstance(report.get('agents'),list):
+        raise ValueError('Report agenti non valido')
+    agents={a.get('name'):a for a in report['agents'] if isinstance(a,dict)}
+    if not all(k in agents for k in ('SEARCH','HEAD OF DESK','RISK','SNIPER')):
+        raise ValueError('Pareri agenti incompleti')
+    search=agents['SEARCH'].get('status')
+    risk=agents['RISK'].get('status')
+    sniper=agents['SNIPER'].get('status')
+    quality=report.get('market_quality')
+    book=quality.get('status','UNAVAILABLE') if isinstance(quality,dict) else 'NOT_CHECKED'
+    estimate=report.get('sniper_estimate')
+    execution=estimate.get('status','UNAVAILABLE') if isinstance(estimate,dict) else 'NOT_CHECKED'
+    proposal=report.get('proposal')
+    veto=report.get('risk_veto') is True
+    conflicts=[]
+    if proposal=='BUY' and search!='signal':
+        conflicts.append('SEARCH_PROPOSAL_MISMATCH')
+    if proposal=='WAIT' and search=='signal':
+        conflicts.append('SEARCH_PROPOSAL_MISMATCH')
+    if veto and risk!='blocked':
+        conflicts.append('RISK_VETO_STATUS_MISMATCH')
+    if not veto and risk=='blocked':
+        conflicts.append('RISK_STATUS_MISMATCH')
+    if report.get('paper_candidate') and (proposal!='BUY' or veto):
+        conflicts.append('CANDIDATE_CONTRADICTS_RISK_OR_SIGNAL')
+    if report.get('paper_candidate') and book not in ('PASS','NOT_CHECKED'):
+        conflicts.append('CANDIDATE_CONTRADICTS_BOOK')
+    if report.get('paper_candidate') and execution not in ('ESTIMATE_FULL','NOT_CHECKED'):
+        conflicts.append('CANDIDATE_CONTRADICTS_SNIPER')
+    if conflicts:
+        verdict='INCONSISTENT'
+        reason='Pareri incoerenti: '+', '.join(conflicts)+'; nessun candidato dal coordinamento'
+    elif veto:
+        verdict='RISK_VETO'
+        reason='RISK ha un veto preliminare: nessun BUY autorizzato'
+    elif proposal!='BUY':
+        verdict='WAIT'
+        reason='SEARCH non propone BUY: nessuna operazione da valutare'
+    elif book=='NOT_CHECKED':
+        verdict='AWAIT_BOOK'
+        reason='Segnale presente ma qualità del book non ancora verificata'
+    elif book!='PASS':
+        verdict='MARKET_NOT_VERIFIED'
+        reason='Book Kraken non conforme o non disponibile: '+book
+    elif execution!='ESTIMATE_FULL':
+        verdict='EXECUTION_NOT_VERIFIED'
+        reason='SNIPER non conferma copertura indicativa: '+execution
+    elif not report.get('paper_candidate'):
+        verdict='NO_CANDIDATE'
+        reason='Analisi senza candidato BUY; richiede una nuova verifica'
+    else:
+        verdict='PRELIMINARY_CANDIDATE'
+        reason='Pareri preliminari coerenti, ma il motore RISK deve ancora validare ask e ordine PAPER'
+    opinions=[
+        {'agent':'SEARCH','status':search},
+        {'agent':'RISK','status':risk},
+        {'agent':'MARKET BOOK','status':book},
+        {'agent':'SNIPER','status':sniper,'execution_estimate':execution},
+    ]
+    return {'verdict':verdict,'reason':reason,'conflicts':conflicts,
+            'opinions':opinions,
+            'candidate_for_review':verdict=='PRELIMINARY_CANDIDATE',
+            'execution_authorized':False,
+            'mode':'READ ONLY / NOT AN EXECUTION GATE',
+            'note':'Il coordinamento descrive pareri e contraddizioni; non modifica try_buy, ordini, RISK o capitale.'}
+
+
 def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
            initial_capital=150.0, max_daily_loss=0.02, feed_ok=True, core_cash=None):
     """Return a structured report on the latest closed candle.
@@ -119,11 +194,13 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
         ('RUG','meme_blocked','Memecoin disabilitate finché non esistono controlli on-chain validati'),
         ('SHILL','unavailable','Dati social non collegati: nessuna analisi sentiment'),
     ]
-    return {'symbol':symbol,'time':int(candle['time']),'proposal':proposal,
+    result={'symbol':symbol,'time':int(candle['time']),'proposal':proposal,
             'paper_candidate':approved,'risk_veto':not risk_ok,'intelligence':intelligence,
             'agents':[{'name':name,'status':status,'reason':reason} for name,status,reason in report],
             'mode':'READ ONLY / PAPER ONLY',
             'note':'Opinioni a regole, non agenti LLM. La valutazione preliminare non autorizza ordini e non scavalca il veto definitivo in try_buy.'}
+    result['coordination']=coordinate_advisory(result)
+    return result
 
 
 
@@ -209,6 +286,7 @@ def attach_market_quality(report, quality=None, *, error=None, book=None):
     result['note']=result.get('note','')+' Book e SNIPER: analisi indicativa; non modificano i controlli RISK né la funzione try_buy.'
     if error:
         result['market_quality']['error_type']=str(error)[:80]
+    result['coordination']=coordinate_advisory(result)
     return result
 
 def local_ai_advice(report, model=None, timeout=25):
