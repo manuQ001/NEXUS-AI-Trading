@@ -72,6 +72,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.out({'ok':False,'error':str(exc)[:200]},400)
         elif path=='/api/ai-review':
             self.out({'ok':False,'error':'Usa il pulsante Analisi AI (POST protetto)'},405)
+        elif path=='/api/meme-risk':
+            from urllib.parse import parse_qs
+            address=parse_qs(urlsplit(self.path).query).get('address',[''])[0]
+            try:
+                from rug_guard import inspect
+                self.out(inspect(address))
+            except ValueError as exc:
+                # Address errors are client errors; provider failures remain unverified.
+                if address=='' or len(address)>44 or any(ch in address for ch in '/%.?&'):
+                    self.out({'ok':False,'error':'Mint Solana non valido','meme_execution':'BLOCKED'},400)
+                else:
+                    self.out({'ok':False,'error':'Controllo on-chain non disponibile: '+type(exc).__name__,
+                              'meme_execution':'BLOCKED','status':'NON_VERIFICATO'},503)
+            except (OSError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
+                self.out({'ok':False,'error':'GoPlus non disponibile: '+type(exc).__name__,
+                          'meme_execution':'BLOCKED','status':'NON_VERIFICATO'},503)
         elif path=='/api/meme-scout':
             # Manual, bounded public-data research. No SQLite writes, no orders.
             try:
