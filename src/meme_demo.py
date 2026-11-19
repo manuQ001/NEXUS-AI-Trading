@@ -19,27 +19,19 @@ MIN_VOLUME_24H=1000.0
 
 
 def initialize(c):
-    c.executescript('''
-    CREATE TABLE IF NOT EXISTS meme_demo_account(
-        id INTEGER PRIMARY KEY CHECK(id=1), cash_usd REAL NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS meme_demo_positions(
+    c.execute('''CREATE TABLE IF NOT EXISTS meme_demo_account(
+        id INTEGER PRIMARY KEY CHECK(id=1), cash_usd REAL NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS meme_demo_positions(
         address TEXT PRIMARY KEY, symbol TEXT NOT NULL,
         quantity REAL NOT NULL, entry_price_usd REAL NOT NULL,
         cost_usd REAL NOT NULL, opened_at INTEGER NOT NULL,
-        last_price_usd REAL NOT NULL, last_checked_at INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS meme_demo_trades(
+        last_price_usd REAL NOT NULL, last_checked_at INTEGER NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS meme_demo_trades(
         id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL,
         address TEXT NOT NULL, symbol TEXT NOT NULL, action TEXT NOT NULL,
         quantity REAL NOT NULL, price_usd REAL NOT NULL,
-        cost_usd REAL NOT NULL, pnl_usd REAL,
-        note TEXT NOT NULL
-    );
-    INSERT OR IGNORE INTO meme_demo_account(id,cash_usd) VALUES(1,45.0);
-    ''')
-    # SQLite executescript auto-commits before execution. Do not use it
-    # inside an active transaction.
+        cost_usd REAL NOT NULL, pnl_usd REAL, note TEXT NOT NULL)''')
+    c.execute('INSERT OR IGNORE INTO meme_demo_account(id,cash_usd) VALUES(1,45.0)')
 
 
 def demo_state(c):
