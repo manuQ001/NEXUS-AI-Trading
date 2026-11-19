@@ -204,6 +204,11 @@ def try_buy(c,symbol,candles,indicator,quote_price=None):
 def handle_exit(c,symbol,candle):
     p=c.execute('SELECT * FROM positions WHERE symbol=?',(symbol,)).fetchone()
     if not p: return
+    # OHLC high/low may have occurred BEFORE the paper entry.
+    # Only evaluate full bars whose opening is at/after the recorded entry time.
+    # Legacy synthetic tests without a bar timestamp retain their old behavior.
+    if 'time' in candle and int(candle['time'])<p['opened_at']:
+        return
     # Conservative intrabar priority: if both stop and target were touched, stop first.
     if candle['low']<=p['stop']:
         ref=min(p['stop'],candle['open']);reason='Stop loss'
