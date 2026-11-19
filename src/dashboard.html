@@ -95,12 +95,12 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
  <div class="sub" style="margin-top:8px">Strategia sperimentale: stop −10%, target +20%, chiusura dopo 2 ore · costi demo 3% per lato. Nessuna garanzia di vendibilità o profitto reale.</div>
  <div class="meme-quick-stats">
  <div class="meme-quick-stat"><div class="sub">Crediti disponibili</div><b id="meme-demo-cash">—</b></div>
- <div class="meme-quick-stat"><div class="sub">Equity teorica ultima osservazione</div><b id="meme-demo-equity">—</b></div>
+ <div class="meme-quick-stat"><div class="sub">Equity stimata ultimo prezzo</div><b id="meme-demo-equity">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Test aperti</div><b id="meme-demo-open">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Importo per test</div><b>3 crediti</b></div></div>
- <div class="sub meme-demo-note">45 crediti USD demo iniziali, <b>non sono i €45 del conto MEME</b>. Prezzi indicativi DEX Screener; nessuna verifica di vendibilità. Costi simulati 3% per lato. Liquidità e volume bassi o mancanti generano avvisi, non bloccano i test demo; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
+ <div class="sub meme-demo-note">45 crediti USD demo iniziali, <b>non sono i €45 del conto MEME</b>. Prezzi indicativi DEX Screener aggiornati dal server circa ogni 30s con AUTO attivo; un dato vecchio viene evidenziato. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume bassi o mancanti generano avvisi, non bloccano i test demo; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
  <div class="flex" style="margin:13px 0 8px;flex-wrap:wrap"><b>Posizioni demo aperte</b><button class="btn" id="meme-demo-refresh" type="button">↻ Aggiorna</button></div>
- <div class="scroll meme-demo-table"><table class="dataTable"><thead><tr><th>Token</th><th>Prezzo ingresso USD</th><th>Ultimo prezzo salvato</th><th>Aperto il</th><th>Operazione</th></tr></thead><tbody id="meme-demo-positions"><tr><td colspan="5" class="muted">Nessun test caricato</td></tr></tbody></table></div>
+ <div class="scroll meme-demo-table"><table class="dataTable"><thead><tr><th>Token</th><th>Ingresso</th><th>Prezzo osservato</th><th>Variazione</th><th>P/L stimato</th><th>Ultimo dato</th><th>Operazione</th></tr></thead><tbody id="meme-demo-positions"><tr><td colspan="7" class="muted">Nessun test caricato</td></tr></tbody></table></div>
  <div class="sub" id="meme-demo-message" role="status" style="margin:10px 0">Saldo demo in caricamento…</div>
  <details><summary style="cursor:pointer;color:var(--blue)">Ultime operazioni demo</summary><div class="scroll" id="meme-demo-history"><span class="sub">Storico in caricamento</span></div></details>
  </section><section class="panel" id="meme-hunter">
@@ -323,11 +323,30 @@ function renderMemeDemo(d){
   $('meme-demo-equity').textContent=usdDemo(d.nominal_last_mark_equity);
   $('meme-demo-open').textContent=(d.positions||[]).length+' / 3';
   const when=t=>new Date(t*1000).toLocaleString('it-IT');
-  $('meme-demo-positions').innerHTML=(d.positions||[]).map(p=>
-    '<tr><td><strong>'+esc(p.symbol)+'</strong><div class="sub">'+esc(p.address.slice(0,6)+'…'+p.address.slice(-4))+'</div></td>'+
-    '<td>'+esc(p.entry_price_usd)+'</td><td>'+esc(p.last_price_usd)+' <span class="sub">(non live)</span></td>'+
-    '<td>'+esc(when(p.opened_at))+'</td><td><button class="btn meme-demo-sell" data-mint="'+esc(p.address)+'" type="button">Chiudi test</button></td></tr>'
-  ).join('')||'<tr><td colspan="5" class="muted">Nessuna posizione demo aperta</td></tr>';
+  const price=x=>{
+    const n=Number(x);
+    if(!Number.isFinite(n)||n<=0)return '—';
+    return '$'+n.toLocaleString('en-US',{maximumFractionDigits:n<.000001?12:n<.01?9:6});
+  };
+  const signed=(n,digits=2)=>{
+    const value=Number(n);
+    return Number.isFinite(value)?(value>=0?'+':'')+value.toFixed(digits):'—';
+  };
+  $('meme-demo-positions').innerHTML=(d.positions||[]).map(p=>{
+    const fresh=p.mark_status==='AGGIORNATO';
+    const pnl=Number(p.estimated_pnl_credits);
+    const positive=pnl>=0;
+    return '<tr>'+
+      '<td><strong>'+esc(p.symbol)+'</strong><div class="sub">'+esc(p.address.slice(0,6)+'…'+p.address.slice(-4))+'</div></td>'+
+      '<td><strong>'+esc(price(p.entry_price_usd))+'</strong></td>'+
+      '<td><strong>'+esc(price(p.last_price_usd))+'</strong><div class="sub">'+(fresh?'● Prezzo recente':'● Prezzo non aggiornato')+'</div></td>'+
+      '<td><b class="'+(Number(p.price_change_pct)>=0?'green':'red')+'">'+esc(signed(p.price_change_pct))+'%</b></td>'+
+      '<td><b class="'+(positive?'green':'red')+'">'+esc(signed(p.estimated_pnl_credits,4))+' crediti</b>'+
+        '<div class="sub">'+esc(signed(p.estimated_roi_pct))+'% netto stimato</div></td>'+
+      '<td><span class="'+(fresh?'green':'red')+'">'+(fresh?'RECENTE':'NON AGGIORNATO')+'</span>'+
+        '<div class="sub">'+esc(when(p.last_checked_at))+' · '+esc(p.mark_age_seconds)+'s fa</div></td>'+
+      '<td><button class="btn meme-demo-sell" data-mint="'+esc(p.address)+'" type="button">Chiudi test</button></td></tr>';
+  }).join('')||'<tr><td colspan="7" class="muted">Nessuna posizione demo aperta</td></tr>';
   $('meme-demo-history').innerHTML=(d.trades||[]).map(t=>
     '<div class="event">'+esc(when(t.timestamp))+' · '+esc(t.symbol)+' · '+esc(t.action)+
     (t.pnl_usd==null?'':' · <b class="'+(t.pnl_usd<0?'red':'green')+'">'+usdDemo(t.pnl_usd)+'</b>')+
