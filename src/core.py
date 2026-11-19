@@ -170,6 +170,26 @@ def daily_loss(c):
     return float(value)
 
 
+def risk_limits_status(c, now=None):
+    """Read-only view of fixed RISK guardrails for the dashboard."""
+    now=int(time.time()) if now is None else int(now)
+    day=datetime.fromtimestamp(now,timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0)
+    day_start=int(day.timestamp())
+    count=c.execute('SELECT COUNT(*) FROM trades WHERE action="BUY" AND timestamp>=?',(day_start,)).fetchone()[0]
+    stop=c.execute('''SELECT timestamp FROM trades WHERE action="SELL" AND details="Stop loss"
+        ORDER BY timestamp DESC,id DESC LIMIT 1''').fetchone()
+    stop_at=int(stop['timestamp']) if stop else None
+    cooldown_left=max(0,1800-(now-stop_at)) if stop_at is not None else 0
+    cash_row=c.execute('SELECT cash FROM wallets WHERE strategy="core"').fetchone()
+    cash=float(cash_row['cash']) if cash_row else 0
+    return {'daily_buy_count':count,'daily_buy_limit':6,
+            'stop_cooldown_seconds_remaining':cooldown_left,
+            'core_cash_eur':round(cash,4),
+            'core_circuit_breaker_eur':round(START['core']*.90,2),
+            'new_entries_blocked':count>=6 or cooldown_left>0 or cash<START['core']*.90,
+            'note':'Limiti aggiuntivi; RISK controlla anche prezzi, posizione, ATR e perdite giornaliere.'}
+
+
 def assess_paper_order(c, symbol, candles, indicator, quote_price=None):
     """One authoritative pre-trade risk gate. Never writes to the database.
 
@@ -348,7 +368,7 @@ def snapshot(c):
             'indicators':{s:state(c,'indicator_'+s,{}) for s in SYMBOLS},
             'candles':{s:state(c,'candles_'+s,[]) for s in SYMBOLS},
             'updated_at':state(c,'last_update'), 'source':'Kraken EUR, candele chiuse',
-            'mode':'PAPER ONLY','meme_execution':'BLOCKED: on-chain risk validation not implemented',
+            'mode':'PAPER ONLY','risk_limits':risk_limits_status(c),'meme_execution':'BLOCKED: on-chain risk validation not implemented',
             'status':state(c,'feed_status',{})}
 
 
