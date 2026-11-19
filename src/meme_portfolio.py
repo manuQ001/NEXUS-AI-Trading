@@ -95,7 +95,7 @@ def _market_warnings(q):
         elif v<1000:warnings.append(label+' inferiore a $1000')
     return warnings
 
-def trade(c,address,action,quote,fx,now=None):
+def trade(c,address,action,quote,fx,now=None,stake_eur=None):
     if action not in ('BUY','SELL'):raise ValueError('Azione non consentita')
     if not isinstance(address,str) or not ADDRESS.fullmatch(address):raise ValueError('Mint non valido')
     if not isinstance(quote,dict):raise ValueError('Quotazione mancante')
@@ -113,19 +113,22 @@ def trade(c,address,action,quote,fx,now=None):
         if current:raise ValueError('Posizione già aperta su questo token')
         if c.execute('SELECT COUNT(*) FROM meme_eur_positions').fetchone()[0]>=MAX_POSITIONS:
             raise ValueError('Limite posizioni MEME raggiunto')
-        if float(wallet['cash'])+1e-9<STAKE_EUR:
+        stake=STAKE_EUR if stake_eur is None else _positive(stake_eur,'Importo EUR')
+        if stake>float(wallet['initial'])*0.10+1e-9:
+            raise ValueError('Importo oltre il limite del 10% del portafoglio MEME iniziale')
+        if float(wallet['cash'])+1e-9<stake:
             raise ValueError('Liquidità virtuale MEME insufficiente')
-        quantity=STAKE_EUR/(price*rate*(1+BUY_COST))
+        quantity=stake/(price*rate*(1+BUY_COST))
         if not math.isfinite(quantity) or quantity<=0:raise ValueError('Quantità token non valida')
         with c:
-            c.execute("UPDATE wallets SET cash=cash-? WHERE strategy='meme'",(STAKE_EUR,))
+            c.execute("UPDATE wallets SET cash=cash-? WHERE strategy='meme'",(stake,))
             c.execute('INSERT INTO meme_eur_positions VALUES(?,?,?,?,?,?,?,?,?,?)',
-                      (address,symbol,quantity,price,rate,STAKE_EUR,now,price,rate,now))
+                      (address,symbol,quantity,price,rate,stake,now,price,rate,now))
             c.execute('''INSERT INTO meme_eur_trades(timestamp,address,symbol,action,quantity,
                        price_usd,fx_usd_eur,cash_eur,pnl_eur,note) VALUES(?,?,?,?,?,?,?,?,?,?)''',
-                      (now,address,symbol,'BUY',quantity,price,rate,STAKE_EUR,None,
-                       'PAPER · ingresso EUR 3 · prezzo USD indicativo · cambio riferimento · costo modello 3%'))
-        return {'ok':True,'action':'BUY','mode':'MEME_EUR_PAPER','cost_eur':STAKE_EUR,
+                      (now,address,symbol,'BUY',quantity,price,rate,stake,None,
+                       'PAPER · ingresso EUR '+str(round(stake,2))+' · prezzo USD indicativo · cambio riferimento · costo modello 3%'))
+        return {'ok':True,'action':'BUY','mode':'MEME_EUR_PAPER','cost_eur':stake,
                 'warnings':warnings,'fx_usd_eur':rate}
     if current is None:raise ValueError('Nessuna posizione MEME aperta')
     proceeds=float(current['quantity'])*price*rate*(1-SELL_COST)
@@ -173,7 +176,7 @@ def portfolio(c,now=None):
     legacy_count=c.execute('SELECT COUNT(*) FROM meme_demo_positions').fetchone()[0] if legacy else 0
     return {'mode':'MEME_EUR_PAPER','currency':'EUR','starting_eur':float(w['initial']),
             'cash_eur':round(float(w['cash']),8),'equity_eur':round(float(w['cash'])+invested,8),
-            'stake_eur':STAKE_EUR,'max_positions':MAX_POSITIONS,
+            'stake_eur':None,'stake_mode':'DYNAMIC_AUTO','max_positions':MAX_POSITIONS,
             'positions':positions,'trades':trades,
             'fx':dict(fx) if fx else None,
             'legacy_demo_positions_archived':legacy_count,
