@@ -2,12 +2,44 @@ import sys, unittest, json
 from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from agents import review, local_ai_advice
+from agents import review, local_ai_advice, attach_market_quality
 
 class TestAgents(unittest.TestCase):
     def setUp(self):
         self.candles=[{'time':1700000000+i*300,'close':100.0} for i in range(100)]
         self.indicator={'buy':True,'atr':1.2,'why':'TEST'}
+    def test_book_pass_only_advisory(self):
+        original=review('BTC',self.candles,self.indicator)
+        quality={'status':'PASS','reasons':[],'spread_bps':8.0,'bid_ask_drift_bps':2.0,'request_ms_second':120,'observed_at':1700000000}
+        result=attach_market_quality(original,quality)
+        self.assertTrue(result['paper_candidate'])
+        self.assertEqual(result['market_consultation'],'PRELIMINARY_ONLY')
+        self.assertTrue(result['market_quality']['advisory_only'])
+        self.assertNotIn('market_quality',original)
+        self.assertIn('non modifica',result['note'])
+    def test_book_caution_suppresses_advisory_candidate(self):
+        original=review('BTC',self.candles,self.indicator)
+        result=attach_market_quality(original,{'status':'CAUTION','reasons':['HTTP troppo lento'],'spread_bps':65})
+        self.assertFalse(result['paper_candidate'])
+        self.assertEqual(result['market_consultation'],'NO_CANDIDATE')
+        self.assertEqual(next(a for a in result['agents'] if a['name']=='HEAD OF DESK')['status'],'market_caution')
+        self.assertTrue(original['paper_candidate'])
+    def test_book_missing_fails_closed_for_display(self):
+        original=review('BTC',self.candles,self.indicator)
+        result=attach_market_quality(original,error='TimeoutError')
+        self.assertEqual(result['market_quality']['status'],'UNAVAILABLE')
+        self.assertFalse(result['paper_candidate'])
+        self.assertEqual(next(a for a in result['agents'] if a['name']=='SNIPER')['status'],'idle')
+    def test_book_pass_does_not_override_existing_risk_veto(self):
+        original=review('BTC',self.candles,self.indicator,daily_realized=-4)
+        result=attach_market_quality(original,{'status':'PASS','reasons':[]})
+        self.assertTrue(result['risk_veto'])
+        self.assertFalse(result['paper_candidate'])
+    def test_book_caution_with_wait_remains_wait(self):
+        original=review('BTC',self.candles,{'buy':False,'atr':1.2,'why':'WAIT'})
+        result=attach_market_quality(original,{'status':'CAUTION','reasons':['spread']})
+        self.assertEqual(result['proposal'],'WAIT')
+        self.assertFalse(result['paper_candidate'])
     def test_local_ai_disabled_by_default(self):
         r=review('BTC',self.candles,self.indicator)
         with patch.dict('os.environ',{},clear=True):
