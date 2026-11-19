@@ -12,8 +12,8 @@ from urllib.request import Request, urlopen
 PROFILES='https://api.dexscreener.com/token-profiles/latest/v1'
 PAIRS_ROOT='https://api.dexscreener.com/tokens/v1/solana/'
 ADDRESS=re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
-MAX_TOKENS=16
-MAX_RESULTS=12
+MAX_TOKENS=30
+MAX_RESULTS=30
 
 
 def _get_json(url):
@@ -46,7 +46,7 @@ def analyze(profiles,pairs,now_ms=None):
             addresses.append(a)
         if len(addresses)>=MAX_TOKENS:break
     mapping={}
-    for pair in pairs[:160]:
+    for pair in pairs[:300]:
         if not isinstance(pair,dict) or pair.get('chainId')!='solana':continue
         base=pair.get('baseToken') or {}
         quote=pair.get('quoteToken') or {}
