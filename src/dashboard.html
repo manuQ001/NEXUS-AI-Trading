@@ -154,7 +154,8 @@ const tradeAnalysis=t=>{
 $('trades').innerHTML=d.trades.length?d.trades.map(t=>{
   const exit=t.action==='SELL';
   const reason=exit?(t.details==='Stop loss'?'Stop-loss':t.details==='Take profit'?'Take-profit':t.details||'Motivo non registrato'):'Ingresso · segnale strategia';
-  return `<tr><td>${time(t.timestamp)}</td><td>${esc(t.symbol)}</td><td>${esc(t.action)}</td><td>${fmt(t.price)}</td><td class="${t.pnl<0?'red':'green'}">${exit?fmt(t.pnl):'—'}</td><td class="${exit?(t.details==='Stop loss'?'red':t.details==='Take profit'?'green':'muted'):'muted'}">${esc(reason)}</td><td>${exit?tradeAnalysis(t):'—'}</td></tr>`
+  const buyDetail='<details><summary style="cursor:pointer;color:var(--blue)">Vedi segnali</summary><div class="sub" style="margin-top:6px;max-width:360px;white-space:normal">'+esc(t.details||'Nessun dettaglio di ingresso disponibile')+'</div></details>';
+  return `<tr><td>${time(t.timestamp)}</td><td>${esc(t.symbol)}</td><td>${esc(t.action)}</td><td>${fmt(t.price)}</td><td class="${t.pnl<0?'red':'green'}">${exit?fmt(t.pnl):'—'}</td><td class="${exit?(t.details==='Stop loss'?'red':t.details==='Take profit'?'green':'muted'):'muted'}">${esc(reason)}</td><td>${exit?tradeAnalysis(t):buyDetail}</td></tr>`
 }).join(''):'<tr><td colspan="7" class="muted">Nessuna operazione: il sistema non inventa risultati</td></tr>';
 $('wallets').innerHTML=d.wallets.map(w=>`<div class="flex" style="padding:10px 0;border-bottom:1px solid #27354a"><div><b>${w.strategy==='core'?'BTC / ETH':'MEME HUNTER'}</b><div class="sub">Disponibile ${fmt(w.cash)}</div></div><div style="text-align:right"><b>${fmt(w.equity)}</b><div class="${w.pnl<0?'red':'green'} sub">${fmt(w.pnl)}</div></div></div>`).join('');}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
