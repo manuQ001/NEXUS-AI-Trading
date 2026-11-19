@@ -20,6 +20,7 @@ def test_strategy(candles, starting_cash=105.0):
     # Indicators computed through candle i-1; next candle (i) is first tradable open.
     cash=float(starting_cash); pos=None; trades=[]; curves=[]
     initial=starting_cash; daily_realized={}; blocked=0; signals=0
+    ambiguous_exit_bars=0; stop_gap_fills=0; skipped_targets_after_feed_gap=0
     for i in range(36,len(candles)):
         c=candles[i]
         prior=candles[:i]
@@ -32,6 +33,12 @@ def test_strategy(candles, starting_cash=105.0):
             missing_interval=c['time']-candles[i-1]['time']!=300
             decision=assess_exit_bar(c,pos['stop'],pos['target'],
                                      allow_target=not missing_interval)
+            if decision['ambiguous_both_touched']:
+                ambiguous_exit_bars+=1
+            if decision['gap_through_stop']:
+                stop_gap_fills+=1
+            if decision['target_suppressed']:
+                skipped_targets_after_feed_gap+=1
             raw=decision['reference']
             reason=('STOP' if decision['reason']=='Stop loss' else
                     'TARGET' if decision['reason']=='Take profit' else None)
@@ -78,10 +85,12 @@ def test_strategy(candles, starting_cash=105.0):
             'max_drawdown_pct':round(max_dd,3),'signals':signals,'blocked':blocked,
             'closed_trades':len(trades),'wins':wins,
             'avg_closed_trade_pnl':round(avg_pnl,5) if avg_pnl is not None else None,
-            'gaps_over_5m':gaps,'data_quality_warning':('Feed storico discontinuo: risultati da interpretare con cautela' if gaps else None),'win_rate_pct':round(wins/len(trades)*100,2) if trades else None,
+            'gaps_over_5m':gaps,'ambiguous_exit_bars':ambiguous_exit_bars,
+            'gap_stop_fills':stop_gap_fills,'targets_suppressed_after_feed_gap':skipped_targets_after_feed_gap,
+            'data_quality_warning':('Feed storico discontinuo: risultati da interpretare con cautela' if gaps else None),'win_rate_pct':round(wins/len(trades)*100,2) if trades else None,
             'profit_factor':round(gross_gain/gross_loss,3) if gross_loss else None,
             'open_position':bool(pos),'trades':trades[-40:],'curve':curves[::max(1,len(curves)//80)],
-            'assumptions':'Segnale sulla candela chiusa precedente, entrata all’open successivo, long spot senza leva; stop/target intrabar con stop prioritario; commissioni 0,25% e slippage 0,05% per lato. Ingressi saltati dopo intervalli storici mancanti. Nessuna uscita nella barra di ingresso. Non riproduce order book, latenza, imposte o liquidazioni.'}
+            'assumptions':'Segnale sulla candela chiusa precedente, entrata all’open successivo, long spot senza leva; stop/target intrabar con stop prioritario; stop a open in caso di gap ribassista e target non attribuiti dopo intervalli mancanti; commissioni 0,25% e slippage 0,05% per lato. Ingressi saltati dopo intervalli storici mancanti. Nessuna uscita nella barra di ingresso. Non riproduce order book, latenza, imposte o liquidazioni.'}
 
 
 def validate_holdout(candles, starting_cash=105.0):
