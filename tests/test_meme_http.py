@@ -38,12 +38,13 @@ class TestMemeQuickHttp(unittest.TestCase):
         self.assertIn(M,server.MEME_SCOUT_QUOTES)
         h=handler('/api/meme-demo-trade?action=BUY&address='+M,H)
         with patch('server.connect',side_effect=lambda: db_connect(self.db)),\
-             patch('meme_demo.indicative_quote',side_effect=ValueError('No second quote')):
+             patch('meme_portfolio.indicative_quote',side_effect=ValueError('No second quote')),\
+             patch('meme_portfolio.get_fx',return_value={'usd_eur':0.9,'rate_date':'2026-11-19'}):
             h.do_POST()
         result=h.out.call_args.args[0]
         self.assertTrue(result['ok'],result)
         self.assertEqual(result['trade']['quote_source'].split(':')[0],'MEME SCOUT')
-        self.assertEqual(result['account']['cash_credits'],42)
+        self.assertEqual(result['account']['cash_eur'],42)
         self.assertEqual(len(result['account']['positions']),1)
         c=db_connect(self.db)
         try:
@@ -54,14 +55,14 @@ class TestMemeQuickHttp(unittest.TestCase):
             'quote':{'price_usd':.02,'symbol':'MEME'},
             'observed_at':time.time()-server.MEME_SCOUT_TTL_SECONDS-10}
         h=handler('/api/meme-demo-trade?action=BUY&address='+M,H)
-        with patch('meme_demo.indicative_quote',side_effect=ValueError('not found')):
+        with patch('meme_portfolio.indicative_quote',side_effect=ValueError('not found')):
             h.do_POST()
         self.assertEqual(h.out.call_args.args[1],400)
         self.assertIn('Analizza Solana',h.out.call_args.args[0]['error'])
     def test_cross_origin_refused_without_quote_call(self):
         h=handler('/api/meme-demo-trade?action=BUY&address='+M,
             dict(H,Origin='https://evil.example'))
-        with patch('meme_demo.indicative_quote') as quote:
+        with patch('meme_portfolio.indicative_quote') as quote:
             h.do_POST()
         quote.assert_not_called()
         self.assertEqual(h.out.call_args.args[1],403)
