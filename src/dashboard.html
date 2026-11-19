@@ -69,7 +69,7 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> <small style="font-weight:400;color:#7895b2">2.7</small></div><div class="sub">AUTONOMOUS TRADING DESK • LOCAL EDITION</div></div><div class="flex"><span class="chip">● PAPER ONLY • €150</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav" aria-label="Vai alla sezione"><a href="#overview">◎ Panoramica</a><a href="#market">◈ Mercato</a><a href="#agents-section">◆ Agenti</a><a href="#meme-section">◉ Meme Hunter</a><a href="#performance-section">▥ Performance</a><a href="#history-section">▤ Storico</a><a href="#lab-section">⚙ Laboratorio</a></nav>
 <section class="workspace-view" data-view="overview" id="workspace-overview">
-<div class="notice">⚠ <strong>Solo simulazione.</strong> Nessun wallet, nessuna leva, nessun ordine reale. La strategia memecoin è <strong>bloccata agli acquisti</strong> fino a quando i controlli on-chain non saranno implementati e testati. Gli agenti usano regole; un modello AI locale facoltativo può fornire commenti, senza decidere o eseguire operazioni.</div>
+<div class="notice">⚠ <strong>Solo simulazione.</strong> Nessun wallet, nessuna leva, nessun ordine reale. Le memecoin vengono comprate e vendute soltanto nel portafoglio PAPER da 45 €; <strong>ordini reali bloccati</strong>. I controlli on-chain non garantiscono la vendibilità. Gli agenti usano regole; un modello AI locale facoltativo può fornire commenti, senza decidere o eseguire operazioni.</div>
 <div class="section-divider" id="overview"><span class="section-index">01</span><div><h2 class="section-heading">Panoramica</h2><div class="section-caption">Stato del capitale virtuale e dei controlli in tempo reale</div></div></div><section class="metrics"><div class="panel metric"><div class="name">Patrimonio virtuale</div><div class="val" id="equity">€150,00</div><div class="sub">Core + Meme Hunter</div></div><div class="panel metric"><div class="name">Profitto / perdita</div><div class="val" id="pnl">€0,00</div><div class="sub">Include costi stimati</div></div><div class="panel metric"><div class="name">Operazioni chiuse</div><div class="val" id="closed">0</div><div class="sub">Solo eseguite in paper</div></div><div class="panel metric"><div class="name">Posizioni aperte</div><div class="val" id="open">0</div><div class="sub">Massimo una, solo Core</div></div></section>
 <div class="desk-state" role="status" aria-live="polite"><div><strong>Stato operativo</strong><div class="sub" id="desk-state-detail">In attesa del primo controllo del feed Kraken</div></div><span class="state-label" id="desk-state-label">IN ATTESA</span></div>
 </section>
@@ -109,8 +109,8 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
     <div><div class="title" style="margin-bottom:3px">MEME SCOUT · Ultimi profili osservati</div><div class="sub">DEX Screener Solana · liquidità e volume osservati · selezione di profili, non l'intero mercato</div></div>
     <button id="meme-scan" class="btn" type="button">◉ Analizza Solana</button>
   </div>
-  <div class="desk-state" style="margin-top:14px"><div><strong>RUG GUARD 2.0 · Controlli GoPlus su richiesta</strong><div class="sub">Mint, freeze e funzioni token da GoPlus; concentrazione dei token account tramite WHALE. Honeypot, vendibilità e liquidità bloccata restano non verificati.</div></div><span class="state-label bad">ACQUISTI BLOCCATI</span></div>
-  <div id="meme-message" class="sub" role="status" style="margin:12px 0">Premi Analizza Solana per richiedere i dati pubblici. Nessun monitoraggio automatico.</div>
+  <div class="desk-state" style="margin-top:14px"><div><strong>RUG GUARD 2.0 · Controlli GoPlus su richiesta</strong><div class="sub">Mint, freeze e funzioni token da GoPlus; concentrazione dei token account tramite WHALE. Honeypot, vendibilità e liquidità bloccata restano non verificati.</div></div><span class="state-label bad">ORDINI REALI BLOCCATI</span></div>
+  <div id="meme-message" class="sub" role="status" style="margin:12px 0">Premi Analizza Solana per una ricerca manuale. Il motore MEME AUTO svolge ricerche separate ogni 5 minuti quando attivo.</div>
   <div class="scroll"><table class="dataTable"><thead><tr><th>Token</th><th>Prezzo USD</th><th>Liquidità USD</th><th>Volume 24h</th><th>Pool</th><th>Rischi / dati mancanti</th><th>RUG GUARD</th><th>WHALE TRACKER</th><th>Fonte</th></tr></thead><tbody id="meme-rows"><tr><td colspan="9" class="muted">Ricerca non eseguita</td></tr></tbody></table></div>
   <dialog id="meme-analysis-dialog" class="meme-dialog" aria-labelledby="meme-analysis-heading">
     <div class="meme-dialog-head">
@@ -119,7 +119,7 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
     </div>
     <div id="meme-dialog-content" class="meme-dialog-content" role="status">In attesa di dati</div>
   </dialog>
-  <p class="sub" style="margin-top:12px">RUG utilizza GoPlus; WHALE consulta gli account token più grandi tramite RPC Solana. SHILL non ha ancora fonti social collegate. Token account e wallet non sono la stessa cosa. Un'elevata liquidità non prova che il token sia sicuro. Budget MEME virtuale €45, nessun ordine autorizzato.</p>
+  <p class="sub" style="margin-top:12px">RUG utilizza GoPlus; WHALE consulta gli account token più grandi tramite RPC Solana. SHILL non ha ancora fonti social collegate. Token account e wallet non sono la stessa cosa. Un'elevata liquidità non prova che il token sia sicuro. Portafoglio MEME virtuale €45: ordini PAPER autorizzati secondo le regole, ordini reali sempre bloccati.</p>
 </section>
 </section>
 <section class="workspace-view" data-view="performance-section" id="workspace-performance-section" hidden>
@@ -426,7 +426,7 @@ $('meme-scan').addEventListener('click',async()=>{
     }).join(''):'<tr><td colspan="9" class="muted">Nessuna coppia Solana valida nel campione di profili disponibile</td></tr>';
     info.textContent='Campione '+data.sampled_profiles+' profili · '+data.candidates.length+' coppie visualizzate · '+new Date(data.observed_at*1000).toLocaleTimeString('it-IT')+' · '+data.warning;
   }catch(e){
-    info.textContent='MEME SCOUT non disponibile: '+e.message+' · Acquisti memecoin sempre bloccati.';
+    info.textContent='MEME SCOUT non disponibile: '+e.message+' · Gli ordini reali restano bloccati.';
     body.innerHTML='<tr><td colspan="9" class="muted">Non sono disponibili dati verificati per questa richiesta</td></tr>';
   }finally{button.disabled=false}
 });
