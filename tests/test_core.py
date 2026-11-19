@@ -1,7 +1,8 @@
 import sys, tempfile, unittest
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from core import connect, signal, process_candles, wallet_status, handle_exit, try_buy, startup_events, state, store_closed_candles, load_closed_history, historical_coverage
+from core import connect, signal, process_candles, wallet_status, handle_exit, try_buy, startup_events, state, store_closed_candles, load_closed_history, historical_coverage, closed_candle_fresh
 from selftest import run_selftest
 
 class TestCore(unittest.TestCase):
@@ -35,6 +36,24 @@ class TestCore(unittest.TestCase):
     def test_history_rejects_unknown_symbol(self):
         with self.assertRaises(ValueError):
             load_closed_history(self.c,'MEME')
+    def test_candle_freshness_uses_close_not_start(self):
+        candle={'time':1700000000}
+        self.assertFalse(closed_candle_fresh(candle,now=1700000299))
+        self.assertTrue(closed_candle_fresh(candle,now=1700000300))
+        self.assertTrue(closed_candle_fresh(candle,now=1700000390))
+        self.assertFalse(closed_candle_fresh(candle,now=1700000391))
+    def test_stale_signal_is_vetoed_without_paper_trade(self):
+        first=self.candles(80)
+        process_candles(self.c,'BTC',first)
+        new=self.candles(81)
+        new[-1]['time']=first[-1]['time']+300
+        with patch('core.signal',return_value={'buy':True,'atr':1.0,'rsi':50,'why':'TEST'}):
+            with patch('core.time.time',return_value=1800000000):
+                process_candles(self.c,'BTC',new)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
+        result=self.c.execute('SELECT outcome, reason FROM decisions ORDER BY id DESC LIMIT 1').fetchone()
+        self.assertEqual(result['outcome'],'BLOCK')
+        self.assertIn('vecchio',result['reason'])
     def test_wallets(self):
         w=wallet_status(self.c,{})
         self.assertEqual(sum(x['equity'] for x in w),150)
