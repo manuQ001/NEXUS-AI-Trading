@@ -2,13 +2,33 @@
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
 
+## Release 2.7.0 — aggiornamento da NEXUS 2.6
+
+La 2.7 aggiunge monitor autonomo delle candele chiuse mentre Python resta acceso, diagnosi dei WAIT, HEAD OF DESK/SNIPER/EXIT, AI esterna facoltativa solo consultiva e Diario AI prospettico. **PAPER ONLY**. Le API AI esterne restano disattivate senza chiave. Nessun miglioramento di redditività è garantito.
+
+**Aggiornamento della cartella 2.6 esistente su Windows** (non estrarre una nuova copia sopra quella attuale):
+
+1. Chiudi NEXUS nella finestra PowerShell con CTRL+C. Conserva la cartella originale e non cancellare `nexus.sqlite3`.
+2. Apri PowerShell nella cartella principale della **tua NEXUS 2.6**, quella che contiene `updater.py`, `src` e `nexus.sqlite3`.
+3. Scarica l'helper ufficiale e avvialo:
+
+```powershell
+Invoke-WebRequest 'https://raw.githubusercontent.com/manuQ001/NEXUS-AI-Trading/v2.7.0/upgrade_from_26.py' -OutFile '.\upgrade_from_26.py'
+py -3.15 .\upgrade_from_26.py
+```
+
+4. Il programma verifica il manifest ufficiale 2.7.0, l'hash SHA-256 dello ZIP e l'intera suite di test prima di copiare. Esegue il backup SQLite e del codice in `backups/pre-2.7-...` e copia anche **tutti i nuovi moduli**, non previsti dall'updater della 2.6.
+5. Solo se l'upgrade termina con successo, avvia `py -3.15 .\src\server.py` e controlla `http://127.0.0.1:8765`.
+
+**Nota:** per il passaggio 2.6→2.7 usa l'helper qui sopra, **non** il vecchio `py updater.py --apply-staged` della 2.6, che ha un inventario incompleto dei nuovi moduli. Prima di procedere, verifica che la pagina della release ufficiale riporti la versione 2.7.0. Lo script non esegue il pacchetto senza averne verificato digest e test. L'hash nel manifest protegge da corruzioni accidentali, ma non è una firma crittografica indipendente dall'account GitHub.
+
 ## Aggiornamenti
 
 Questo repository pubblico ospita il codice e le release ufficiali. La pipeline `Publish NEXUS release` esegue i test e, quando viene pubblicato un tag `vX.Y`, genera:
 - un archivio `NEXUS_AI_X_Y.zip` contenente il programma, senza database utente;
 - `latest.json` con versione, URL e digest SHA-256 per il downloader.
 
-**Stato attuale:** codice e release iniziali pubblicati. La V2.6 aggiunge la verifica cronologica 70/30, con indicatori riscaldati esclusivamente da candele precedenti, e mostra quando il numero di operazioni è insufficiente per valutare la strategia. Non introduce nuovi agenti AI né dati WHALE/SHILL.
+**Storico versioni:** la V2.6 aggiunge la verifica cronologica 70/30, con indicatori riscaldati esclusivamente da candele precedenti, e mostra quando il numero di operazioni è insufficiente per valutare la strategia. Non introduce nuovi agenti AI né dati WHALE/SHILL.
 
 Il downloader locale non installa codice senza conferma. Per essere sicuro contro un account GitHub compromesso, il digest SHA-256 da solo non basta: bisogna verificare anche la provenienza delle release e proteggere l'account GitHub con 2FA.
 
