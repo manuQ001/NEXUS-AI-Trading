@@ -2,7 +2,7 @@ import sys, tempfile, unittest
 from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from core import connect, signal, process_candles, wallet_status, handle_exit, try_buy, startup_events, state, store_closed_candles, load_closed_history, historical_coverage, closed_candle_fresh
+from core import connect, signal, process_candles, wallet_status, handle_exit, try_buy, startup_events, state, store_closed_candles, load_closed_history, historical_coverage, closed_candle_fresh, assess_paper_order
 from selftest import run_selftest
 
 class TestCore(unittest.TestCase):
@@ -70,6 +70,47 @@ class TestCore(unittest.TestCase):
         self.assertIsNotNone(p)
         self.assertAlmostEqual(p['entry'],ask*1.0005)
         self.assertGreater(p['entry_fee'],0)
+    def test_unified_risk_gate_read_only(self):
+        candles=self.candles()
+        indicator={'buy':True,'atr':1.0,'why':'TEST'}
+        before=[dict(row) for row in self.c.execute('SELECT * FROM wallets')]
+        result=assess_paper_order(self.c,'BTC',candles,indicator,quote_price=candles[-1]['close'])
+        self.assertTrue(result['approved'])
+        self.assertLessEqual(result['estimated_stop_risk'],.75+1e-7)
+        self.assertEqual([dict(row) for row in self.c.execute('SELECT * FROM wallets')],before)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
+    def test_risk_gate_explains_quote_and_signal_vetos(self):
+        candles=self.candles()
+        ind={'buy':True,'atr':1,'why':'TEST'}
+        self.assertIn('Manca',assess_paper_order(self.c,'BTC',candles,ind)['reason'])
+        self.assertIn('distante',assess_paper_order(self.c,'BTC',candles,ind,quote_price=200)['reason'])
+        self.assertIn('SEARCH',assess_paper_order(self.c,'BTC',candles,{'buy':False},quote_price=144)['reason'])
+        self.assertFalse(assess_paper_order(self.c,'MEME',candles,ind,quote_price=144)['approved'])
+    def test_risk_circuit_breaker_blocks_further_paper_buys(self):
+        self.c.execute('UPDATE wallets SET cash=94.49 WHERE strategy="core"')
+        candles=self.candles()
+        d=assess_paper_order(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
+        self.assertFalse(d['approved'])
+        self.assertIn('Circuit breaker',d['reason'])
+        try_buy(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
+    def test_risk_existing_position_is_non_bypassable(self):
+        candles=self.candles()
+        ind={'buy':True,'atr':1,'why':'TEST'}
+        self.assertTrue(try_buy(self.c,'BTC',candles,ind,quote_price=candles[-1]['close'])['approved'])
+        second=try_buy(self.c,'ETH',candles,ind,quote_price=candles[-1]['close'])
+        self.assertFalse(second['approved'])
+        self.assertIn('posizione',second['reason'])
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades WHERE action="BUY"').fetchone()[0],1)
+    def test_risk_daily_loss_blocks_buy(self):
+        from datetime import datetime, timezone
+        now=int(datetime.now(timezone.utc).timestamp())
+        self.c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',
+                       (now,'BTC','SELL',1,100,0,-3.10,'TEST'))
+        candles=self.candles()
+        decision=assess_paper_order(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
+        self.assertFalse(decision['approved'])
+        self.assertIn('giornaliera',decision['reason'])
     def test_wallets(self):
         w=wallet_status(self.c,{})
         self.assertEqual(sum(x['equity'] for x in w),150)
