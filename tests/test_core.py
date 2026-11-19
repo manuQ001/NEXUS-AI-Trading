@@ -1,7 +1,7 @@
 import sys, tempfile, unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from core import connect, signal, process_candles, wallet_status, handle_exit, try_buy, startup_events, state
+from core import connect, signal, process_candles, wallet_status, handle_exit, try_buy, startup_events, state, store_closed_candles, load_closed_history, historical_coverage
 from selftest import run_selftest
 
 class TestCore(unittest.TestCase):
@@ -12,6 +12,29 @@ class TestCore(unittest.TestCase):
         self.c.close();self.temp.cleanup()
     def candles(self,n=45):
         return [{'time':1700000000+i*300,'open':100+i,'high':101+i,'low':99+i,'close':100+i,'volume':100} for i in range(n)]
+    def test_history_deduplicated_and_ordered(self):
+        candles=self.candles()
+        store_closed_candles(self.c,'BTC',candles)
+        store_closed_candles(self.c,'BTC',list(reversed(candles)))
+        result=load_closed_history(self.c,'BTC')
+        self.assertEqual(len(result),len(candles))
+        self.assertEqual(result[0]['time'],candles[0]['time'])
+        self.assertEqual(result[-1]['close'],candles[-1]['close'])
+        self.assertEqual(historical_coverage(self.c,'BTC')['candles'],len(candles))
+        self.assertEqual(historical_coverage(self.c,'ETH')['candles'],0)
+    def test_history_isolated_from_trading_wallet(self):
+        before=[dict(x) for x in wallet_status(self.c,{})]
+        store_closed_candles(self.c,'BTC',self.candles())
+        self.assertEqual(before,[dict(x) for x in wallet_status(self.c,{})])
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
+    def test_history_rejects_invalid_candle(self):
+        candles=self.candles()
+        candles[0]['high']=0
+        with self.assertRaises(ValueError):
+            store_closed_candles(self.c,'BTC',candles)
+    def test_history_rejects_unknown_symbol(self):
+        with self.assertRaises(ValueError):
+            load_closed_history(self.c,'MEME')
     def test_wallets(self):
         w=wallet_status(self.c,{})
         self.assertEqual(sum(x['equity'] for x in w),150)
