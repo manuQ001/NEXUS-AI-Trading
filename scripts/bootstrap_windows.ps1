@@ -75,7 +75,7 @@ Push-Location $Dest
 try {
     py -m unittest discover -s tests -p "test_*.py"
     if ($LASTEXITCODE -ne 0) { throw "Test falliti: nessun file inviato a GitHub" }
-    git add -- src updater.py migrate.py updates.json AVVIA_WINDOWS.ps1
+    git add -- src tests updater.py migrate.py updates.json AVVIA_WINDOWS.ps1
     if ($LASTEXITCODE -ne 0) { throw "git add non riuscito" }
     git commit -m "feat: publish NEXUS 2.4.1 initial paper trading sources"
     if ($LASTEXITCODE -ne 0) { throw "Commit Git fallito. Verifica git config user.name/user.email." }
