@@ -180,6 +180,14 @@ def wallet_status(c, prices):
     for w in c.execute('SELECT * FROM wallets').fetchall():
         ps=c.execute('SELECT * FROM positions WHERE strategy=?',(w['strategy'],)).fetchall()
         mark=sum(p['qty']*prices.get(p['symbol'],p['entry']) for p in ps)
+        # Single EUR MEME wallet: include marks from autonomous Solana PAPER
+        # positions, without touching BTC/ETH core positions or USD archive.
+        if w['strategy']=='meme' and c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='meme_eur_positions'").fetchone():
+            from meme_portfolio import SELL_COST
+            mark+=sum(float(p['quantity'])*float(p['last_price_usd'])*
+                      float(p['last_fx_usd_eur'])*(1-SELL_COST)
+                      for p in c.execute('SELECT quantity,last_price_usd,last_fx_usd_eur FROM meme_eur_positions'))
         equity=w['cash']+mark
         wallets.append({'strategy':w['strategy'],'cash':round(w['cash'],4),'equity':round(equity,4),'initial':w['initial'],'pnl':round(equity-w['initial'],4)})
     return wallets
@@ -483,7 +491,7 @@ def snapshot(c):
             'indicators':{s:state(c,'indicator_'+s,{}) for s in SYMBOLS},
             'candles':{s:state(c,'candles_'+s,[]) for s in SYMBOLS},
             'updated_at':state(c,'last_update'), 'source':'Kraken EUR, candele chiuse',
-            'mode':'PAPER ONLY','risk_limits':risk_limits_status(c),'performance':performance_report(c),'cost_analysis':cost_break_even(),'meme_execution':'BLOCKED: on-chain risk validation not implemented',
+            'mode':'PAPER ONLY','risk_limits':risk_limits_status(c),'performance':performance_report(c),'cost_analysis':cost_break_even(),'meme_execution':'PAPER_EUR_ONLY; REAL_ORDERS_BLOCKED',
             'status':state(c,'feed_status',{})}
 
 
