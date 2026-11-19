@@ -8,7 +8,7 @@ Questo repository pubblico ospita il codice e le release ufficiali. La pipeline 
 - un archivio `NEXUS_AI_X_Y.zip` contenente il programma, senza database utente;
 - `latest.json` con versione, URL e digest SHA-256 per il downloader.
 
-**Stato attuale:** repository inizializzato; il codice applicativo deve essere caricato prima di poter pubblicare una release. Nessun aggiornamento è ancora disponibile.
+**Stato attuale:** codice e release iniziali pubblicati. La V2.5 aggiunge controlli OHLCV sui dati storici, segnalazione di intervalli mancanti e media del P/L dei trade chiusi; non introduce nuovi agenti AI né dati WHALE/SHILL.
 
 Il downloader locale non installa codice senza conferma. Per essere sicuro contro un account GitHub compromesso, il digest SHA-256 da solo non basta: bisogna verificare anche la provenienza delle release e proteggere l'account GitHub con 2FA.
 
@@ -23,4 +23,4 @@ py -m unittest discover -s tests -p "test_*.py"
 Il canale di aggiornamento previsto è:
 `https://raw.githubusercontent.com/manuQ001/NEXUS-AI-Trading/main/latest.json`
 
-Non puntare l'installazione locale a questo URL prima che la prima release sia stata pubblicata e il downloader sia stato reso compatibile con i redirect di GitHub Releases.
+La V2.4.1 contiene il downloader compatibile con i redirect di GitHub Releases. Gli aggiornamenti vengono scaricati in un'area temporanea, ma si installano solo con conferma e server chiuso: `py updater.py --apply-staged`. La V2.5 corregge anche l'importazione dei moduli in questo comando. Il database locale non deve essere pubblicato.
