@@ -101,6 +101,13 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
                 self.out({'ok':False,'status':'NON_VERIFICATO','meme_execution':'BLOCKED',
                           'error':'RPC Solana non disponibile o non valido: '+type(exc).__name__},503)
+        elif path=='/api/meme-demo':
+            from meme_demo import demo_state
+            with LOCK:
+                c=connect()
+                try: result=demo_state(c);c.commit()
+                finally:c.close()
+            self.out(result)
         elif path=='/api/meme-scout':
             # Manual, bounded public-data research. No SQLite writes, no orders.
             try:
@@ -188,6 +195,36 @@ class Handler(BaseHTTPRequestHandler):
         else:self.out({'error':'Endpoint non esistente'},404)
     def do_POST(self):
         path=urlsplit(self.path).path
+        if path=='/api/meme-demo-trade':
+            # Click-only, zero-body, same-origin action. No real exchange integrations.
+            from urllib.parse import parse_qs
+            from meme_scout import ADDRESS
+            from meme_demo import indicative_quote, quick_trade, demo_state
+            origin=self.headers.get('Origin')
+            fetch_site=self.headers.get('Sec-Fetch-Site')
+            authorized=(self.headers.get('X-NEXUS-Demo-Click')=='1'
+                        and self.headers.get('Content-Length','0')=='0'
+                        and (not origin or origin in ('http://127.0.0.1:8765','http://localhost:8765'))
+                        and (not fetch_site or fetch_site in ('same-origin','none')))
+            if not authorized:
+                self.out({'ok':False,'error':'Richiesta demo non autorizzata'},403);return
+            query=parse_qs(urlsplit(self.path).query)
+            address=query.get('address',[''])[0];action=query.get('action',[''])[0]
+            if not ADDRESS.fullmatch(address) or action not in ('BUY','SELL'):
+                self.out({'ok':False,'error':'Mint o azione non validi'},400);return
+            try:
+                # Read fresh indicative market quote outside DB mutex.
+                quote=indicative_quote(address)
+                with LOCK:
+                    c=connect()
+                    try:
+                        outcome=quick_trade(c,address,action,quote)
+                        state=demo_state(c);c.commit()
+                    finally:c.close()
+                self.out({'ok':True,'trade':outcome,'account':state})
+            except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError,sqlite3.Error) as exc:
+                self.out({'ok':False,'error':'Quick demo non eseguibile: '+str(exc)[:160]},400)
+            return
         if path!='/api/ai-review':
             self.out({'ok':False,'error':'Endpoint non esistente'},404);return
         origin=self.headers.get('Origin')
