@@ -34,3 +34,18 @@ Il workflow `Test NEXUS changes` esegue i test su ogni push a `main`. Pubblicare
 Le modifiche al ramo `main` sono in preparazione, non vengono installate sul PC finché non è pubblicato un nuovo tag GitHub. Il sistema accumula nel database locale `market_history` candele 5m BTC/ETH **solo dopo aver ricevuto feed Kraken valido**; non recupera retroattivamente oltre il limite dell'API pubblica. `/api/history` mostra la copertura; backtest e validazione 70/30 preferiscono lo storico archiviato, ripiegando sul feed recente se insufficiente. Nessun acquisto reale, nessuna nuova API key, nessun cambiamento di portafoglio o saldo.
 
 Lo storico non rende affidabile la strategia da solo: controllare intervalli mancanti, numero di trade, costi stimati e test su altri regimi di mercato.
+
+## Agente AI locale facoltativo (sviluppo non ancora rilasciato)
+
+La schermata `Analisi AI locale` richiama `GET /api/ai-review?symbol=BTC` (oppure ETH) su richiesta esplicita. Il modello viene raggiunto **esclusivamente** sull'indirizzo `127.0.0.1:11434` con l'API Ollama `POST /api/generate`, `stream:false` e `format:"json"`. Nessun costo API cloud, ma il modello deve essere installato e può richiedere memoria e CPU/GPU.
+
+Per abilitarlo in **una nuova PowerShell** dopo aver installato Ollama e scaricato un modello adatto alle risorse del PC:
+
+```powershell
+$env:NEXUS_OLLAMA_MODEL = "nome-del-modello-installato"
+py .\src\server.py --no-browser
+```
+
+Per disabilitare: chiudere il server e riavviarlo senza la variabile (`Remove-Item Env:NEXUS_OLLAMA_MODEL`). Senza configurazione il pannello mostra `disabled`, non effettua chiamate di rete. Il modello riceve soltanto un piccolo riepilogo numerico delle decisioni dei moduli a regole, non il portafoglio o il database; non scrive sul disco e non modifica le decisioni. Non ha accesso a strumenti di trading né a wallet. I testi generati non sono segnali verificati e non provano redditività.
+
+**Mai abilitare ordini reali con output di modello non verificato.** WHALE/SHILL non ricevono dati inventati e restano inattivi finché non saranno collegate fonti affidabili.
