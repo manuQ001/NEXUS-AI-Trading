@@ -275,6 +275,45 @@ class TestCore(unittest.TestCase):
         self.assertEqual(self.c.execute('SELECT cash FROM wallets WHERE strategy="meme"').fetchone()[0],45)
     def test_isolated_selftest(self):
         self.assertTrue(run_selftest()["ok"])
+    def test_performance_lab_uses_all_closed_trades(self):
+        from core import performance_report, snapshot
+        initial=performance_report(self.c)
+        self.assertEqual(initial['closed_trades'],0)
+        self.assertIsNone(initial['win_rate_pct'])
+        self.assertEqual(initial['curve'],[{'timestamp':None,'pnl':0.0}])
+        # More than the 80 rows shown in the trade-history table.
+        for i in range(100):
+            pnl=1.0 if i%2==0 else -0.5
+            self.c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',
+                           (1700000000+i,'BTC','SELL',0.01,100.0,0.1,pnl,'Take profit' if pnl>0 else 'Stop loss'))
+        result=performance_report(self.c)
+        self.assertEqual(result['closed_trades'],100)
+        self.assertEqual(result['wins'],50)
+        self.assertEqual(result['losses'],50)
+        self.assertEqual(result['win_rate_pct'],50.0)
+        self.assertAlmostEqual(result['realized_pnl'],25.0)
+        self.assertAlmostEqual(result['gross_profit'],50.0)
+        self.assertAlmostEqual(result['gross_loss'],25.0)
+        self.assertAlmostEqual(result['profit_factor'],2.0)
+        self.assertAlmostEqual(result['avg_win'],1.0)
+        self.assertAlmostEqual(result['avg_loss'],-0.5)
+        self.assertAlmostEqual(result['avg_trade'],0.25)
+        self.assertEqual(len(result['curve']),101)
+        self.assertAlmostEqual(result['curve'][-1]['pnl'],25.0)
+        self.assertAlmostEqual(result['recorded_fees_all_orders'],10.0)
+        self.assertEqual(snapshot(self.c)['performance']['closed_trades'],100)
+    def test_performance_lab_handles_only_winners_and_open_buy_fees(self):
+        from core import performance_report
+        self.c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',
+                       (1,'BTC','BUY',.01,100,.2,0,'signal'))
+        self.c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',
+                       (2,'BTC','SELL',.01,110,.3,1,'Take profit'))
+        r=performance_report(self.c)
+        self.assertEqual(r['closed_trades'],1)
+        self.assertEqual(r['win_rate_pct'],100)
+        self.assertIsNone(r['profit_factor'])
+        self.assertEqual(r['recorded_fees_all_orders'],.5)
+        self.assertEqual(r['max_closed_drawdown_eur'],0)
     def test_no_signal_short_data(self):
         self.assertFalse(signal(self.candles(8))['buy'])
 
