@@ -97,7 +97,7 @@ def eligible_candidates(c,candidates,now,excluded=None):
     existing.update(excluded or ())
     ranked=[]
     seen=set()
-    for t in candidates[:12]:
+    for t in candidates[:30]:
         if not isinstance(t,dict):continue
         address=t.get('address')
         if (not isinstance(address,str) or not ADDRESS.fullmatch(address)
@@ -156,6 +156,12 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 count=c.execute('SELECT COUNT(*) FROM meme_eur_positions').fetchone()[0]
                 bought=0
                 candidates=eligible_candidates(c,rows,now)
+                if not rows:
+                    messages.append('SCOUT_SENZA_TOKEN')
+                elif not candidates:
+                    messages.append('0_IDONEI_SU_'+str(len(rows))+'_TOKEN')
+                else:
+                    messages.append(str(len(candidates))+'_IDONEI_SU_'+str(len(rows))+'_TOKEN')
                 for candidate in candidates:
                     if bought>=MAX_ENTRIES_PER_SCAN or count>=MAX_POSITIONS:break
                     mint=candidate['address']
