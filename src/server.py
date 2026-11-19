@@ -9,6 +9,7 @@ from backtest import test_strategy, validate_holdout
 from core import fetch_kraken, daily_loss
 from agents import review, local_ai_advice, attach_market_quality
 from external_ai import external_ai_advice
+from research_journal import record as record_ai_research, latest as latest_ai_research
 from execution import execution_stress_scenarios
 from orderbook import fetch_depth, depth_study, inspect_book_quality
 from maintenance import run_tests, check_updates, VERSION, ROOT
@@ -87,6 +88,9 @@ class Handler(BaseHTTPRequestHandler):
                             positions=snap['positions'],daily_realized=realized,
                             feed_ok=snap.get('status',{}).get(symbol)=='OK',
                               core_cash=next((w['cash'] for w in snap['wallets'] if w['strategy']=='core'),None))
+                # Record a closed-candle reference to audit later market
+                # observations; never infer a forecast from the AI prose.
+                base['reference_close']=float(candles[-1]['close'])
                 # Explicit click only. Prefer external adviser when configured;
                 # otherwise preserve the existing optional local Ollama mode.
                 # Neither result is fed back into trade authorization.
@@ -94,9 +98,26 @@ class Handler(BaseHTTPRequestHandler):
                 advice=(external_ai_advice(base)
                         if os.environ.get('NEXUS_OPENAI_MODEL') or os.environ.get('NEXUS_OPENAI_API_KEY')
                         else local_ai_advice(base))
+                if advice.get('available'):
+                    with LOCK:
+                        c=connect()
+                        try:
+                            journal_result=record_ai_research(c,base,advice)
+                            c.commit()
+                        finally:
+                            c.close()
+                    advice['research_journal']=journal_result
                 self.out({'ok':True,'advice':advice})
             except (ValueError,TypeError) as exc:
                 self.out({'ok':False,'error':str(exc)[:200]},400)
+        elif path=='/api/ai-research':
+            with LOCK:
+                c=connect()
+                try:
+                    result=latest_ai_research(c,limit=20)
+                finally:
+                    c.close()
+            self.out({'ok':True,'report':result})
         elif path=='/api/orderbook-study':
             from urllib.parse import parse_qs
             symbol=parse_qs(urlsplit(self.path).query).get('symbol',['BTC'])[0]
