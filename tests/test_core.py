@@ -290,6 +290,24 @@ class TestCore(unittest.TestCase):
         self.assertEqual(self.c.execute('SELECT cash FROM wallets WHERE strategy="meme"').fetchone()[0],45)
     def test_isolated_selftest(self):
         self.assertTrue(run_selftest()["ok"])
+    def test_cost_break_even_exact_model_and_no_mutation(self):
+        from core import cost_break_even, snapshot
+        before=self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0]
+        result=cost_break_even()
+        expected_ratio=(1+.0005)*(1+.0025)/((1-.0005)*(1-.0025))
+        self.assertAlmostEqual(result['round_trip_breakeven_pct'],(expected_ratio-1)*100)
+        self.assertGreater(result['round_trip_breakeven_pct'],.6)
+        self.assertLess(result['round_trip_breakeven_pct'],.61)
+        self.assertGreater(result['example_flat_market_loss_eur'],0)
+        self.assertEqual(snapshot(self.c)['cost_analysis']['scope'],'MODEL_ONLY_NO_TRADES')
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],before)
+    def test_cost_break_even_zero_and_invalid_costs(self):
+        from core import cost_break_even
+        clean=cost_break_even(0,0,100)
+        self.assertEqual(clean['round_trip_breakeven_pct'],0)
+        self.assertEqual(clean['example_flat_market_loss_eur'],0)
+        for fee,slip,budget in ((-0.1,0,25),(0,1,25),(0,0,0),(float('nan'),0,25)):
+            with self.assertRaises(ValueError):cost_break_even(fee,slip,budget)
     def test_performance_lab_uses_all_closed_trades(self):
         from core import performance_report, snapshot
         initial=performance_report(self.c)
