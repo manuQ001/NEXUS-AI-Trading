@@ -88,13 +88,13 @@ class Handler(BaseHTTPRequestHandler):
                 # Read-only study: never uses the trading database.
                 with LOCK:
                     c=connect()
-                    candles=load_closed_history(c,symbol)
+                    candles=load_closed_history(c,symbol,limit=1500)
                     c.close()
                 if len(candles)<70:
                     candles=fetch_kraken(symbol)
                     source='Kraken OHLC 5m recente (solo candele chiuse)'
                 else:
-                    source='Archivio SQLite locale Kraken OHLC 5m (solo candele chiuse)'
+                    source='Archivio SQLite locale Kraken OHLC 5m (ultime 1500 candele chiuse per evitare blocchi CPU)'
                 report=validate_holdout(candles) if path=='/api/validation' else test_strategy(candles)
                 report['symbol']=symbol
                 report['data_source']=source
