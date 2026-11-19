@@ -412,6 +412,13 @@ def refresh(c):
             store_closed_candles(c,symbol,candles)
             put(c,'candles_'+symbol,candles[-80:])
             process_candles(c,symbol,candles)
+            # Research-only observations; failures cannot interrupt PAPER logic.
+            try:
+                from research_journal import update_outcomes
+                update_outcomes(c,symbol,candles)
+            except (sqlite3.Error,ValueError,TypeError,OverflowError) as exc:
+                emit(c,'HEAD OF DESK',
+                     f'{symbol}: diario AI non aggiornato ({type(exc).__name__})','warning')
             status[symbol]='OK'
         except Exception as exc:
             status[symbol]=str(exc)[:180]
