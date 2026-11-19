@@ -3,7 +3,7 @@ import json, math, sqlite3, time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
-from execution import execution_price, execution_fee, sell_settlement
+from execution import execution_price, execution_fee, sell_settlement, assess_exit_bar
 
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / 'nexus.sqlite3'
@@ -266,28 +266,32 @@ def try_buy(c,symbol,candles,indicator,quote_price=None):
     emit(c,'SNIPER',f'{symbol}: BUY PAPER {qty:.6f} a €{price:.2f}; stop €{decision["stop"]:.2f}; rischio teorico €{decision["estimated_stop_risk"]:.2f}')
     return decision
 
-def handle_exit(c,symbol,candle):
+def handle_exit(c,symbol,candle,*,allow_target=True):
+    """Paper exit using completed bars only; no retroactive intrabar fill."""
     p=c.execute('SELECT * FROM positions WHERE symbol=?',(symbol,)).fetchone()
-    if not p: return
-    # OHLC high/low may have occurred BEFORE the paper entry.
-    # Only evaluate full bars whose opening is at/after the recorded entry time.
-    # Legacy synthetic tests without a bar timestamp retain their old behavior.
+    if not p:return
+    # A 5m high/low can predate an entry made inside that same candle.
+    # Legacy synthetic tests without 'time' keep their original behaviour.
     if 'time' in candle and int(candle['time'])<p['opened_at']:
         return
-    # Conservative intrabar priority: if both stop and target were touched, stop first.
-    if candle['low']<=p['stop']:
-        ref=min(p['stop'],candle['open']);reason='Stop loss'
-    elif candle['high']>=p['target']:
-        ref=p['target'];reason='Take profit'
-    else: return
-    settlement=sell_settlement(p['qty'],p['entry'],p['entry_fee'],ref,
+    decision=assess_exit_bar(candle,p['stop'],p['target'],allow_target=allow_target)
+    if decision['target_suppressed']:
+        emit(c,'EXIT',f'{symbol}: target osservato dopo gap di feed, nessun profitto dedotto dagli intervalli mancanti','warning')
+    if decision['reference'] is None:return
+    settlement=sell_settlement(p['qty'],p['entry'],p['entry_fee'],decision['reference'],
                                fee_rate=FEE,slippage_rate=SLIPPAGE)
     price=settlement['price'];fee=settlement['exit_fee'];pnl=settlement['pnl']
     c.execute('UPDATE wallets SET cash=cash+? WHERE strategy="core"',(settlement['net_proceeds'],))
     c.execute('DELETE FROM positions WHERE symbol=?',(symbol,))
-    c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',(int(time.time()),symbol,'SELL',p['qty'],price,fee,pnl,reason))
-    emit(c,'EXIT',f'{symbol}: {reason} virtuale, P/L €{pnl:+.2f}', 'warning' if pnl<0 else 'info')
-
+    reason=decision['reason']
+    details=reason
+    if decision['ambiguous_both_touched']:
+        details+=' (stop prioritario: ordine intrabar sconosciuto)'
+    if decision['gap_through_stop']:
+        details+=' (gap: prezzo open sfavorevole)'
+    c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',
+              (int(time.time()),symbol,'SELL',p['qty'],price,fee,pnl,details))
+    emit(c,'EXIT',f'{symbol}: {details} virtuale, P/L €{pnl:+.2f}', 'warning' if pnl<0 else 'info')
 
 def closed_candle_fresh(candle, now=None, max_age_seconds=90):
     """A five-minute candle is actionable only shortly after its close.
@@ -319,6 +323,9 @@ def process_candles(c,symbol,candles):
     if last['time']<=prev:return ind
     if last['time']-prev>10*60:
         emit(c,'RISK',f'{symbol}: feed non continuo, nessun ingresso sulla candela corrente','warning')
+        # Reconnection: a closed bar can establish a downside stop, but the
+        # unknown missing bars must not invent a profitable target fill.
+        handle_exit(c,symbol,last,allow_target=False)
         record_decision(c,symbol,last['time'],'BLOCK','Feed discontinuo')
         put(c,last_key,last['time']);return ind
     put(c,last_key,last['time'])
