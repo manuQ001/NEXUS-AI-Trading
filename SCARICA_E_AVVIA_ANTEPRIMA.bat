@@ -24,8 +24,7 @@ if errorlevel 1 (
 set "NEXUS_PREVIEW=%LOCALAPPDATA%\NEXUS-AI"
 if not exist "%NEXUS_PREVIEW%" mkdir "%NEXUS_PREVIEW%"
 set "NEXUS_ZIP=%TEMP%\nexus-ai-preview-%RANDOM%.zip"
-set "NEXUS_EXTRACT=%NEXUS_PREVIEW%\preview-%DATE:/=-%-%TIME::=-%-%RANDOM%"
-set "NEXUS_EXTRACT=%NEXUS_EXTRACT: =0%"
+set "NEXUS_EXTRACT=%NEXUS_PREVIEW%\preview-%RANDOM%-%RANDOM%"
 echo Scarico da github.com/manuQ001/NEXUS-AI-Trading ...
 powershell.exe -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $u='https://github.com/manuQ001/NEXUS-AI-Trading/archive/refs/heads/main.zip'; Invoke-WebRequest -Uri $u -OutFile $env:NEXUS_ZIP -MaximumRedirection 5; Expand-Archive -LiteralPath $env:NEXUS_ZIP -DestinationPath $env:NEXUS_EXTRACT -Force"
 if errorlevel 1 (
