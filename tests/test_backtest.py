@@ -1,7 +1,7 @@
 import unittest,sys,tempfile
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from backtest import test_strategy
+from backtest import test_strategy, validate_holdout
 from core import connect,process_candles
 
 class TestBacktest(unittest.TestCase):
@@ -21,6 +21,26 @@ class TestBacktest(unittest.TestCase):
     def test_empty_average_trade(self):
         r=test_strategy(self.candles())
         self.assertIsNone(r['avg_closed_trade_pnl'])
+    def test_holdout_too_short(self):
+        self.assertFalse(validate_holdout(self.candles(100))['ok'])
+    def test_holdout_chronological_split(self):
+        c=self.candles(300)
+        report=validate_holdout(c)
+        self.assertTrue(report['ok'])
+        self.assertEqual(report['train_candles'],210)
+        self.assertEqual(report['holdout_candles'],90)
+        self.assertEqual(report['train']['end'],c[209]['time'])
+        self.assertEqual(report['holdout']['start'],c[210]['time'])
+        self.assertFalse(report['enough_evidence'])
+    def test_holdout_future_does_not_change_training(self):
+        a=self.candles(300);b=[dict(x) for x in a]
+        b[-1].update(close=150,high=151)
+        x=validate_holdout(a);y=validate_holdout(b)
+        self.assertEqual(x['train']['final_equity'],y['train']['final_equity'])
+        self.assertEqual(x['train']['closed_trades'],y['train']['closed_trades'])
+    def test_holdout_invalid_data(self):
+        c=self.candles(300);c[250]['low']=500
+        self.assertFalse(validate_holdout(c)['ok'])
     def test_no_data(self):self.assertFalse(test_strategy(self.candles(20))['ok'])
     def test_results_without_trades(self):
         r=test_strategy(self.candles());self.assertTrue(r['ok']);self.assertEqual(r['closed_trades'],0);self.assertEqual(r['net_pnl'],0)
