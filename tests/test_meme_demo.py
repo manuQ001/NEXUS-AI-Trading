@@ -32,6 +32,37 @@ class TestMemeDemo(unittest.TestCase):
         self.assertEqual(core_cash,self.c.execute("SELECT cash FROM wallets WHERE strategy='core'").fetchone()[0])
         self.assertEqual(meme_cash,self.c.execute("SELECT cash FROM wallets WHERE strategy='meme'").fetchone()[0])
         self.assertEqual(self.c.execute("SELECT COUNT(*) FROM trades").fetchone()[0],0)
+    def test_saved_mark_reports_change_net_pnl_and_staleness(self):
+        from meme_auto import tick,init_auto
+        quick_trade(self.c,M,'BUY',Q,now=100)
+        init_auto(self.c)
+        # Do not open new test positions during the quote refresh.
+        self.c.execute('UPDATE meme_auto_state SET last_scan=10000 WHERE id=1')
+        self.c.commit()
+        tick(self.c,now=10030,scout=lambda:None,
+             quote=lambda address:dict(Q,price_usd=0.011))
+        state=demo_state(self.c,now=10031)
+        p=state['positions'][0]
+        self.assertEqual(p['last_price_usd'],0.011)
+        self.assertEqual(p['last_checked_at'],10030)
+        self.assertEqual(p['mark_status'],'AGGIORNATO')
+        self.assertAlmostEqual(p['price_change_pct'],10)
+        self.assertAlmostEqual(p['estimated_pnl_credits'],
+            p['quantity']*0.011*(1-0.03)-3,places=6)
+        self.assertAlmostEqual(state['nominal_last_mark_equity'],
+            state['cash_credits']+p['estimated_net_value_credits'],places=5)
+        # A failed quote preserves the mark, but must not appear "live".
+        tick(self.c,now=10060,scout=lambda:None,
+             quote=lambda address: (_ for _ in ()).throw(ValueError('feed down')))
+        stale=demo_state(self.c,now=10140)['positions'][0]
+        self.assertEqual(stale['last_price_usd'],0.011)
+        self.assertEqual(stale['last_checked_at'],10030)
+        self.assertEqual(stale['mark_status'],'NON_AGGIORNATO')
+        # The last mark persists through reconnect; BTC/ETH wallets stay isolated.
+        self.c.close()
+        self.c=connect(Path(self.temp.name)/'test.sqlite3')
+        self.assertEqual(demo_state(self.c,now=10140)['positions'][0]['last_price_usd'],0.011)
+        self.assertEqual(self.c.execute("SELECT cash FROM wallets WHERE strategy='core'").fetchone()[0],105)
     def test_duplicate_max_positions_and_no_false_fills(self):
         for address in (M,A,B):quick_trade(self.c,address,'BUY',Q)
         self.assertEqual(len(demo_state(self.c)['positions']),MAX_POSITIONS)
