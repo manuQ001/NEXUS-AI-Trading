@@ -9,6 +9,7 @@ import os
 import re
 import threading
 import urllib.request
+from hypothesis import validate_hypotheses
 
 ENDPOINT='https://api.openai.com/v1/responses'
 MAX_CALLS_PER_PROCESS=5
@@ -29,8 +30,16 @@ INSTRUCTIONS=(
     'e HEAD OF DESK (confronto pareri e contraddizioni). '
     'Non assegnare probabilità di guadagno o ordini BUY/SELL. '
     'Qualunque veto RISK è assoluto. '
-    'Rispondi SOLO con un oggetto JSON con quattro chiavi di testo: '
-    'search, head_of_desk, risks, uncertainty. Italiano conciso.'
+    'Rispondi SOLO con un oggetto JSON con cinque chiavi: '
+    'search, head_of_desk, risks, uncertainty (stringhe concise in italiano) '
+    'e hypotheses (array di ESATTAMENTE due elementi, in ordine 3 e 12). '
+    'Ogni ipotesi ha tre chiavi: horizon_bars (intero 3 oppure 12), '
+    'direction (UP, DOWN, FLAT oppure ABSTAIN), rationale (testo breve). '
+    'Descrivi il movimento previsto della chiusura dopo 3 o 12 candele '
+    'chiuse da 5 minuti rispetto al prezzo di riferimento, non un trade. '
+    'FLAT significa movimento entro +/-10 basis point; se non hai evidenze '
+    'sufficienti usa ABSTAIN, senza fingere una previsione. '
+    'Le ipotesi NON autorizzano ordini.'
 )
 
 
@@ -98,7 +107,7 @@ def external_ai_advice(report, *, model=None, api_key=None, timeout=12):
             'model':model,
             'instructions':INSTRUCTIONS,
             'input':json.dumps({'facts':facts},ensure_ascii=False,allow_nan=False),
-            'max_output_tokens':350,
+            'max_output_tokens':550,
             'store':False,
             'tool_choice':'none',
         },ensure_ascii=False).encode('utf-8')
@@ -127,13 +136,17 @@ def external_ai_advice(report, *, model=None, api_key=None, timeout=12):
         if len(texts)!=1 or not isinstance(texts[0],str):
             raise ValueError('Risposta testuale non valida')
         analysis=json.loads(texts[0])
-        if not isinstance(analysis,dict) or set(analysis)!=set(('search','head_of_desk','risks','uncertainty')):
+        fields=('search','head_of_desk','risks','uncertainty')
+        if not isinstance(analysis,dict) or set(analysis)!=set(fields+('hypotheses',)):
             raise ValueError('Schema AI non valido')
-        for key,value in analysis.items():
+        for key in fields:
+            value=analysis[key]
             if not isinstance(value,str) or not value.strip() or len(value)>800:
                 raise ValueError('Campo AI non valido')
+        hypotheses=validate_hypotheses(analysis['hypotheses'])
         return {'available':True,'status':'advisory_only','provider':'OpenAI',
-                'model':model,'analysis':{k:v.strip() for k,v in analysis.items()},
+                'model':model,'hypotheses':hypotheses,
+                'analysis':{k:analysis[k].strip() for k in fields},
                 'risk_veto':facts['risk_veto'],
                 'paper_candidate':facts['paper_candidate'],
                 'coordination_verdict':facts['coordination_verdict'],
