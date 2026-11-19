@@ -7,7 +7,7 @@ from core import connect, startup_events, snapshot, refresh, load_closed_history
 from selftest import run_selftest
 from backtest import test_strategy, validate_holdout
 from core import fetch_kraken, daily_loss
-from agents import review, local_ai_advice
+from agents import review, local_ai_advice, attach_market_quality
 from execution import execution_stress_scenarios
 from orderbook import fetch_depth, depth_study, inspect_book_quality
 from maintenance import run_tests, check_updates, VERSION, ROOT
@@ -52,6 +52,15 @@ class Handler(BaseHTTPRequestHandler):
                               positions=snap['positions'],daily_realized=realized,
                               feed_ok=snap.get('status',{}).get(symbol)=='OK',
                               core_cash=next((w['cash'] for w in snap['wallets'] if w['strategy']=='core'),None))
+                # Two read-only REST snapshots on explicit "Consulta agenti" click.
+                # Failure is visible as UNAVAILABLE, never silently a book PASS.
+                try:
+                    first=fetch_depth(symbol,count=20)
+                    latest=fetch_depth(symbol,count=20)
+                    quality=inspect_book_quality(first,latest)
+                    report=attach_market_quality(report,quality)
+                except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError) as book_exc:
+                    report=attach_market_quality(report,error=type(book_exc).__name__)
                 self.out({'ok':True,'report':report})
             except (ValueError,TypeError) as exc:
                 self.out({'ok':False,'error':str(exc)[:200]},400)
