@@ -282,8 +282,19 @@ def try_buy(c,symbol,candles,indicator,quote_price=None):
     c.execute('UPDATE wallets SET cash=cash-? WHERE strategy="core"',(qty*price+fee,))
     c.execute('INSERT INTO positions VALUES(?,?,?,?,?,?,?,?)',
               (symbol,'core',qty,price,decision['stop'],decision['target'],fee,int(time.time())))
+    # A readable entry audit, persisted in the existing trades.details column.
+    # No new table, no trading-rule change, no attempt to reconstruct past signals.
+    entry_reason=str(indicator.get('why','Segnale RISK approvato'))
+    evidence=[]
+    for label,key in (('EMA9','ema9'),('EMA21','ema21'),('RSI','rsi'),('ATR','atr')):
+        value=indicator.get(key)
+        if isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value):
+            evidence.append(f'{label}={value:.4f}')
+    evidence.extend((f'STOP={decision["stop"]:.4f}',f'TARGET={decision["target"]:.4f}',
+                     'RISK=approvato'))
+    entry_details=entry_reason+' | '+' · '.join(evidence)
     c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',
-              (int(time.time()),symbol,'BUY',qty,price,fee,0,indicator.get('why','Segnale RISK approvato')))
+              (int(time.time()),symbol,'BUY',qty,price,fee,0,entry_details))
     emit(c,'SNIPER',f'{symbol}: BUY PAPER {qty:.6f} a €{price:.2f}; stop €{decision["stop"]:.2f}; rischio teorico €{decision["estimated_stop_risk"]:.2f}')
     return decision
 
