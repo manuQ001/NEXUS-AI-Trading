@@ -63,6 +63,58 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
             'note':'Opinioni a regole, non agenti LLM. La valutazione preliminare non autorizza ordini e non scavalca il veto definitivo in try_buy.'}
 
 
+
+def attach_market_quality(report, quality=None, *, error=None):
+    """Attach book diagnostics to a READ-ONLY rule review, never authorize orders.
+
+    Missing/CAUTION book data suppresses the *displayed* paper candidate;
+    it does not control the actual paper execution engine. PASS remains
+    only an advisory precondition and never becomes a trade approval.
+    """
+    import copy
+    result=copy.deepcopy(report)
+    if not isinstance(result,dict) or 'agents' not in result:
+        raise ValueError('Report agenti non valido')
+    status=quality.get('status') if isinstance(quality,dict) else None
+    if status not in ('PASS','CAUTION'):
+        status='UNAVAILABLE'
+    reasons=quality.get('reasons',[]) if isinstance(quality,dict) else []
+    if not isinstance(reasons,list):
+        reasons=[]
+    detail=', '.join(str(x)[:120] for x in reasons[:5]) if reasons else ''
+    if status=='PASS':
+        description='Due snapshot Kraken coerenti con le soglie locali; non garantiscono esecuzione'
+    elif status=='CAUTION':
+        description='Qualità book insufficiente'+(': '+detail if detail else '')
+    else:
+        description='Book Kraken non disponibile o non verificato'
+    result['market_quality']={
+        'status':status,'description':description,
+        'spread_bps':quality.get('spread_bps') if isinstance(quality,dict) else None,
+        'quote_drift_bps':quality.get('bid_ask_drift_bps') if isinstance(quality,dict) else None,
+        'request_ms':quality.get('request_ms_second') if isinstance(quality,dict) else None,
+        'observed_at':quality.get('observed_at') if isinstance(quality,dict) else None,
+        'source':'Kraken Depth REST, due richieste non sincronizzate',
+        'advisory_only':True}
+    candidate=bool(result.get('paper_candidate'))
+    if status!='PASS':
+        result['paper_candidate']=False
+    for agent in result['agents']:
+        if agent['name']=='HEAD OF DESK':
+            if status!='PASS':
+                agent['status']='market_unverified' if status=='UNAVAILABLE' else 'market_caution'
+                agent['reason']=description+'; nessun candidato BUY dal consulto'
+            else:
+                agent['reason']=agent['reason']+'; book: '+description
+        elif agent['name']=='SNIPER' and status!='PASS':
+            agent['status']='idle'
+            agent['reason']='Consulto non autorizzato: '+description
+    result['market_consultation']='PRELIMINARY_ONLY' if status=='PASS' else 'NO_CANDIDATE'
+    result['note']=result.get('note','')+' Book: analisi indicativa; non modifica i controlli RISK né la funzione try_buy.'
+    if error:
+        result['market_quality']['error_type']=str(error)[:80]
+    return result
+
 def local_ai_advice(report, model=None, timeout=25):
     """Optional local Ollama commentary. Cannot change trade decisions.
 
