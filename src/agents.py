@@ -9,6 +9,68 @@ import math
 AGENT_NAMES=('SEARCH','HEAD OF DESK','RISK','SNIPER','EXIT','WHALE','RUG','SHILL')
 
 
+def assess_signal_evidence(candles, indicator):
+    """Explain the SEARCH thesis from completed candle closes, no prediction.
+
+    The independent score is a descriptive count of observed conditions;
+    it is NOT a probability of profit, optimized parameter or trading gate.
+    """
+    if not isinstance(indicator,dict) or not isinstance(candles,(list,tuple)) or not candles:
+        raise ValueError('Indicatori o storico non validi')
+    reasons=[]
+    values={}
+    for name in ('ema9','ema21','rsi','atr'):
+        val=indicator.get(name)
+        if isinstance(val,bool) or not isinstance(val,(int,float)) or not math.isfinite(val):
+            values[name]=None
+        else:
+            values[name]=float(val)
+    if len(candles)<70:
+        reasons.append('Campione inferiore a 70 candele chiuse')
+    try:
+        latest=int(candles[-1]['time'])
+        closes=[float(c['close']) for c in candles[-20:]]
+        if latest<=0 or len(closes)<20 or any(not math.isfinite(x) or x<=0 for x in closes):
+            raise ValueError('Storico non valido')
+        momentum_20_bps=round((closes[-1]/closes[0]-1)*10000,2)
+        change_last_bps=round((closes[-1]/closes[-2]-1)*10000,2)
+    except (ValueError,TypeError,KeyError,OverflowError,IndexError,ZeroDivisionError):
+        momentum_20_bps=None
+        change_last_bps=None
+        reasons.append('Prezzi insufficienti o non validi per la valutazione')
+    ema_valid=values['ema9'] is not None and values['ema21'] is not None
+    rsi_valid=values['rsi'] is not None
+    atr_valid=values['atr'] is not None and values['atr']>0
+    if not ema_valid:reasons.append('Indicatori EMA non disponibili')
+    if not rsi_valid:reasons.append('RSI non disponibile')
+    if not atr_valid:reasons.append('ATR non disponibile o nullo')
+    evidence=[
+        {'metric':'EMA trend','status':'POSITIVE' if ema_valid and values['ema9']>values['ema21'] else
+         'NEGATIVE' if ema_valid else 'UNKNOWN',
+         'detail':'EMA9 rispetto a EMA21; il trend positivo NON equivale a un nuovo incrocio'},
+        {'metric':'RSI filter','status':'POSITIVE' if rsi_valid and 45<=values['rsi']<=70 else
+         'NEGATIVE' if rsi_valid else 'UNKNOWN',
+         'detail':'Filtro originale RSI 45–70'},
+        {'metric':'ATR validity','status':'POSITIVE' if atr_valid else 'UNKNOWN',
+         'detail':'Controllo di validità della volatilità, non previsione'},
+        {'metric':'20 candle return','status':'POSITIVE' if momentum_20_bps is not None and momentum_20_bps>0 else
+         'NEGATIVE' if momentum_20_bps is not None else 'UNKNOWN',
+         'detail':'Variazione osservata in basis point sulle ultime 20 chiusure'}
+    ]
+    valid=sum(e['status']!='UNKNOWN' for e in evidence)
+    positive=sum(e['status']=='POSITIVE' for e in evidence)
+    return {'signal_code':str(indicator.get('reason_code','UNKNOWN'))[:64],
+            'signal_is_buy':indicator.get('buy') is True,
+            'observations':{'ema9':values['ema9'],'ema21':values['ema21'],
+                'rsi':values['rsi'],'atr':values['atr'],
+                'return_20_candles_bps':momentum_20_bps,
+                'last_close_change_bps':change_last_bps,
+                'closed_candles':len(candles)},
+            'evidence':evidence,'known_checks':valid,'positive_checks':positive,
+            'uncertainty':'LIMITED' if valid==len(evidence) and len(candles)>=70 else 'HIGH',
+            'limitations':reasons+['Non misura probabilità di profitto né qualità di un ordine'],
+            'mode':'READ ONLY / DESCRIPTIVE'}
+
 def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
            initial_capital=150.0, max_daily_loss=0.02, feed_ok=True, core_cash=None):
     """Return a structured report on the latest closed candle.
@@ -39,6 +101,7 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
                 blocked.append('Circuit breaker Core: disponibilità sotto il 90% iniziale')
         except (ValueError,TypeError,OverflowError):
             blocked.append('Disponibilità Core non valida')
+    intelligence=assess_signal_evidence(candles,indicator)
     buy=indicator.get('buy') is True
     if not isinstance(indicator.get('atr'),(int,float)) or not math.isfinite(indicator.get('atr',0)) or indicator.get('atr',0)<=0:
         if buy:blocked.append('Volatilità non validata')
@@ -46,9 +109,9 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
     proposal='BUY' if buy else 'WAIT'
     approved=buy and risk_ok
     report=[
-        ('SEARCH','signal' if buy else 'wait',indicator.get('why','Segnale non disponibile')),
+        ('SEARCH','signal' if buy else 'wait',indicator.get('why','Segnale non disponibile')+'; evidenze '+str(intelligence['positive_checks'])+'/'+str(intelligence['known_checks'])+' positive'),
         ('HEAD OF DESK','paper_buy_candidate' if approved else ('veto' if buy else 'wait'),
-         'Candidato PAPER soltanto: soggetto a verifica RISK' if approved else ('Veto RISK' if buy else 'Nessun ingresso proposto')),
+         'Candidato PAPER soltanto: soggetto a verifica RISK; incertezza '+intelligence['uncertainty'] if approved else ('Veto RISK' if buy else 'Nessun ingresso proposto: '+intelligence['signal_code'])) ,
         ('RISK','preliminary_ok' if risk_ok else 'blocked',', '.join(blocked) if blocked else 'Solo controlli preliminari: restano necessari ask e valutazione definitiva prima di ogni BUY PAPER'),
         ('SNIPER','paper_ready' if approved else 'idle','Nessun ordine inviato dal protocollo di analisi'),
         ('EXIT','monitor' if positions else 'idle','Uscite gestite separatamente da stop e target nel motore paper'),
@@ -57,7 +120,7 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
         ('SHILL','unavailable','Dati social non collegati: nessuna analisi sentiment'),
     ]
     return {'symbol':symbol,'time':int(candle['time']),'proposal':proposal,
-            'paper_candidate':approved,'risk_veto':not risk_ok,
+            'paper_candidate':approved,'risk_veto':not risk_ok,'intelligence':intelligence,
             'agents':[{'name':name,'status':status,'reason':reason} for name,status,reason in report],
             'mode':'READ ONLY / PAPER ONLY',
             'note':'Opinioni a regole, non agenti LLM. La valutazione preliminare non autorizza ordini e non scavalca il veto definitivo in try_buy.'}
