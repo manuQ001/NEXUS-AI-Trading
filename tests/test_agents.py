@@ -12,7 +12,7 @@ class TestAgents(unittest.TestCase):
         original=review('BTC',self.candles,self.indicator)
         quality={'status':'PASS','reasons':[],'spread_bps':8.0,'bid_ask_drift_bps':2.0,'request_ms_second':120,'observed_at':1700000000}
         book={'symbol':'BTC','observed_at':1700000000,'best_ask':101.,'best_bid':99.,
-              'asks':[{'price':101.,'volume':1.0}]}
+              'asks':[{'price':101.,'volume':10.0}]}
         result=attach_market_quality(original,quality,book=book)
         self.assertTrue(result['paper_candidate'])
         self.assertEqual(result['market_consultation'],'PRELIMINARY_ONLY')
