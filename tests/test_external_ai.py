@@ -22,7 +22,9 @@ class FakeResponse:
 
 def response_json(**overrides):
     a={'search':'EMA non confermate','head_of_desk':'Attendere',
-       'risks':'Commissioni','uncertainty':'Dati parziali'}
+       'risks':'Commissioni','uncertainty':'Dati parziali',
+       'hypotheses':[{'horizon_bars':3,'direction':'ABSTAIN','rationale':'Dati scarsi'},
+                     {'horizon_bars':12,'direction':'FLAT','rationale':'Scenario neutrale'}]}
     a.update(overrides)
     return json.dumps({'status':'completed','output':[{
         'type':'message','content':[{'type':'output_text','text':json.dumps(a)}]}]}).encode('utf-8')
@@ -63,7 +65,7 @@ class TestExternalAI(unittest.TestCase):
         payload=json.loads(request.data)
         self.assertFalse(payload['store'])
         self.assertEqual(payload['tool_choice'],'none')
-        self.assertLessEqual(payload['max_output_tokens'],350)
+        self.assertLessEqual(payload['max_output_tokens'],550)
         self.assertNotIn('sk-testing-token-123456',request.data.decode())
         self.assertNotIn('sk-testing-token-123456',str(result))
         self.assertEqual(external_ai._calls,1)
@@ -78,6 +80,22 @@ class TestExternalAI(unittest.TestCase):
                 self.report,model='gpt-4.1-mini',api_key='sk-testing-token-123456')
         self.assertEqual(last['status'],'session_limit')
         self.assertEqual(http.call_count,5)
+    def test_structured_hypotheses_only_and_no_order(self):
+        with patch('external_ai.urllib.request.build_opener') as build:
+            build.return_value.open.return_value=FakeResponse(response_json())
+            result=external_ai.external_ai_advice(
+                self.report,model='gpt-4.1-mini',api_key='sk-testing-token-123456')
+        self.assertTrue(result['available'])
+        self.assertEqual([h['direction'] for h in result['hypotheses']],['ABSTAIN','FLAT'])
+        self.assertFalse(result['execution_authorized'])
+    def test_wrong_hypothesis_horizon_rejected(self):
+        bad=[{'horizon_bars':12,'direction':'UP','rationale':'Trend'},
+             {'horizon_bars':3,'direction':'DOWN','rationale':'Trend'}]
+        with patch('external_ai.urllib.request.build_opener') as build:
+            build.return_value.open.return_value=FakeResponse(response_json(hypotheses=bad))
+            result=external_ai.external_ai_advice(
+                self.report,model='gpt-4.1-mini',api_key='sk-testing-token-123456')
+        self.assertEqual(result['status'],'unavailable')
     def test_schema_failure_never_authorizes(self):
         with patch('external_ai.urllib.request.build_opener') as build:
             build.return_value.open.return_value=FakeResponse(response_json(buy='BUY NOW'))
