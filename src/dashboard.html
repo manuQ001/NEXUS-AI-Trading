@@ -87,18 +87,18 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
 <section class="workspace-view" data-view="meme-section" id="workspace-meme-section" hidden>
 <div class="section-divider" id="meme-section"><span class="section-index">06</span><div><h2 class="section-heading">MEME HUNTER · Solana</h2><div class="section-caption">Ricerca token emergenti: dati pubblici, nessuna esecuzione memecoin</div></div></div>
 <section class="panel meme-quick-panel" id="meme-quick-panel">
- <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin:0">⚡ MEME HUNTER · PORTAFOGLIO VIRTUALE</div><div class="sub">Acquisti e vendite virtuali autonomi; le operazioni manuali restano facoltative.</div></div><span class="tag">45 € MEME · PAPER ONLY</span></div>
+ <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin:0">⚡ MEME HUNTER · PORTAFOGLIO VIRTUALE</div><div class="sub">Acquisti e vendite virtuali autonomi; le vendite manuali di emergenza restano possibili.</div></div><span class="tag">45 € MEME · PAPER ONLY</span></div>
  <div class="desk-state" style="margin-top:12px"><div>
   <strong id="meme-auto-label">MEME AUTO PAPER · Caricamento…</strong>
   <div class="sub" id="meme-auto-status">Controlli del server ogni 30 secondi, nuove ricerche ogni 5 minuti.</div>
   </div><button id="meme-auto-toggle" class="btn" type="button" disabled>Caricamento…</button></div>
- <div class="sub" style="margin-top:8px">Strategia sperimentale: stop −10%, target +20%, chiusura dopo 2 ore · costi simulati 3% per lato. Nessuna garanzia di vendibilità o profitto reale.</div>
+ <div class="sub" style="margin-top:8px">Acquisti automatici variabili da 1,50 a 4,50 € virtuali, riserva del 20% del capitale MEME iniziale, massimo 3 nuove posizioni per scansione · stop −10%, target +20%, chiusura dopo 2 ore · costi simulati 3% per lato. Nessuna garanzia di vendibilità o profitto reale.</div>
  <div class="meme-quick-stats">
  <div class="meme-quick-stat"><div class="sub">Liquidità MEME (€)</div><b id="meme-demo-cash">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Equity stimata ultimo prezzo</div><b id="meme-demo-equity">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Posizioni aperte</div><b id="meme-demo-open">—</b></div>
- <div class="meme-quick-stat"><div class="sub">Importo per operazione</div><b>3 € virtuali</b></div></div>
- <div class="sub meme-demo-note">Unico portafoglio MEME da 45 € iniziali, già incluso nel patrimonio NEXUS. Prezzi indicativi DEX Screener aggiornati dal server circa ogni 30s con AUTO attivo; un dato vecchio viene evidenziato. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume bassi o mancanti generano avvisi per gli ordini manuali virtuali; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
+ <div class="meme-quick-stat"><div class="sub">Importo per operazione</div><b>Automatico · 1,50–4,50 €</b></div></div>
+ <div class="sub meme-demo-note">Unico portafoglio MEME da 45 € iniziali, già incluso nel patrimonio NEXUS. Prezzi indicativi DEX Screener aggiornati dal server circa ogni 30s con AUTO attivo; un dato vecchio viene evidenziato. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume insufficienti impediscono gli ingressi automatici; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
  <div class="sub" id="meme-fx-note" style="margin-top:9px">Cambio di riferimento USD/EUR in caricamento</div>
  <div class="flex" style="margin:13px 0 8px;flex-wrap:wrap"><b>Posizioni MEME aperte</b><button class="btn" id="meme-demo-refresh" type="button">↻ Aggiorna</button></div>
  <div class="scroll meme-demo-table"><table class="dataTable"><thead><tr><th>Token</th><th>Ingresso</th><th>Prezzo osservato</th><th>Variazione</th><th>P/L stimato</th><th>Ultimo dato</th><th>Operazione</th></tr></thead><tbody id="meme-demo-positions"><tr><td colspan="7" class="muted">Nessun test caricato</td></tr></tbody></table></div>
@@ -366,7 +366,7 @@ $('meme-demo-refresh').addEventListener('click',async()=>{
 });
 async function executeMemeDemo(action,mint,button){
  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
- if(!confirm((action==='BUY'?'Aprire un acquisto virtuale da 3 € su ':'Vendere virtualmente la posizione su ')+mint+'? Nessun ordine reale.'))return;
+ if(!confirm((action==='BUY'?'Aprire un acquisto virtuale su ':'Vendere virtualmente la posizione su ')+mint+'? Nessun ordine reale.'))return;
  button.disabled=true;
  const info=$('meme-demo-message');
  // Show feedback beside the clicked token, not only in the panel above the table.
@@ -401,9 +401,6 @@ async function executeMemeDemo(action,mint,button){
    status.classList.remove('green');status.classList.add('red');
  }finally{if(button.isConnected)button.disabled=false}
 }
-$('meme-rows').addEventListener('click',event=>{
- const b=event.target.closest('.meme-quick-btn');if(b)executeMemeDemo('BUY',b.dataset.mint,b);
-});
 $('meme-demo-positions').addEventListener('click',event=>{
  const b=event.target.closest('.meme-demo-sell');if(b)executeMemeDemo('SELL',b.dataset.mint,b);
 });
@@ -420,7 +417,7 @@ $('meme-scan').addEventListener('click',async()=>{
     body.innerHTML=data.candidates.length?data.candidates.map(t=>{
       const warnings=(t.warnings||[]).join('; ')||'Nessun avviso di mercato, sicurezza comunque non verificata';
       const link=t.url?'<a href="'+esc(t.url)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">DEX Screener</a>':'—';
-      return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div><button class="btn meme-quick-btn" style="display:block;margin-top:8px" data-mint="'+esc(t.address)+'" type="button">⚡ Compra 3 € virtuali</button></td>'+
+      return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div><span class="sub" style="display:block;margin-top:8px">Acquisto gestito da MEME AUTO</span></td>'+
         '<td>'+esc(money(t.price_usd))+'</td><td>'+esc(money(t.liquidity_usd))+'</td><td>'+esc(money(t.volume_24h_usd))+'</td><td>'+esc(age(t.pool_age_hours))+'</td>'+
         '<td><span class="red">NON VERIFICATO</span><div class="sub">'+esc(warnings)+'</div></td><td><button class="btn meme-risk-btn" data-mint="'+esc(t.address)+'" type="button">Controlla</button><span class="meme-analysis-result">Da verificare</span></td><td><button class="btn meme-whale-btn" data-mint="'+esc(t.address)+'" type="button">Analizza</button><span class="meme-analysis-result">Da verificare</span></td><td>'+link+'</td></tr>'
     }).join(''):'<tr><td colspan="9" class="muted">Nessuna coppia Solana valida nel campione di profili disponibile</td></tr>';
