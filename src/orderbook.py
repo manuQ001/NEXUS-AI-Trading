@@ -70,10 +70,14 @@ def fetch_depth(symbol, count=20):
     if type(count) is not int or not 1<=count<=20:raise ValueError('Profondità non valida')
     url=f'https://api.kraken.com/0/public/Depth?pair={PAIRS[symbol]}&count={count}'
     req=Request(url,headers={'User-Agent':'NEXUS-Paper-Only/2.0'})
+    started=time.monotonic()
     with urlopen(req,timeout=8) as res:
         payload=res.read(100000)
+    elapsed_ms=round((time.monotonic()-started)*1000,2)
     raw=json.loads(payload)
-    return parse_depth(raw,symbol,received_at=int(time.time()))
+    book=parse_depth(raw,symbol,received_at=int(time.time()))
+    book['request_duration_ms']=elapsed_ms
+    return book
 
 
 def walk_book(book, side, quantity, fee_rate=0.0025):
@@ -118,3 +122,45 @@ def depth_study(book, order_eur=25.0):
             'requested_eur':amount,'quantity_base':quantity,
             'buy':buy,'sell':sell,'mode':'READ ONLY - LIVE BOOK SNAPSHOT',
             'warning':'Liquidità visibile al momento della richiesta: non garantisce un prezzo eseguibile. Book senza misure di latenza, impatto di mercato o quote future. Nessun ordine inviato.'}
+
+
+def inspect_book_quality(first, second, *, now=None, max_age_seconds=5,
+                         max_request_ms=2500, max_spread_bps=50,
+                         max_quote_drift_bps=25):
+    """Evaluate two consecutive snapshots. Advisory only, never a trade gate.
+
+    'received_at' records when our server got each response, NOT exchange age.
+    Request duration is HTTP wall duration, NOT exchange/order latency.
+    No REST snapshot can prove quotes persist or remain executable.
+    """
+    if not isinstance(first,dict) or not isinstance(second,dict):
+        raise ValueError('Snapshot non validi')
+    if first.get('symbol')!=second.get('symbol') or first.get('symbol') not in PAIRS:
+        raise ValueError('Simboli incoerenti')
+    observed=int(time.time()) if now is None else int(now)
+    t1=int(first['observed_at']);t2=int(second['observed_at'])
+    bid1=_positive(first['best_bid'],'Best bid');bid2=_positive(second['best_bid'],'Best bid')
+    ask1=_positive(first['best_ask'],'Best ask');ask2=_positive(second['best_ask'],'Best ask')
+    mid1=(bid1+ask1)/2;mid2=(bid2+ask2)/2
+    drift=max(abs(bid2/bid1-1),abs(ask2/ask1-1))*10000
+    spread=(ask2-bid2)/mid2*10000
+    try: duration1=float(first['request_duration_ms']);duration2=float(second['request_duration_ms'])
+    except (TypeError,KeyError,ValueError,OverflowError) as exc:
+        raise ValueError('Durata richiesta mancante') from exc
+    if not all(math.isfinite(x) and x>=0 for x in (duration1,duration2)):
+        raise ValueError('Durata richiesta non valida')
+    reasons=[]
+    if not (0<=observed-t2<=max_age_seconds and 0<=t2-t1<=max_age_seconds):
+        reasons.append('Snapshot locali troppo distanti o scaduti')
+    if max(duration1,duration2)>max_request_ms:
+        reasons.append('HTTP troppo lento')
+    if bid1>=ask1 or bid2>=ask2 or spread>max_spread_bps:
+        reasons.append('Book incrociato o spread troppo ampio')
+    if drift>max_quote_drift_bps:
+        reasons.append('Quotazioni variate troppo tra due letture')
+    return {'status':'PASS' if not reasons else 'CAUTION',
+            'reasons':reasons,'observed_at':t2,'age_seconds':observed-t2,
+            'request_ms_first':duration1,'request_ms_second':duration2,
+            'bid_ask_drift_bps':round(drift,3),'spread_bps':round(spread,3),
+            'scope':'READ ONLY - ADVISORY, NOT TRADING APPROVAL',
+            'warning':'Le due letture REST non misurano la vera età del book presso Kraken né la latenza di un ordine. PASS indica solo coerenza entro soglie locali.'}
