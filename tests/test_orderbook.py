@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from orderbook import parse_depth, walk_book, depth_study, fetch_depth
+from orderbook import parse_depth, walk_book, depth_study, fetch_depth, inspect_book_quality
 
 
 def sample():
@@ -14,6 +14,43 @@ def sample():
 
 
 class TestOrderBook(unittest.TestCase):
+    def book_with_timing(self, at=1700001000):
+        b=parse_depth(sample(),'BTC',received_at=at)
+        b['request_duration_ms']=100
+        return b
+    def test_consistent_book_quality_pass(self):
+        first=self.book_with_timing()
+        second=self.book_with_timing(at=1700001002)
+        q=inspect_book_quality(first,second,now=1700001003,max_spread_bps=250)
+        self.assertEqual(q['status'],'PASS')
+        self.assertEqual(q['age_seconds'],1)
+        self.assertIn('NOT TRADING APPROVAL',q['scope'])
+    def test_old_response_is_caution(self):
+        b=self.book_with_timing()
+        q=inspect_book_quality(b,b,now=1700001010,max_spread_bps=250)
+        self.assertEqual(q['status'],'CAUTION')
+        self.assertTrue(any('scaduti' in x for x in q['reasons']))
+    def test_wide_spread_or_slow_http_is_caution(self):
+        a=self.book_with_timing()
+        b=self.book_with_timing()
+        b['request_duration_ms']=3000
+        q=inspect_book_quality(a,b,now=1700001000)
+        self.assertEqual(q['status'],'CAUTION')
+        self.assertTrue(any('HTTP' in x for x in q['reasons']))
+        self.assertTrue(any('spread' in x for x in q['reasons']))
+    def test_quote_drift_triggers_caution(self):
+        a=self.book_with_timing()
+        b=self.book_with_timing()
+        b['best_bid']=97
+        q=inspect_book_quality(a,b,now=1700001000,max_spread_bps=500)
+        self.assertEqual(q['status'],'CAUTION')
+        self.assertGreater(q['bid_ask_drift_bps'],25)
+    def test_missing_timing_fails_closed(self):
+        a=self.book_with_timing()
+        b=self.book_with_timing()
+        del b['request_duration_ms']
+        with self.assertRaises(ValueError):
+            inspect_book_quality(a,b,now=1700001000)
     def test_depth_spread_midpoint(self):
         book=parse_depth(sample(),'BTC',received_at=1700001000)
         self.assertEqual(book['best_ask'],101)
