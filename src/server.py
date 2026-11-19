@@ -6,7 +6,8 @@ from urllib.parse import urlsplit
 from core import connect, startup_events, snapshot, refresh, load_closed_history, historical_coverage
 from selftest import run_selftest
 from backtest import test_strategy, validate_holdout
-from core import fetch_kraken
+from core import fetch_kraken, daily_loss
+from agents import review
 from maintenance import run_tests, check_updates, VERSION, ROOT
 from downloader import download_if_available, read_staged
 
@@ -30,6 +31,27 @@ class Handler(BaseHTTPRequestHandler):
         elif path=='/api/selftest':
             try: self.out(run_selftest())
             except Exception as exc: self.out({'ok':False,'error':str(exc),'mode':'SELFTEST - DATI SINTETICI'},500)
+        elif path=='/api/agents':
+            from urllib.parse import parse_qs
+            params=parse_qs(urlsplit(self.path).query)
+            symbol=params.get('symbol',['BTC'])[0]
+            if symbol not in ('BTC','ETH'):
+                self.out({'ok':False,'error':'Simbolo non valido'},400);return
+            try:
+                with LOCK:
+                    c=connect()
+                    snap=snapshot(c)
+                    realized=daily_loss(c)
+                    c.close()
+                candles=snap.get('candles',{}).get(symbol,[])
+                if not candles:
+                    self.out({'ok':False,'error':'Esegui Aggiorna mercato prima di consultare gli agenti'},400);return
+                report=review(symbol,candles,snap.get('indicators',{}).get(symbol,{}) or {},
+                              positions=snap['positions'],daily_realized=realized,
+                              feed_ok=snap.get('status',{}).get(symbol)=='OK')
+                self.out({'ok':True,'report':report})
+            except (ValueError,TypeError) as exc:
+                self.out({'ok':False,'error':str(exc)[:200]},400)
         elif path=='/api/history':
             with LOCK:
                 c=connect()
