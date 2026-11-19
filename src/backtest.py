@@ -1,0 +1,63 @@
+"""Isolated, no-lookahead long-only backtest. No database writes or real orders."""
+from core import signal, atr, FEE, SLIPPAGE, RISK_PER_TRADE, DAILY_MAX, POSITION_FRACTION
+from datetime import datetime, timezone
+
+def test_strategy(candles, starting_cash=105.0):
+    if len(candles)<70: return {'ok':False,'error':'Servono almeno 70 candele chiuse','candles':len(candles)}
+    for a,b in zip(candles,candles[1:]):
+        if b['time']<=a['time']:return {'ok':False,'error':'Timestamp non crescenti'}
+    # Indicators computed through candle i-1; next candle (i) is first tradable open.
+    cash=float(starting_cash); pos=None; trades=[]; curves=[]
+    initial=starting_cash; daily_realized={}; blocked=0; signals=0
+    for i in range(36,len(candles)):
+        c=candles[i]
+        prior=candles[:i]
+        sig=signal(prior)
+        day=datetime.fromtimestamp(c['time'],timezone.utc).strftime('%Y-%m-%d')
+        dayloss=daily_realized.get(day,0)
+        if pos:
+            # Intrabar conservative rule: stop before target, gap through stop gets open price.
+            if c['low']<=pos['stop']:
+                raw=min(c['open'],pos['stop']);reason='STOP'
+            elif c['high']>=pos['target']:
+                raw=pos['target'];reason='TARGET'
+            else:raw=None;reason=None
+            if raw is not None:
+                out=raw*(1-SLIPPAGE)
+                proceeds=pos['qty']*out
+                exit_fee=proceeds*FEE
+                realized=proceeds-exit_fee-(pos['qty']*pos['entry']+pos['entry_fee'])
+                cash+=proceeds-exit_fee
+                trades.append({'entry_time':pos['time'],'exit_time':c['time'],'entry':round(pos['entry'],6),'exit':round(out,6),'qty':pos['qty'],'pnl':round(realized,6),'exit_reason':reason})
+                daily_realized[day]=daily_realized.get(day,0)+realized
+                pos=None
+        if sig.get('buy') and pos is None:
+            signals+=1
+            if daily_realized.get(day,0)<=-initial*DAILY_MAX:
+                blocked+=1
+            else:
+                price=c['open']*(1+SLIPPAGE)
+                distance=max(sig['atr']*1.5,price*.003)
+                qty=min(initial*RISK_PER_TRADE/distance,cash*POSITION_FRACTION/(price*(1+FEE)))
+                if qty>0 and qty*price>=5:
+                    fee=qty*price*FEE;cash-=qty*price+fee
+                    pos={'qty':qty,'entry':price,'entry_fee':fee,'stop':price-distance,'target':price+2*distance,'time':c['time']}
+                    # No exit on entry bar: conservative about fill/stop ordering in 5m OHLC.
+                else:blocked+=1
+        equity=cash+(pos['qty']*c['close'] if pos else 0)
+        curves.append({'time':c['time'],'equity':round(equity,5)})
+    final=curves[-1]['equity']
+    peak=initial;max_dd=0.0
+    for point in curves:
+        peak=max(peak,point['equity']);max_dd=max(max_dd,(peak-point['equity'])/peak*100 if peak else 0)
+    wins=sum(x['pnl']>0 for x in trades)
+    gross_gain=sum(max(0,x['pnl']) for x in trades)
+    gross_loss=-sum(min(0,x['pnl']) for x in trades)
+    return {'ok':True,'candles':len(candles),'start':candles[36]['time'],'end':candles[-1]['time'],
+            'starting_cash':initial,'final_equity':round(final,4),'net_pnl':round(final-initial,4),
+            'return_pct':round((final/initial-1)*100,3),'buy_hold_pct':round((candles[-1]['close']/candles[36]['open']-1)*100,3),
+            'max_drawdown_pct':round(max_dd,3),'signals':signals,'blocked':blocked,
+            'closed_trades':len(trades),'wins':wins,'win_rate_pct':round(wins/len(trades)*100,2) if trades else None,
+            'profit_factor':round(gross_gain/gross_loss,3) if gross_loss else None,
+            'open_position':bool(pos),'trades':trades[-40:],'curve':curves[::max(1,len(curves)//80)],
+            'assumptions':'Segnale sulla candela chiusa precedente, entrata all’open successivo, long spot senza leva; stop/target intrabar con stop prioritario; commissioni 0,25% e slippage 0,05% per lato. Nessuna uscita nella barra di ingresso. Non riproduce order book, latenza, imposte o liquidazioni.'}
