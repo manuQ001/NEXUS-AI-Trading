@@ -3,10 +3,48 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from execution import execution_price, execution_fee, sell_settlement, hypothetical_partial_fill, execution_stress_scenarios
+from execution import execution_price, execution_fee, sell_settlement, hypothetical_partial_fill, execution_stress_scenarios, sniper_book_preview
 
 
 class TestExecution(unittest.TestCase):
+    def sample_book(self):
+        return {'symbol':'BTC','observed_at':1700000000,'best_ask':101.0,'best_bid':99.0,
+                'asks':[{'price':101.0,'volume':1.0},{'price':102.0,'volume':2.0}]}
+    def test_sniper_full_study_no_live_orders(self):
+        b=self.sample_book()
+        report=sniper_book_preview(b,order_eur=25,participation_rate=.5)
+        self.assertEqual(report['status'],'ESTIMATE_FULL')
+        self.assertTrue(report['budget_ok'])
+        self.assertLessEqual(report['estimated_total_eur'],25.00000001)
+        self.assertEqual(report['mode'],'READ ONLY / MIXED OBSERVED DEPTH + HYPOTHETICAL COSTS')
+        self.assertIn('Nessun fill garantito',report['warning'])
+    def test_sniper_partial_fill_does_not_invent_depth(self):
+        b=self.sample_book()
+        b['asks']=[{'price':101.,'volume':0.001}]
+        report=sniper_book_preview(b,order_eur=25,participation_rate=.1)
+        self.assertEqual(report['status'],'ESTIMATE_PARTIAL')
+        self.assertLess(report['estimated_fill_pct'],100)
+        self.assertAlmostEqual(report['estimated_filled_qty']+report['estimated_unfilled_qty'],report['requested_qty'])
+    def test_sniper_higher_asks_can_exceed_budget(self):
+        b=self.sample_book()
+        b['asks']=[{'price':101.,'volume':0.0001},{'price':150.,'volume':10.}]
+        report=sniper_book_preview(b,order_eur=25,participation_rate=.5)
+        self.assertEqual(report['status'],'OVER_BUDGET')
+        self.assertFalse(report['budget_ok'])
+    def test_sniper_rejects_bad_depth_and_params(self):
+        b=self.sample_book()
+        for kwargs in ({'participation_rate':0},{'slippage_bps':float('nan')},
+                       {'delay_impact_bps':10000},{'fee_rate':1},{'order_eur':0}):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    sniper_book_preview(b,**kwargs)
+        b['asks'][1]['price']=100
+        with self.assertRaises(ValueError):sniper_book_preview(b)
+    def test_sniper_no_mutation(self):
+        b=self.sample_book()
+        original=repr(b)
+        sniper_book_preview(b)
+        self.assertEqual(repr(b),original)
     def test_buy_price_is_adverse(self):
         self.assertAlmostEqual(execution_price('BUY',100,.0005),100.05)
     def test_sell_price_is_adverse(self):
