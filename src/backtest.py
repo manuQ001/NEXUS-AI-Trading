@@ -43,7 +43,10 @@ def test_strategy(candles, starting_cash=105.0):
                 pos=None
         if sig.get('buy') and pos is None:
             signals+=1
-            if daily_realized.get(day,0)<=-initial*DAILY_MAX:
+            if c['time']-candles[i-1]['time']!=300:
+                # A missing candle makes the next-open fill untrustworthy.
+                blocked+=1
+            elif daily_realized.get(day,0)<=-initial*DAILY_MAX:
                 blocked+=1
             else:
                 price=c['open']*(1+SLIPPAGE)
@@ -75,7 +78,7 @@ def test_strategy(candles, starting_cash=105.0):
             'gaps_over_5m':gaps,'data_quality_warning':('Feed storico discontinuo: risultati da interpretare con cautela' if gaps else None),'win_rate_pct':round(wins/len(trades)*100,2) if trades else None,
             'profit_factor':round(gross_gain/gross_loss,3) if gross_loss else None,
             'open_position':bool(pos),'trades':trades[-40:],'curve':curves[::max(1,len(curves)//80)],
-            'assumptions':'Segnale sulla candela chiusa precedente, entrata all’open successivo, long spot senza leva; stop/target intrabar con stop prioritario; commissioni 0,25% e slippage 0,05% per lato. Nessuna uscita nella barra di ingresso. Non riproduce order book, latenza, imposte o liquidazioni.'}
+            'assumptions':'Segnale sulla candela chiusa precedente, entrata all’open successivo, long spot senza leva; stop/target intrabar con stop prioritario; commissioni 0,25% e slippage 0,05% per lato. Ingressi saltati dopo intervalli storici mancanti. Nessuna uscita nella barra di ingresso. Non riproduce order book, latenza, imposte o liquidazioni.'}
 
 
 def validate_holdout(candles, starting_cash=105.0):
