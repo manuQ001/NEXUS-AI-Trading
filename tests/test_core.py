@@ -13,6 +13,26 @@ class TestCore(unittest.TestCase):
         self.c.close();self.temp.cleanup()
     def candles(self,n=45):
         return [{'time':1700000000+i*300,'open':100+i,'high':101+i,'low':99+i,'close':100+i,'volume':100} for i in range(n)]
+    def test_search_wait_explains_ema_without_changing_buy_gate(self):
+        result=signal(self.candles(45))
+        self.assertFalse(result['buy'])
+        self.assertEqual(result['reason_code'],'EMA_NO_CROSS')
+        self.assertIn('EMA',result['why'])
+        self.assertIn('filters',result)
+    def test_search_short_history_explains_wait(self):
+        result=signal(self.candles(8))
+        self.assertFalse(result['buy'])
+        self.assertEqual(result['reason_code'],'INSUFFICIENT_HISTORY')
+    def test_search_rsi_diagnostic_when_ema_crosses(self):
+        with patch('core.ema',side_effect=[102,100,99,100]),patch('core.rsi',return_value=80),patch('core.atr',return_value=1):
+            result=signal(self.candles(45))
+        self.assertEqual(result['reason_code'],'RSI_OUT_OF_RANGE')
+        self.assertFalse(result['buy'])
+    def test_search_buy_logic_unmodified_for_valid_filters(self):
+        with patch('core.ema',side_effect=[102,100,99,100]),patch('core.rsi',return_value=60),patch('core.atr',return_value=1):
+            result=signal(self.candles(45))
+        self.assertTrue(result['buy'])
+        self.assertEqual(result['reason_code'],'BUY_VALID')
     def test_history_deduplicated_and_ordered(self):
         candles=self.candles()
         store_closed_candles(self.c,'BTC',candles)
