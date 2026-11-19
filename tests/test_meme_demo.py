@@ -38,13 +38,32 @@ class TestMemeDemo(unittest.TestCase):
         with self.assertRaises(ValueError):quick_trade(self.c,M,'BUY',Q)
         with self.assertRaises(ValueError):quick_trade(self.c,M,'SELL',dict(Q,liquidity_usd=1))
         self.assertEqual(len(demo_state(self.c)['positions']),MAX_POSITIONS)
-    def test_invalid_and_broken_quote_fail_closed(self):
+    def test_invalid_price_and_action_still_fail_closed(self):
         for action,mint,quote in [('BUY','bad',Q),('SELL',M,Q),('BUY',M,dict(Q,price_usd=float('nan'))),
-                                  ('BUY',M,dict(Q,volume_24h_usd=100)),('BUY',M,dict(Q,liquidity_usd=10)),
+                                  ('BUY',M,dict(Q,price_usd=None)),('BUY',M,dict(Q,price_usd=0)),
                                   ('RESET',M,Q)]:
             with self.assertRaises(ValueError):quick_trade(self.c,mint,action,quote)
         self.assertEqual(demo_state(self.c)['cash_credits'],45)
         self.assertEqual(demo_state(self.c)['positions'],[])
+    def test_low_liquidity_and_volume_become_warnings_not_veto(self):
+        buy=quick_trade(self.c,M,'BUY',dict(Q,volume_24h_usd=0,liquidity_usd=10))
+        self.assertTrue(buy['ok'])
+        self.assertEqual(len(buy['warnings']),2)
+        sell=quick_trade(self.c,M,'SELL',dict(Q,volume_24h_usd=None,liquidity_usd=None))
+        self.assertTrue(sell['ok'])
+        self.assertEqual(len(sell['warnings']),2)
+        self.assertEqual(len(demo_state(self.c)['positions']),0)
+    def test_missing_market_metrics_accepted_only_with_price(self):
+        result=quick_trade(self.c,A,'BUY',{'price_usd':0.001,'symbol':'TEST'})
+        self.assertTrue(result['ok'])
+        self.assertEqual(len(result['warnings']),2)
+    def test_quote_accepts_price_when_volume_or_liquidity_missing(self):
+        result=indicative_quote(M,fetch=lambda url:[{
+            'chainId':'solana','baseToken':{'address':M,'symbol':'TEST'},
+            'priceUsd':'0.00000012','volume':{},'liquidity':{}}])
+        self.assertEqual(result['price_usd'],0.00000012)
+        self.assertIsNone(result['volume_24h_usd'])
+        self.assertIsNone(result['liquidity_usd'])
     def test_quote_is_server_fetched_not_browser_submitted(self):
         seen=[]
         pairs=[{'chainId':'solana','baseToken':{'address':M,'symbol':'MEME'},
