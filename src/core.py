@@ -191,6 +191,17 @@ def handle_exit(c,symbol,candle):
     emit(c,'EXIT',f'{symbol}: {reason} virtuale, P/L €{pnl:+.2f}', 'warning' if pnl<0 else 'info')
 
 
+def closed_candle_fresh(candle, now=None, max_age_seconds=90):
+    """A five-minute candle is actionable only shortly after its close.
+
+    Kraken candle timestamps are the START of the five-minute interval.
+    Never backdate a simulated order to an old OHLC close.
+    """
+    now=int(time.time()) if now is None else int(now)
+    closed_at=int(candle['time'])+300
+    return 0<=now-closed_at<=max_age_seconds
+
+
 def record_decision(c,symbol,candle_time,outcome,reason):
     c.execute('INSERT INTO decisions(timestamp,candle_time,symbol,outcome,reason) VALUES(?,?,?,?,?)',(int(time.time()),candle_time,symbol,outcome,reason))
 
@@ -221,6 +232,10 @@ def process_candles(c,symbol,candles):
         record_decision(c,symbol,last['time'],'WAIT',ind['why'])
         emit(c,'HEAD OF DESK',f'{symbol}: NESSUN TRADE — {ind["why"]}; attendo nuove condizioni')
     if ind['buy']:
+        if not closed_candle_fresh(last):
+            record_decision(c,symbol,last['time'],'BLOCK','Prezzo di chiusura troppo vecchio o candela non ancora chiusa')
+            emit(c,'RISK',f'{symbol}: ingresso virtuale negato: feed non abbastanza recente','warning')
+            return ind
         had_position=bool(c.execute('SELECT 1 FROM positions LIMIT 1').fetchone())
         emit(c,'HEAD OF DESK',f'{symbol}: segnale rilevato, richiesta autorizzazione RISK')
         emit(c,'RISK',f'{symbol}: limite 0,5% rischio teorico/trade; ordine subordinato ai controlli')
