@@ -7,6 +7,20 @@ from core import connect,process_candles
 class TestBacktest(unittest.TestCase):
     def candles(self,n=100):
         return [{'time':1700000100+i*300,'open':100+i*.01,'high':101+i*.01,'low':99+i*.01,'close':100+i*.01,'volume':100} for i in range(n)]
+    def test_rejects_invalid_ohlc(self):
+        for field, value in [('high', 1), ('low', 999), ('volume', -3), ('open', float('nan'))]:
+            c=self.candles();c[45][field]=value
+            self.assertFalse(test_strategy(c)['ok'],field)
+    def test_reports_candle_gaps(self):
+        c=self.candles()
+        for row in c[70:]:row['time']+=300
+        r=test_strategy(c)
+        self.assertTrue(r['ok'])
+        self.assertEqual(r['gaps_over_5m'],1)
+        self.assertIsNotNone(r['data_quality_warning'])
+    def test_empty_average_trade(self):
+        r=test_strategy(self.candles())
+        self.assertIsNone(r['avg_closed_trade_pnl'])
     def test_no_data(self):self.assertFalse(test_strategy(self.candles(20))['ok'])
     def test_results_without_trades(self):
         r=test_strategy(self.candles());self.assertTrue(r['ok']);self.assertEqual(r['closed_trades'],0);self.assertEqual(r['net_pnl'],0)
