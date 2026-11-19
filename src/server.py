@@ -7,7 +7,7 @@ from core import connect, startup_events, snapshot, refresh, load_closed_history
 from selftest import run_selftest
 from backtest import test_strategy, validate_holdout
 from core import fetch_kraken, daily_loss
-from agents import review
+from agents import review, local_ai_advice
 from maintenance import run_tests, check_updates, VERSION, ROOT
 from downloader import download_if_available, read_staged
 
@@ -50,6 +50,26 @@ class Handler(BaseHTTPRequestHandler):
                               positions=snap['positions'],daily_realized=realized,
                               feed_ok=snap.get('status',{}).get(symbol)=='OK')
                 self.out({'ok':True,'report':report})
+            except (ValueError,TypeError) as exc:
+                self.out({'ok':False,'error':str(exc)[:200]},400)
+        elif path=='/api/ai-review':
+            from urllib.parse import parse_qs
+            params=parse_qs(urlsplit(self.path).query)
+            symbol=params.get('symbol',['BTC'])[0]
+            if symbol not in ('BTC','ETH'):
+                self.out({'ok':False,'error':'Simbolo non valido'},400);return
+            try:
+                with LOCK:
+                    c=connect()
+                    snap=snapshot(c); realized=daily_loss(c)
+                    c.close()
+                candles=snap.get('candles',{}).get(symbol,[])
+                if not candles:
+                    self.out({'ok':False,'error':'Aggiorna il mercato prima di interrogare il modello'},400);return
+                base=review(symbol,candles,snap.get('indicators',{}).get(symbol,{}) or {},
+                            positions=snap['positions'],daily_realized=realized,
+                            feed_ok=snap.get('status',{}).get(symbol)=='OK')
+                self.out({'ok':True,'advice':local_ai_advice(base)})
             except (ValueError,TypeError) as exc:
                 self.out({'ok':False,'error':str(exc)[:200]},400)
         elif path=='/api/history':
