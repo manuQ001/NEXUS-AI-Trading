@@ -2,6 +2,12 @@
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
 
+## Release 2.8.2 — MEME Scout più ampio e diagnosi scansioni
+
+MEME Scout considera fino a 30 profili Solana per scansione (in precedenza 16) e l'automazione non tronca più la selezione ai primi 12 candidati. Lo stato AUTO ora riporta quanti token hanno superato il filtro iniziale, o se la fonte non ha fornito alcun token. Non vengono eliminate le verifiche di liquidità, volume, prezzo, cambio o disponibilità in portafoglio.
+
+La release include le allocazioni MEME virtuali variabili sviluppate nella 2.8.1. Restano invariati il limite di 8 posizioni, le protezioni del portafoglio e il divieto di inviare ordini reali. DEX Screener mostra solo un campione, non tutte le memecoin; l'ampliamento non garantisce nuovi ordini, accuratezza del prezzo o vendibilità.
+
 ## Release 2.8.1 — acquisti MEME autonomi con importo dinamico (paper only)
 
 In modalità MEME AUTO il bot decide **sia se aprire una posizione sia quanto capitale virtuale allocare**, senza cliccare sul token. Gli ingressi variano tra €1,50 e €4,50 a seconda del minore tra liquidità e volume 24h osservati sia in Scout sia nella quotazione di conferma. Nessuna AI generativa controlla gli ordini.
