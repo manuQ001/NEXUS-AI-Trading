@@ -36,8 +36,10 @@ class TestMemeDemo(unittest.TestCase):
         for address in (M,A,B):quick_trade(self.c,address,'BUY',Q)
         self.assertEqual(len(demo_state(self.c)['positions']),MAX_POSITIONS)
         with self.assertRaises(ValueError):quick_trade(self.c,M,'BUY',Q)
-        with self.assertRaises(ValueError):quick_trade(self.c,M,'SELL',dict(Q,liquidity_usd=1))
-        self.assertEqual(len(demo_state(self.c)['positions']),MAX_POSITIONS)
+        close=quick_trade(self.c,M,'SELL',dict(Q,liquidity_usd=1))
+        self.assertTrue(close['ok'])
+        self.assertTrue(close['warnings'])
+        self.assertEqual(len(demo_state(self.c)['positions']),MAX_POSITIONS-1)
     def test_invalid_price_and_action_still_fail_closed(self):
         for action,mint,quote in [('BUY','bad',Q),('SELL',M,Q),('BUY',M,dict(Q,price_usd=float('nan'))),
                                   ('BUY',M,dict(Q,price_usd=None)),('BUY',M,dict(Q,price_usd=0)),
