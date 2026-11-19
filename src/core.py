@@ -401,6 +401,34 @@ def startup_events(c):
     put(c,'initialized',True);c.commit()
 
 
+def cost_break_even(fee_rate=FEE, slippage_rate=SLIPPAGE, order_eur=25.0):
+    """Read-only exact model break-even for buy and sell at the same EUR quote basis.
+
+    BUY: reference*(1+slippage), with fee on executed notional.
+    SELL: exit_reference*(1-slippage), net of exit fee.
+    Returns the required positive quote move, NOT a forecast or fill guarantee.
+    """
+    f=float(fee_rate)
+    s=float(slippage_rate)
+    amount=float(order_eur)
+    if not all(math.isfinite(v) for v in (f,s,amount)) or not 0<=f<1 or not 0<=s<1 or amount<=0:
+        raise ValueError('Parametri di costo non validi')
+    ratio=(1+s)*(1+f)/((1-s)*(1-f))
+    required=(ratio-1)*100
+    cost_same_quote=amount*(1-(1-s)*(1-f)/((1+s)*(1+f)))
+    return {
+        'scope':'MODEL_ONLY_NO_TRADES',
+        'fee_per_side_pct':f*100,
+        'slippage_per_side_pct':s*100,
+        'round_trip_breakeven_pct':required,
+        'round_trip_breakeven_bps':required*100,
+        'example_entry_budget_eur':amount,
+        'example_flat_market_loss_eur':cost_same_quote,
+        'assumptions':'Commissione per lato sul controvalore eseguito; slippage avverso per lato. Acquisto e vendita sul medesimo riferimento di prezzo, nessuno spread o gap aggiuntivo. Non include imposte.',
+        'note':'Soglia teorica del modello PAPER, non prezzo garantito né previsione di rendimento.'
+    }
+
+
 def performance_report(c):
     """All-time CLOSED paper-trade results, not backtest or mark-to-market equity.
 
@@ -455,7 +483,7 @@ def snapshot(c):
             'indicators':{s:state(c,'indicator_'+s,{}) for s in SYMBOLS},
             'candles':{s:state(c,'candles_'+s,[]) for s in SYMBOLS},
             'updated_at':state(c,'last_update'), 'source':'Kraken EUR, candele chiuse',
-            'mode':'PAPER ONLY','risk_limits':risk_limits_status(c),'performance':performance_report(c),'meme_execution':'BLOCKED: on-chain risk validation not implemented',
+            'mode':'PAPER ONLY','risk_limits':risk_limits_status(c),'performance':performance_report(c),'cost_analysis':cost_break_even(),'meme_execution':'BLOCKED: on-chain risk validation not implemented',
             'status':state(c,'feed_status',{})}
 
 
