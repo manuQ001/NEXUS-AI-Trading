@@ -64,7 +64,7 @@ def review(symbol, candles, indicator, *, positions=(), daily_realized=0.0,
 
 
 
-def attach_market_quality(report, quality=None, *, error=None):
+def attach_market_quality(report, quality=None, *, error=None, book=None):
     """Attach book diagnostics to a READ-ONLY rule review, never authorize orders.
 
     Missing/CAUTION book data suppresses the *displayed* paper candidate;
@@ -96,7 +96,22 @@ def attach_market_quality(report, quality=None, *, error=None):
         'observed_at':quality.get('observed_at') if isinstance(quality,dict) else None,
         'source':'Kraken Depth REST, due richieste non sincronizzate',
         'advisory_only':True}
-    candidate=bool(result.get('paper_candidate'))
+    # SNIPER is a read-only execution diagnostic, not the live PAPER fill.
+    if status=='PASS' and result.get('paper_candidate') and book is not None:
+        try:
+            from execution import sniper_book_preview
+            if book.get('symbol')!=result.get('symbol') or book.get('observed_at')!=quality.get('observed_at'):
+                raise ValueError('Book non corrispondente alla verifica')
+            estimate=sniper_book_preview(book)
+            result['sniper_estimate']=estimate
+            if estimate['status']!='ESTIMATE_FULL':
+                result['paper_candidate']=False
+        except (ValueError,TypeError,KeyError,OverflowError) as exc:
+            result['paper_candidate']=False
+            result['sniper_estimate']={'status':'UNAVAILABLE','reason':type(exc).__name__,'mode':'READ ONLY'}
+    else:
+        result['sniper_estimate']={'status':'NOT_REQUESTED' if not result.get('paper_candidate') else 'UNAVAILABLE',
+                                  'mode':'READ ONLY'}
     if status!='PASS':
         result['paper_candidate']=False
     for agent in result['agents']:
@@ -106,11 +121,22 @@ def attach_market_quality(report, quality=None, *, error=None):
                 agent['reason']=description+'; nessun candidato BUY dal consulto'
             else:
                 agent['reason']=agent['reason']+'; book: '+description
-        elif agent['name']=='SNIPER' and status!='PASS':
-            agent['status']='idle'
-            agent['reason']='Consulto non autorizzato: '+description
-    result['market_consultation']='PRELIMINARY_ONLY' if status=='PASS' else 'NO_CANDIDATE'
-    result['note']=result.get('note','')+' Book: analisi indicativa; non modifica i controlli RISK né la funzione try_buy.'
+        elif agent['name']=='SNIPER':
+            estimate=result['sniper_estimate']
+            if status!='PASS':
+                agent['status']='idle'
+                agent['reason']='Consulto non autorizzato: '+description
+            elif estimate['status']=='ESTIMATE_FULL':
+                agent['status']='estimated_only'
+                agent['reason']='Book osservato e costi ipotetici: copertura indicativa completa; nessun ordine'
+            elif estimate['status'] in ('ESTIMATE_PARTIAL','OVER_BUDGET','UNAVAILABLE'):
+                agent['status']='estimate_blocked'
+                agent['reason']='Stima SNIPER insufficiente: '+estimate['status']+'; nessun ordine'
+            else:
+                agent['status']='idle'
+                agent['reason']='Nessuna stima richiesta senza candidato BUY preliminare'
+    result['market_consultation']='PRELIMINARY_ONLY' if status=='PASS' and result.get('paper_candidate') else 'NO_CANDIDATE'
+    result['note']=result.get('note','')+' Book e SNIPER: analisi indicativa; non modificano i controlli RISK né la funzione try_buy.'
     if error:
         result['market_quality']['error_type']=str(error)[:80]
     return result
