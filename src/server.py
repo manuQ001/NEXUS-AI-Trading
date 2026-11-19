@@ -88,6 +88,19 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
                 self.out({'ok':False,'error':'GoPlus non disponibile: '+type(exc).__name__,
                           'meme_execution':'BLOCKED','status':'NON_VERIFICATO'},503)
+        elif path=='/api/meme-whales':
+            from urllib.parse import parse_qs
+            address=parse_qs(urlsplit(self.path).query).get('address',[''])[0]
+            from whale_tracker import ADDRESS
+            if not ADDRESS.fullmatch(address):
+                self.out({'ok':False,'error':'Mint Solana non valido',
+                          'meme_execution':'BLOCKED'},400);return
+            try:
+                from whale_tracker import inspect
+                self.out(inspect(address))
+            except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
+                self.out({'ok':False,'status':'NON_VERIFICATO','meme_execution':'BLOCKED',
+                          'error':'RPC Solana non disponibile o non valido: '+type(exc).__name__},503)
         elif path=='/api/meme-scout':
             # Manual, bounded public-data research. No SQLite writes, no orders.
             try:
