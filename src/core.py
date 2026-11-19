@@ -390,6 +390,50 @@ def startup_events(c):
     put(c,'initialized',True);c.commit()
 
 
+def performance_report(c):
+    """All-time CLOSED paper-trade results, not backtest or mark-to-market equity.
+
+    Uses every SELL in SQLite instead of the dashboard's recent-80-trade window.
+    No data is changed, and the chart reflects realized P/L only.
+    """
+    sells=c.execute('SELECT id,timestamp,pnl FROM trades WHERE action="SELL" ORDER BY timestamp,id').fetchall()
+    wins=[float(t['pnl']) for t in sells if t['pnl']>0]
+    losses=[float(t['pnl']) for t in sells if t['pnl']<0]
+    total=sum(float(t['pnl']) for t in sells)
+    gross_profit=sum(wins)
+    gross_loss=-sum(losses)
+    running=0.0
+    peak=0.0
+    max_dd=0.0
+    curve=[{'timestamp':None,'pnl':0.0}]
+    for t in sells:
+        running+=float(t['pnl'])
+        peak=max(peak,running)
+        max_dd=max(max_dd,peak-running)
+        curve.append({'timestamp':int(t['timestamp']),'pnl':round(running,6)})
+    count=len(sells)
+    fee_total=c.execute('SELECT COALESCE(SUM(fee),0) FROM trades').fetchone()[0]
+    return {
+        'scope':'ALL_CLOSED_PAPER_TRADES',
+        'closed_trades':count,
+        'wins':len(wins),
+        'losses':len(losses),
+        'breakeven':count-len(wins)-len(losses),
+        'win_rate_pct':100*len(wins)/count if count else None,
+        'realized_pnl':round(total,6),
+        'gross_profit':round(gross_profit,6),
+        'gross_loss':round(gross_loss,6),
+        'profit_factor':gross_profit/gross_loss if gross_loss>0 else None,
+        'avg_win':sum(wins)/len(wins) if wins else None,
+        'avg_loss':sum(losses)/len(losses) if losses else None,
+        'avg_trade':total/count if count else None,
+        'max_closed_drawdown_eur':round(max_dd,6),
+        'recorded_fees_all_orders':round(float(fee_total or 0),6),
+        'curve':curve,
+        'note':'Solo operazioni SELL chiuse, P/L netto di commissioni simulate. Curva realizzata, non equity live. Il totale commissioni include anche eventuali BUY ancora aperti.'
+    }
+
+
 def snapshot(c):
     prices=state(c,'prices',{})
     return {'wallets':wallet_status(c,prices),'prices':prices,
@@ -400,7 +444,7 @@ def snapshot(c):
             'indicators':{s:state(c,'indicator_'+s,{}) for s in SYMBOLS},
             'candles':{s:state(c,'candles_'+s,[]) for s in SYMBOLS},
             'updated_at':state(c,'last_update'), 'source':'Kraken EUR, candele chiuse',
-            'mode':'PAPER ONLY','risk_limits':risk_limits_status(c),'meme_execution':'BLOCKED: on-chain risk validation not implemented',
+            'mode':'PAPER ONLY','risk_limits':risk_limits_status(c),'performance':performance_report(c),'meme_execution':'BLOCKED: on-chain risk validation not implemented',
             'status':state(c,'feed_status',{})}
 
 
