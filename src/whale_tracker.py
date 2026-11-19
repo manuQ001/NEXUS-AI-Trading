@@ -79,9 +79,10 @@ def analyze(mint, supply_response, largest_response, owners_response=None, now=N
         if isinstance(values,list) and len(values)==len(pool):
             extracted={}
             for original,account in zip(pool,values):
-                info=((account or {}).get('data') or {}).get('parsed') if isinstance(account,dict) else None
-                info=(info or {}).get('info') if isinstance(info,dict) else None
-                owner=(info or {}).get('owner') if isinstance(info,dict) else None
+                data=account.get('data') if isinstance(account,dict) else None
+                parsed=data.get('parsed') if isinstance(data,dict) else None
+                info=parsed.get('info') if isinstance(parsed,dict) else None
+                owner=info.get('owner') if isinstance(info,dict) else None
                 if isinstance(owner,str) and ADDRESS.fullmatch(owner):
                     extracted[original['address']]=owner
             owner_data_valid=len(extracted)==len(pool)
