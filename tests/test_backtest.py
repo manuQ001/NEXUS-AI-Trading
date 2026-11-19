@@ -18,6 +18,13 @@ class TestBacktest(unittest.TestCase):
         self.assertTrue(r['ok'])
         self.assertEqual(r['gaps_over_5m'],1)
         self.assertIsNotNone(r['data_quality_warning'])
+    def test_exit_uncertainty_metrics_present_and_nonnegative(self):
+        report=test_strategy(self.candles())
+        self.assertTrue(report['ok'])
+        for key in ('ambiguous_exit_bars','gap_stop_fills','targets_suppressed_after_feed_gap'):
+            self.assertIn(key,report)
+            self.assertIsInstance(report[key],int)
+            self.assertGreaterEqual(report[key],0)
     def test_empty_average_trade(self):
         r=test_strategy(self.candles())
         self.assertIsNone(r['avg_closed_trade_pnl'])
