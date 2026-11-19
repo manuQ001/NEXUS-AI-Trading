@@ -8,6 +8,7 @@ from selftest import run_selftest
 from backtest import test_strategy, validate_holdout
 from core import fetch_kraken, daily_loss
 from agents import review, local_ai_advice, attach_market_quality
+from external_ai import external_ai_advice
 from execution import execution_stress_scenarios
 from orderbook import fetch_depth, depth_study, inspect_book_quality
 from maintenance import run_tests, check_updates, VERSION, ROOT
@@ -86,7 +87,14 @@ class Handler(BaseHTTPRequestHandler):
                             positions=snap['positions'],daily_realized=realized,
                             feed_ok=snap.get('status',{}).get(symbol)=='OK',
                               core_cash=next((w['cash'] for w in snap['wallets'] if w['strategy']=='core'),None))
-                self.out({'ok':True,'advice':local_ai_advice(base)})
+                # Explicit click only. Prefer external adviser when configured;
+                # otherwise preserve the existing optional local Ollama mode.
+                # Neither result is fed back into trade authorization.
+                import os
+                advice=(external_ai_advice(base)
+                        if os.environ.get('NEXUS_OPENAI_MODEL') or os.environ.get('NEXUS_OPENAI_API_KEY')
+                        else local_ai_advice(base))
+                self.out({'ok':True,'advice':advice})
             except (ValueError,TypeError) as exc:
                 self.out({'ok':False,'error':str(exc)[:200]},400)
         elif path=='/api/orderbook-study':
