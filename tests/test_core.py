@@ -111,6 +111,41 @@ class TestCore(unittest.TestCase):
         decision=assess_paper_order(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
         self.assertFalse(decision['approved'])
         self.assertIn('giornaliera',decision['reason'])
+    def test_risk_max_six_daily_paper_entries(self):
+        from datetime import datetime, timezone
+        now=int(datetime.now(timezone.utc).timestamp())
+        for index in range(6):
+            self.c.execute('''INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details)
+                VALUES(?,?,?,?,?,?,?,?)''',(now-index,'BTC','BUY',.01,100,0,0,'TEST'))
+        candles=self.candles()
+        result=assess_paper_order(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
+        self.assertFalse(result['approved'])
+        self.assertIn('6 acquisti',result['reason'])
+        before=self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0]
+        try_buy(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],before)
+    def test_risk_stop_loss_cooldown(self):
+        from datetime import datetime, timezone
+        now=int(datetime.now(timezone.utc).timestamp())
+        self.c.execute('''INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details)
+            VALUES(?,?,?,?,?,?,?,?)''',(now-60,'BTC','SELL',.01,100,0,-.10,'Stop loss'))
+        candles=self.candles()
+        result=assess_paper_order(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
+        self.assertFalse(result['approved'])
+        self.assertIn('30 minuti',result['reason'])
+        self.c.execute('UPDATE trades SET timestamp=? WHERE action="SELL"',(now-1801,))
+        result=assess_paper_order(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
+        self.assertTrue(result['approved'])
+    def test_risk_does_not_count_yesterday_buys(self):
+        from datetime import datetime, timezone
+        today=datetime.now(timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0)
+        yesterday=int(today.timestamp())-1
+        for _ in range(6):
+            self.c.execute('''INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details)
+                VALUES(?,?,?,?,?,?,?,?)''',(yesterday,'BTC','BUY',.01,100,0,0,'OLD'))
+        candles=self.candles()
+        result=assess_paper_order(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
+        self.assertTrue(result['approved'])
     def test_wallets(self):
         w=wallet_status(self.c,{})
         self.assertEqual(sum(x['equity'] for x in w),150)
