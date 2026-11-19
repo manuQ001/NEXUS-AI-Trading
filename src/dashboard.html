@@ -87,7 +87,7 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
 <section class="workspace-view" data-view="meme-section" id="workspace-meme-section" hidden>
 <div class="section-divider" id="meme-section"><span class="section-index">06</span><div><h2 class="section-heading">MEME HUNTER · Solana</h2><div class="section-caption">Ricerca token emergenti: dati pubblici, nessuna esecuzione memecoin</div></div></div>
 <section class="panel meme-quick-panel" id="meme-quick-panel">
- <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin:0">⚡ QUICK TRADE · MEME PAPER SANDBOX</div><div class="sub">Prove manuali separate dal trading BTC/ETH</div></div><span class="tag">USD DEMO · NO REAL ORDERS</span></div>
+ <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin:0">⚡ QUICK TRADE · MEME PAPER SANDBOX</div><div class="sub">Prove manuali separate dal trading BTC/ETH. Premi Analizza Solana e usa ⚡ Test 3 crediti sotto il nome del token</div></div><span class="tag">USD DEMO · NO REAL ORDERS</span></div>
  <div class="meme-quick-stats">
  <div class="meme-quick-stat"><div class="sub">Crediti disponibili</div><b id="meme-demo-cash">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Equity teorica ultima osservazione</div><b id="meme-demo-equity">—</b></div>
@@ -105,7 +105,7 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
   </div>
   <div class="desk-state" style="margin-top:14px"><div><strong>RUG GUARD 2.0 · Controlli GoPlus su richiesta</strong><div class="sub">Mint, freeze e funzioni token da GoPlus; concentrazione dei token account tramite WHALE. Honeypot, vendibilità e liquidità bloccata restano non verificati.</div></div><span class="state-label bad">ACQUISTI BLOCCATI</span></div>
   <div id="meme-message" class="sub" role="status" style="margin:12px 0">Premi Analizza Solana per richiedere i dati pubblici. Nessun monitoraggio automatico.</div>
-  <div class="scroll"><table class="dataTable"><thead><tr><th>Token</th><th>Prezzo USD</th><th>Liquidità USD</th><th>Volume 24h</th><th>Pool</th><th>Rischi / dati mancanti</th><th>RUG GUARD</th><th>WHALE TRACKER</th><th>Quick test</th><th>Fonte</th></tr></thead><tbody id="meme-rows"><tr><td colspan="10" class="muted">Ricerca non eseguita</td></tr></tbody></table></div>
+  <div class="scroll"><table class="dataTable"><thead><tr><th>Token</th><th>Prezzo USD</th><th>Liquidità USD</th><th>Volume 24h</th><th>Pool</th><th>Rischi / dati mancanti</th><th>RUG GUARD</th><th>WHALE TRACKER</th><th>Fonte</th></tr></thead><tbody id="meme-rows"><tr><td colspan="9" class="muted">Ricerca non eseguita</td></tr></tbody></table></div>
   <dialog id="meme-analysis-dialog" class="meme-dialog" aria-labelledby="meme-analysis-heading">
     <div class="meme-dialog-head">
       <div><div class="meme-dialog-title" id="meme-analysis-heading">Analisi del token</div><div class="sub" id="meme-dialog-subtitle">Verifiche esterne, solo lettura</div></div>
@@ -347,14 +347,14 @@ $('meme-scan').addEventListener('click',async()=>{
     body.innerHTML=data.candidates.length?data.candidates.map(t=>{
       const warnings=(t.warnings||[]).join('; ')||'Nessun avviso di mercato, sicurezza comunque non verificata';
       const link=t.url?'<a href="'+esc(t.url)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">DEX Screener</a>':'—';
-      return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div></td>'+
+      return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div><button class="btn meme-quick-btn" style="display:block;margin-top:8px" data-mint="'+esc(t.address)+'" type="button">⚡ Test 3 crediti</button></td>'+
         '<td>'+esc(money(t.price_usd))+'</td><td>'+esc(money(t.liquidity_usd))+'</td><td>'+esc(money(t.volume_24h_usd))+'</td><td>'+esc(age(t.pool_age_hours))+'</td>'+
-        '<td><span class="red">NON VERIFICATO</span><div class="sub">'+esc(warnings)+'</div></td><td><button class="btn meme-risk-btn" data-mint="'+esc(t.address)+'" type="button">Controlla</button><span class="meme-analysis-result">Da verificare</span></td><td><button class="btn meme-whale-btn" data-mint="'+esc(t.address)+'" type="button">Analizza</button><span class="meme-analysis-result">Da verificare</span></td><td><button class="btn meme-quick-btn" data-mint="'+esc(t.address)+'" type="button">⚡ Test 3 crediti</button></td><td>'+link+'</td></tr>'
-    }).join(''):'<tr><td colspan="10" class="muted">Nessuna coppia Solana valida nel campione di profili disponibile</td></tr>';
+        '<td><span class="red">NON VERIFICATO</span><div class="sub">'+esc(warnings)+'</div></td><td><button class="btn meme-risk-btn" data-mint="'+esc(t.address)+'" type="button">Controlla</button><span class="meme-analysis-result">Da verificare</span></td><td><button class="btn meme-whale-btn" data-mint="'+esc(t.address)+'" type="button">Analizza</button><span class="meme-analysis-result">Da verificare</span></td><td>'+link+'</td></tr>'
+    }).join(''):'<tr><td colspan="9" class="muted">Nessuna coppia Solana valida nel campione di profili disponibile</td></tr>';
     info.textContent='Campione '+data.sampled_profiles+' profili · '+data.candidates.length+' coppie visualizzate · '+new Date(data.observed_at*1000).toLocaleTimeString('it-IT')+' · '+data.warning;
   }catch(e){
     info.textContent='MEME SCOUT non disponibile: '+e.message+' · Acquisti memecoin sempre bloccati.';
-    body.innerHTML='<tr><td colspan="10" class="muted">Non sono disponibili dati verificati per questa richiesta</td></tr>';
+    body.innerHTML='<tr><td colspan="9" class="muted">Non sono disponibili dati verificati per questa richiesta</td></tr>';
   }finally{button.disabled=false}
 });
 // Inspectors render into a bounded dialog, not into the table row.
