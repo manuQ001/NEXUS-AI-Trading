@@ -26,6 +26,7 @@ def connect(db=None):
     CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, agent TEXT, level TEXT, message TEXT);
     CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY, value TEXT);
     CREATE TABLE IF NOT EXISTS decisions(id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, candle_time INTEGER, symbol TEXT, outcome TEXT, reason TEXT);
+    CREATE TABLE IF NOT EXISTS market_history(symbol TEXT NOT NULL, candle_time INTEGER NOT NULL, open REAL NOT NULL, high REAL NOT NULL, low REAL NOT NULL, close REAL NOT NULL, volume REAL NOT NULL, PRIMARY KEY(symbol,candle_time));
     ''')
     for k, v in START.items():
         c.execute('INSERT OR IGNORE INTO wallets VALUES(?,?,?)',(k,v,v))
@@ -58,6 +59,42 @@ def fetch_kraken(symbol, interval=5):
     candles=[{'time':int(x[0]),'open':float(x[1]),'high':float(x[2]),'low':float(x[3]),'close':float(x[4]),'volume':float(x[6])} for x in raw]
     # Kraken explicitly includes a running, uncommitted last candle.
     return candles[:-1]
+
+
+def store_closed_candles(c, symbol, candles):
+    """Archive Kraken's closed candles; idempotent and never creates orders."""
+    if symbol not in SYMBOLS:
+        raise ValueError('Simbolo non valido')
+    rows=[]
+    for x in candles:
+        t=int(x['time'])
+        o,h,l,cl,v=(float(x[k]) for k in ('open','high','low','close','volume'))
+        if (t<=0 or not all(math.isfinite(z) for z in (o,h,l,cl,v))
+                or min(o,h,l,cl)<=0 or v<0 or l>min(o,cl) or h<max(o,cl)):
+            raise ValueError('Candela OHLCV non valida')
+        rows.append((symbol,t,o,h,l,cl,v))
+    c.executemany('INSERT OR IGNORE INTO market_history(symbol,candle_time,open,high,low,close,volume) VALUES(?,?,?,?,?,?,?)',rows)
+    # Retain the newest 200,000 candles per market (~1.9 years at 5m).
+    c.execute('''DELETE FROM market_history WHERE symbol=? AND candle_time <
+        COALESCE((SELECT candle_time FROM market_history WHERE symbol=?
+        ORDER BY candle_time DESC LIMIT 1 OFFSET 199999),0)''',(symbol,symbol))
+    return len(rows)
+
+
+def load_closed_history(c, symbol, limit=100000):
+    if symbol not in SYMBOLS: raise ValueError('Simbolo non valido')
+    if not isinstance(limit,int) or not 1<=limit<=200000: raise ValueError('Limite non valido')
+    rows=c.execute('''SELECT candle_time,open,high,low,close,volume
+        FROM market_history WHERE symbol=? ORDER BY candle_time DESC LIMIT ?''',(symbol,limit)).fetchall()
+    return [{'time':r['candle_time'],'open':r['open'],'high':r['high'],
+             'low':r['low'],'close':r['close'],'volume':r['volume']} for r in reversed(rows)]
+
+
+def historical_coverage(c, symbol):
+    x=c.execute('SELECT COUNT(*) AS n, MIN(candle_time) AS first, MAX(candle_time) AS last FROM market_history WHERE symbol=?',(symbol,)).fetchone()
+    return {'symbol':symbol,'candles':x['n'],'first':x['first'],'last':x['last'],
+            'span_days':round((x['last']-x['first'])/86400,2) if x['first'] is not None else 0,
+            'note':'Archivio locale di sole candele chiuse; non recupera automaticamente periodi anteriori ai dati Kraken disponibili.'}
 
 
 def ema(values, n):
@@ -220,6 +257,7 @@ def refresh(c):
     for symbol in SYMBOLS:
         try:
             candles=fetch_kraken(symbol)
+            store_closed_candles(c,symbol,candles)
             put(c,'candles_'+symbol,candles[-80:])
             process_candles(c,symbol,candles)
             status[symbol]='OK'
