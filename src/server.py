@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from core import connect, startup_events, snapshot, refresh
 from selftest import run_selftest
-from backtest import test_strategy
+from backtest import test_strategy, validate_holdout
 from core import fetch_kraken
 from maintenance import run_tests, check_updates, VERSION, ROOT
 from downloader import download_if_available, read_staged
@@ -30,7 +30,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path=='/api/selftest':
             try: self.out(run_selftest())
             except Exception as exc: self.out({'ok':False,'error':str(exc),'mode':'SELFTEST - DATI SINTETICI'},500)
-        elif path=='/api/backtest':
+        elif path in ('/api/backtest','/api/validation'):
             from urllib.parse import parse_qs
             params=parse_qs(urlsplit(self.path).query)
             symbol=params.get('symbol',['BTC'])[0]
@@ -39,7 +39,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 # Read-only study: never uses the trading database.
                 candles=fetch_kraken(symbol)
-                report=test_strategy(candles)
+                report=validate_holdout(candles) if path=='/api/validation' else test_strategy(candles)
                 report['symbol']=symbol
                 report['data_source']='Kraken OHLC 5m (solo candele chiuse)'
                 self.out(report)
@@ -84,7 +84,7 @@ def main():
     server=ThreadingHTTPServer(('127.0.0.1',8765),Handler)
     stop=threading.Event()
     threading.Thread(target=maintenance_loop,args=(stop,),daemon=True).start()
-    print('NEXUS AI 2.4 — SOLO SIMULAZIONE')
+    print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
     print('Dashboard: http://127.0.0.1:8765')
     print('Premi CTRL+C per chiudere. Nessuna operazione reale.')
     if '--no-browser' not in sys.argv:
