@@ -69,7 +69,7 @@ def local_ai_advice(report, model=None, timeout=25):
     model=model if model is not None else os.environ.get('NEXUS_OLLAMA_MODEL','')
     if not model:
         return {'available':False,'status':'disabled','note':'Imposta NEXUS_OLLAMA_MODEL per abilitare il modello locale'}
-    if not isinstance(model,str) or not re.fullmatch(r'[A-Za-z0-9._:/-]{1,90}',model):
+    if not isinstance(model,str) or '://' in model or not re.fullmatch(r'[A-Za-z0-9._:/-]{1,90}',model):
         return {'available':False,'status':'invalid_model','note':'Nome modello locale non valido'}
     facts={
         'asset':report['symbol'],
