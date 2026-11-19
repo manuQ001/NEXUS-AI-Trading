@@ -2,7 +2,7 @@ import sys, tempfile, unittest
 from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from core import connect, signal, process_candles, wallet_status, handle_exit, try_buy, startup_events, state, store_closed_candles, load_closed_history, historical_coverage, closed_candle_fresh, assess_paper_order
+from core import connect, signal, process_candles, wallet_status, handle_exit, try_buy, startup_events, state, store_closed_candles, load_closed_history, historical_coverage, closed_candle_fresh, assess_paper_order, risk_limits_status
 from selftest import run_selftest
 
 class TestCore(unittest.TestCase):
@@ -111,6 +111,14 @@ class TestCore(unittest.TestCase):
         decision=assess_paper_order(self.c,'BTC',candles,{'buy':True,'atr':1},quote_price=candles[-1]['close'])
         self.assertFalse(decision['approved'])
         self.assertIn('giornaliera',decision['reason'])
+    def test_risk_dashboard_report_is_read_only(self):
+        before=self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0]
+        report=risk_limits_status(self.c,now=1700000000)
+        self.assertEqual(report['daily_buy_count'],0)
+        self.assertEqual(report['daily_buy_limit'],6)
+        self.assertEqual(report['stop_cooldown_seconds_remaining'],0)
+        self.assertFalse(report['new_entries_blocked'])
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],before)
     def test_risk_max_six_daily_paper_entries(self):
         from datetime import datetime, timezone
         now=int(datetime.now(timezone.utc).timestamp())
