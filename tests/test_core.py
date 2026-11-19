@@ -90,6 +90,30 @@ class TestCore(unittest.TestCase):
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM positions').fetchone()[0],0)
         t=self.c.execute('SELECT * FROM trades WHERE action="SELL"').fetchone()
         self.assertGreater(t['pnl'],0)
+    def test_exit_skips_candle_started_before_entry(self):
+        candles=self.candles()
+        with patch('core.time.time',return_value=1700000500):
+            try_buy(self.c,'BTC',candles,{'buy':True,'atr':1,'why':'TEST'},quote_price=candles[-1]['close'])
+        p=self.c.execute('SELECT * FROM positions WHERE symbol="BTC"').fetchone()
+        self.assertEqual(p['opened_at'],1700000500)
+        # The earlier bar touched both levels, but was already underway at entry.
+        handle_exit(self.c,'BTC',{'time':1700000400,'open':p['entry'],
+            'high':p['target']+3,'low':p['stop']-3})
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM positions').fetchone()[0],1)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades WHERE action="SELL"').fetchone()[0],0)
+        # Next fully observed bar is eligible; stop wins if both levels touched.
+        handle_exit(self.c,'BTC',{'time':1700000500,'open':p['entry'],
+            'high':p['target']+3,'low':p['stop']-3})
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM positions').fetchone()[0],0)
+        self.assertEqual(self.c.execute('SELECT details FROM trades WHERE action="SELL"').fetchone()[0],'Stop loss')
+    def test_pre_entry_history_cannot_generate_profit(self):
+        candles=self.candles()
+        with patch('core.time.time',return_value=1700000900):
+            try_buy(self.c,'BTC',candles,{'buy':True,'atr':1,'why':'TEST'},quote_price=candles[-1]['close'])
+        p=self.c.execute('SELECT * FROM positions').fetchone()
+        handle_exit(self.c,'BTC',{'time':1700000600,'open':p['entry'],
+            'high':p['target']+10,'low':p['stop']+0.01})
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades WHERE action="SELL"').fetchone()[0],0)
     def test_stop_first(self):
         try_buy(self.c,'BTC',self.candles(),{'buy':True,'atr':1,'why':'TEST'},quote_price=self.candles()[-1]['close'])
         p=self.c.execute('SELECT * FROM positions').fetchone()
