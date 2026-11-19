@@ -110,3 +110,37 @@ def hypothetical_partial_fill(side, requested_quantity, midpoint, available_quan
             'requested_qty':requested,'filled_qty':fill_qty,
             'unfilled_qty':remaining,'price':price,'fee':gross*fee,
             'gross':gross,'mode':'SYNTHETIC SCENARIO ONLY'}
+
+
+def execution_stress_scenarios(midpoint, order_eur=25.0):
+    """Read-only examples with invented depth/price-impact assumptions.
+
+    These are deliberately NOT inferred from Kraken candles or order book.
+    """
+    mid=_positive_finite(midpoint,'Prezzo di riferimento')
+    amount=_positive_finite(order_eur,'Importo ordine')
+    if amount>1000000:
+        raise ValueError('Importo simulato troppo grande')
+    quantity=amount/mid
+    cases=(
+        ('Liquidità abbondante',2000.0,4.0,5.0,2.0),
+        ('Liquidità moderata',100.0,12.0,10.0,10.0),
+        ('Liquidità scarsa',20.0,40.0,35.0,40.0),
+    )
+    results=[]
+    for label,depth_eur,spread,slip,lag in cases:
+        report=hypothetical_partial_fill(
+            'BUY',quantity,mid,depth_eur/mid,participation_rate=.25,
+            spread_bps=spread,slippage_bps=slip,latency_bps=lag)
+        results.append({'scenario':label,'assumed_depth_eur':depth_eur,
+                        'assumed_spread_bps':spread,
+                        'assumed_slippage_bps':slip,
+                        'assumed_delay_impact_bps':lag,
+                        'filled_eur':round(report['gross'],4),
+                        'fee_eur':round(report['fee'],4),
+                        'fill_percentage':round(100*report['filled_qty']/quantity,2),
+                        'status':report['status']})
+    return {'mode':'HYPOTHETICAL STUDY - NO ORDERS',
+            'reference_mid_eur':mid,'requested_eur':amount,
+            'participation_rate':.25,'scenarios':results,
+            'warning':'Volumi, spread e impatto del ritardo sono ipotesi inventate per test, NON misure di mercato. Nessuna previsione di eseguibilità.'}
