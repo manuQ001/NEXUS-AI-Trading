@@ -11,7 +11,10 @@ FILES=[
     'tests/test_backtest.py','tests/test_core.py','tests/test_maintenance.py',
     'tests/test_downloader.py','tests/test_external_ai.py','tests/test_monitor.py',
     'tests/test_ai_http.py','tests/test_research_journal.py','tests/test_hypothesis.py',
-    'updater.py','README.md','updates.json'
+    'updater.py','README.md','updates.json',
+    'migrate.py','upgrade_from_25.py','upgrade_from_26.py',
+    'AVVIA_WINDOWS.ps1','AVVIA_ANTEPRIMA_WINDOWS.bat',
+    'SCARICA_E_AVVIA_ANTEPRIMA.bat'
 ]
 MAX_ZIP=5*1024*1024
 
