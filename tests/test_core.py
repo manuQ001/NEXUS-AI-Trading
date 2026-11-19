@@ -54,6 +54,22 @@ class TestCore(unittest.TestCase):
         result=self.c.execute('SELECT outcome, reason FROM decisions ORDER BY id DESC LIMIT 1').fetchone()
         self.assertEqual(result['outcome'],'BLOCK')
         self.assertIn('vecchio',result['reason'])
+    def test_missing_quote_blocks_virtual_buy(self):
+        candles=self.candles()
+        try_buy(self.c,'BTC',candles,{'buy':True,'atr':1,'why':'TEST'})
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
+    def test_invalid_or_distant_quote_blocks_virtual_buy(self):
+        candles=self.candles();ind={'buy':True,'atr':1,'why':'TEST'}
+        for quote in (0,float('nan'),candles[-1]['close']*1.02):
+            try_buy(self.c,'BTC',candles,ind,quote_price=quote)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
+    def test_fresh_quote_sets_entry_price_and_fee(self):
+        candles=self.candles();ask=candles[-1]['close']*1.001
+        try_buy(self.c,'BTC',candles,{'buy':True,'atr':1,'why':'TEST'},quote_price=ask)
+        p=self.c.execute('SELECT * FROM positions').fetchone()
+        self.assertIsNotNone(p)
+        self.assertAlmostEqual(p['entry'],ask*1.0005)
+        self.assertGreater(p['entry_fee'],0)
     def test_wallets(self):
         w=wallet_status(self.c,{})
         self.assertEqual(sum(x['equity'] for x in w),150)
@@ -66,7 +82,7 @@ class TestCore(unittest.TestCase):
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
     def test_buy_close_fee_and_pnl(self):
         cand=self.candles();ind={'buy':True,'atr':1.0,'why':'TEST'}
-        try_buy(self.c,'BTC',cand,ind)
+        try_buy(self.c,'BTC',cand,ind,quote_price=cand[-1]['close'])
         p=self.c.execute('SELECT * FROM positions').fetchone()
         self.assertIsNotNone(p)
         self.assertGreater(p['entry_fee'],0)
@@ -75,7 +91,7 @@ class TestCore(unittest.TestCase):
         t=self.c.execute('SELECT * FROM trades WHERE action="SELL"').fetchone()
         self.assertGreater(t['pnl'],0)
     def test_stop_first(self):
-        try_buy(self.c,'BTC',self.candles(),{'buy':True,'atr':1,'why':'TEST'})
+        try_buy(self.c,'BTC',self.candles(),{'buy':True,'atr':1,'why':'TEST'},quote_price=self.candles()[-1]['close'])
         p=self.c.execute('SELECT * FROM positions').fetchone()
         handle_exit(self.c,'BTC',{'open':p['entry'],'high':p['target']+2,'low':p['stop']-2})
         t=self.c.execute('SELECT * FROM trades WHERE action="SELL"').fetchone()
