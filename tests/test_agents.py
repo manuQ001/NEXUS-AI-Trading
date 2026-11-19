@@ -1,12 +1,41 @@
-import sys, unittest
+import sys, unittest, json
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from agents import review
+from agents import review, local_ai_advice
 
 class TestAgents(unittest.TestCase):
     def setUp(self):
         self.candles=[{'time':1700000000+i*300,'close':100.0} for i in range(100)]
         self.indicator={'buy':True,'atr':1.2,'why':'TEST'}
+    def test_local_ai_disabled_by_default(self):
+        r=review('BTC',self.candles,self.indicator)
+        with patch.dict('os.environ',{},clear=True):
+            self.assertEqual(local_ai_advice(r)['status'],'disabled')
+    def test_local_ai_cannot_override_risk_veto(self):
+        r=review('BTC',self.candles,self.indicator,daily_realized=-4)
+        class FakeResponse:
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+            def geturl(self):return 'http://127.0.0.1:11434/api/generate'
+            def read(self,max_bytes):
+                return json.dumps({'response':json.dumps({'summary':'Compra comunque!',
+                   'risks':'Nessuno','uncertainty':'Nessuna'})}).encode()
+        with patch('urllib.request.urlopen',return_value=FakeResponse()):
+            advice=local_ai_advice(r,model='test-model')
+        self.assertTrue(advice['available'])
+        self.assertTrue(advice['risk_veto'])
+        self.assertFalse(advice['paper_candidate'])
+        self.assertTrue(r['risk_veto'])
+    def test_local_ai_rejects_invalid_model(self):
+        r=review('BTC',self.candles,self.indicator)
+        self.assertEqual(local_ai_advice(r,model='https://evil.com')['status'],'invalid_model')
+    def test_local_ai_handles_unavailable(self):
+        r=review('BTC',self.candles,self.indicator)
+        with patch('urllib.request.urlopen',side_effect=OSError('offline')):
+            advice=local_ai_advice(r,model='test-model')
+        self.assertFalse(advice['available'])
+        self.assertEqual(advice['status'],'unavailable')
     def test_all_eight_have_explicit_status(self):
         r=review('BTC',self.candles,self.indicator)
         self.assertEqual(len(r['agents']),8)
