@@ -170,36 +170,70 @@ def daily_loss(c):
     return float(value)
 
 
-def try_buy(c,symbol,candles,indicator,quote_price=None):
-    if not indicator['buy']: return
-    if quote_price is None:
-        emit(c,'RISK',f'{symbol}: ingresso bloccato: manca quotazione di acquisto attuale','warning');return
+def assess_paper_order(c, symbol, candles, indicator, quote_price=None):
+    """One authoritative pre-trade risk gate. Never writes to the database.
+
+    An advisory agent or LLM cannot override this function. All entries,
+    including direct calls to try_buy, must pass the same checks.
+    """
+    def veto(reason):
+        return {'approved':False,'reason':reason,'mode':'PAPER ONLY'}
+    if symbol not in SYMBOLS: return veto('Asset non autorizzato')
+    if not candles or not isinstance(indicator,dict): return veto('Segnale o storico non validi')
+    if indicator.get('buy') is not True: return veto('SEARCH non propone BUY')
+    if quote_price is None: return veto('Manca quotazione ask attuale')
     try:
-        quote_price=float(quote_price)
+        ask=float(quote_price)
         close=float(candles[-1]['close'])
         atr_value=float(indicator['atr'])
-    except (ValueError,TypeError,KeyError,IndexError):
-        emit(c,'RISK',f'{symbol}: quotazione o ATR non validi','warning');return
-    if (not all(math.isfinite(x) and x>0 for x in (quote_price,close,atr_value))
-            or abs(quote_price/close-1)>0.015):
-        emit(c,'RISK',f'{symbol}: quotazione non affidabile o troppo distante dal segnale','warning');return
+    except (ValueError,TypeError,KeyError,IndexError,OverflowError):
+        return veto('Quotazione o ATR non validi')
+    if not all(math.isfinite(x) and x>0 for x in (ask,close,atr_value)):
+        return veto('Prezzi o volatilità non finiti')
+    if abs(ask/close-1)>0.015:
+        return veto('Ask troppo distante dal segnale (>1,5%)')
     if c.execute('SELECT 1 FROM positions LIMIT 1').fetchone():
-        emit(c,'RISK',f'{symbol}: ingresso bloccato: già presente una posizione');return
+        return veto('Già presente una posizione aperta')
     if daily_loss(c)<=-sum(START.values())*DAILY_MAX:
-        emit(c,'RISK','Limite giornaliero di perdita raggiunto','warning');return
-    cash=c.execute('SELECT cash FROM wallets WHERE strategy="core"').fetchone()[0]
-    price=quote_price*(1+SLIPPAGE)
+        return veto('Limite perdita realizzata giornaliera (2%)')
+    price=ask*(1+SLIPPAGE)
     distance=max(atr_value*1.5,price*.003)
-    risk_euro=sum(START.values())*RISK_PER_TRADE
-    qty=min(risk_euro/distance,(cash*POSITION_FRACTION)/(price*(1+FEE)))
-    if qty<=0 or qty*price<5:
-        emit(c,'RISK',f'{symbol}: importo insufficiente per un trade prudente');return
+    cash_row=c.execute('SELECT cash FROM wallets WHERE strategy="core"').fetchone()
+    if cash_row is None:return veto('Portafoglio Core non inizializzato')
+    cash=float(cash_row['cash'])
+    if not math.isfinite(cash) or cash<=0:
+        return veto('Liquidità Core non valida')
+    # Drawdown circuit breaker uses core cash when no positions are open.
+    # A cash balance below 90% of initial Core capital vetoes further entries.
+    if cash<START['core']*.90:
+        return veto('Circuit breaker Core: patrimonio disponibile sotto il 90% iniziale')
+    risk_budget=sum(START.values())*RISK_PER_TRADE
+    qty=min(risk_budget/distance,cash*POSITION_FRACTION/(price*(1+FEE)))
+    if not math.isfinite(qty) or qty<=0 or qty*price<5:
+        return veto('Importo inferiore al minimo prudenziale di €5')
     fee=qty*price*FEE
-    c.execute('UPDATE wallets SET cash=cash-? WHERE strategy="core"',(qty*price+fee,))
-    c.execute('INSERT INTO positions VALUES(?,?,?,?,?,?,?,?)',(symbol,'core',qty,price,price-distance,price+distance*2,fee,int(time.time())))
-    c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',(int(time.time()),symbol,'BUY',qty,price,fee,0,indicator['why']))
-    emit(c,'SNIPER',f'{symbol}: acquisto VIRTUALE {qty:.6f} a €{price:.2f} (ask Kraken indicativo + slippage); stop €{price-distance:.2f}')
+    if qty*price+fee>cash+1e-9:
+        return veto('Fondi insufficienti, commissioni incluse')
+    return {'approved':True,'reason':'Controlli RISK superati','mode':'PAPER ONLY',
+            'price':price,'quantity':qty,'entry_fee':fee,
+            'stop':price-distance,'target':price+2*distance,
+            'risk_budget':risk_budget,'estimated_stop_risk':qty*distance}
 
+
+def try_buy(c,symbol,candles,indicator,quote_price=None):
+    """Only paper execution entry point; advisory agents cannot bypass RISK."""
+    decision=assess_paper_order(c,symbol,candles,indicator,quote_price)
+    if not decision['approved']:
+        emit(c,'RISK',f'{symbol}: ingresso virtuale negato — {decision["reason"]}','warning')
+        return decision
+    price=decision['price'];qty=decision['quantity'];fee=decision['entry_fee']
+    c.execute('UPDATE wallets SET cash=cash-? WHERE strategy="core"',(qty*price+fee,))
+    c.execute('INSERT INTO positions VALUES(?,?,?,?,?,?,?,?)',
+              (symbol,'core',qty,price,decision['stop'],decision['target'],fee,int(time.time())))
+    c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',
+              (int(time.time()),symbol,'BUY',qty,price,fee,0,indicator.get('why','Segnale RISK approvato')))
+    emit(c,'SNIPER',f'{symbol}: BUY PAPER {qty:.6f} a €{price:.2f}; stop €{decision["stop"]:.2f}; rischio teorico €{decision["estimated_stop_risk"]:.2f}')
+    return decision
 
 def handle_exit(c,symbol,candle):
     p=c.execute('SELECT * FROM positions WHERE symbol=?',(symbol,)).fetchone()
@@ -276,9 +310,13 @@ def process_candles(c,symbol,candles):
             try:quote=fetch_kraken_ask(symbol)
             except (OSError,ValueError,TypeError,KeyError,IndexError) as exc:
                 emit(c,'RISK',f'{symbol}: impossibile ottenere ask Kraken, ingresso bloccato ({type(exc).__name__})','warning')
-        try_buy(c,symbol,candles,ind,quote_price=quote)
-        opened=bool(c.execute('SELECT 1 FROM positions WHERE symbol=?',(symbol,)).fetchone())
-        record_decision(c,symbol,last['time'],'BLOCK' if had_position or not opened else 'BUY', 'Posizione esistente o veto RISK' if had_position or not opened else ind['why'])
+        outcome=try_buy(c,symbol,candles,ind,quote_price=quote)
+        if outcome['approved']:
+            emit(c,'HEAD OF DESK',f'{symbol}: RISK autorizza BUY PAPER, SNIPER ha registrato l’acquisto')
+        else:
+            emit(c,'HEAD OF DESK',f'{symbol}: BLOCK — {outcome["reason"]}')
+        record_decision(c,symbol,last['time'],'BUY' if outcome['approved'] else 'BLOCK',
+                        ind['why'] if outcome['approved'] else outcome['reason'])
     return ind
 
 
