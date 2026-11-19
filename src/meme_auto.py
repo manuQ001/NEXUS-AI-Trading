@@ -6,7 +6,7 @@ Quoted prices are public indicative marks; selling may be impossible in reality.
 """
 import math
 import time
-from meme_demo import initialize, demo_state, quick_trade, indicative_quote
+from meme_demo import initialize, demo_state, quick_trade, indicative_quote, MAX_POSITIONS, STAKE_USD
 from meme_scout import scan, ADDRESS
 
 STOP_LOSS=-0.10
@@ -16,6 +16,7 @@ SCAN_SECONDS=300
 COOLDOWN_SECONDS=3600
 MIN_AUTO_LIQUIDITY=500.0
 MIN_AUTO_VOLUME=500.0
+MAX_ENTRIES_PER_SCAN=3
 
 
 def _number(value):
@@ -76,10 +77,11 @@ def decide_exit(position,price,now):
     return None
 
 
-def choose_candidate(c,candidates,now):
+def choose_candidate(c,candidates,now,exclude=None):
     """Choose one eligible mint, avoiding duplicates and same-mint churn."""
     if not isinstance(candidates,list):return None
     existing={r['address'] for r in c.execute('SELECT address FROM meme_demo_positions')}
+    existing.update(exclude or ())
     ranked=[]
     for t in candidates[:12]:
         if not isinstance(t,dict):continue
@@ -107,7 +109,7 @@ def tick(c,now=None,scout=scan,quote=indicative_quote):
     if not a['enabled']:return status(c)
     messages=[]
     positions=[dict(p) for p in c.execute('SELECT * FROM meme_demo_positions ORDER BY opened_at')]
-    for pos in positions[:3]:
+    for pos in positions[:MAX_POSITIONS]:
         address=pos['address']
         try:
             q=quote(address)
@@ -129,23 +131,42 @@ def tick(c,now=None,scout=scan,quote=indicative_quote):
             report=scout()
             rows=report.get('candidates',[]) if isinstance(report,dict) else []
             positions_count=c.execute('SELECT COUNT(*) FROM meme_demo_positions').fetchone()[0]
-            if positions_count<3:
-                selected=choose_candidate(c,rows,now)
-                if selected:
-                    mint=selected['address']
-                    # Independent fresh public quote, not the browser-supplied price.
+            opened=0
+            considered=set()
+            # Multiple independent token entries per discovery scan, capped by
+            # both position count and available demo credits. Never repeat a mint.
+            while positions_count<MAX_POSITIONS and opened<MAX_ENTRIES_PER_SCAN:
+                available=float(c.execute(
+                    'SELECT cash_usd FROM meme_demo_account WHERE id=1').fetchone()[0])
+                if available+1e-9<STAKE_USD:
+                    messages.append('CREDITI_DEMO_INSUFFICIENTI')
+                    break
+                selected=choose_candidate(c,rows,now,exclude=considered)
+                if not selected:
+                    if opened==0:messages.append('NESSUN_CANDIDATO_IDONEO')
+                    break
+                mint=selected['address']
+                considered.add(mint)
+                try:
+                    # Independent public quote: no frontend-supplied price.
                     current=quote(mint)
                     price=_number(current.get('price_usd'))
                     liquidity=_number(current.get('liquidity_usd'))
                     volume=_number(current.get('volume_24h_usd'))
-                    if price is not None and price>0 and liquidity is not None and liquidity>=MIN_AUTO_LIQUIDITY and volume is not None and volume>=MIN_AUTO_VOLUME:
-                        trade=quick_trade(c,mint,'BUY',current,now=now)
-                        _log(c,now,mint,'AUTO_BUY','Test '+str(trade['cost_usd'])+' crediti · regole sperimentali, sicurezza NON verificata')
-                        messages.append('AUTO_BUY '+mint[:8])
-                    else:
+                    if (price is None or price<=0 or liquidity is None
+                            or liquidity<MIN_AUTO_LIQUIDITY or volume is None
+                            or volume<MIN_AUTO_VOLUME):
                         messages.append('CANDIDATO_QUOTE_NON_IDONEA')
-                else:messages.append('NESSUN_CANDIDATO_IDONEO')
-            else:messages.append('LIMITE_POSIZIONI')
+                        continue
+                    trade=quick_trade(c,mint,'BUY',current,now=now)
+                    _log(c,now,mint,'AUTO_BUY',
+                         'Test '+str(trade['cost_usd'])+' crediti · regole sperimentali, sicurezza NON verificata')
+                    messages.append('AUTO_BUY '+mint[:8])
+                    positions_count+=1
+                    opened+=1
+                except (OSError,ValueError,TypeError,KeyError,OverflowError,TimeoutError) as exc:
+                    messages.append('CANDIDATO_NON_DISPONIBILE '+type(exc).__name__)
+            if positions_count>=MAX_POSITIONS:messages.append('LIMITE_POSIZIONI')
         except (OSError,ValueError,TypeError,KeyError,OverflowError,TimeoutError) as exc:
             messages.append('SCOUT_NON_DISPONIBILE '+type(exc).__name__)
     label=' · '.join(messages) if messages else 'MONITORAGGIO'
