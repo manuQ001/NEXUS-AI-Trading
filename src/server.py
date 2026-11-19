@@ -16,6 +16,9 @@ from downloader import download_if_available, read_staged
 LOCK=threading.Lock()
 PAGE=(Path(__file__).parent/'dashboard.html').read_bytes()
 MAINTENANCE_REPORT=ROOT/'maintenance_status.json'
+# Local process state only: no credentials and no scheduled real orders.
+MONITOR={'started_at':None,'last_attempt':None,'last_success':None,
+         'status':{},'error':None,'interval_seconds':30}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -29,6 +32,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path=='/api/state':
             with LOCK:
                 c=connect();startup_events(c);data=snapshot(c);c.close()
+                data['monitor']=dict(MONITOR)
             self.out(data)
         elif path=='/api/selftest':
             try: self.out(run_selftest())
@@ -159,10 +163,47 @@ class Handler(BaseHTTPRequestHandler):
         elif path=='/api/refresh':
             with LOCK:
                 c=connect();startup_events(c);status=refresh(c);data=snapshot(c);c.close()
+                data['monitor']=dict(MONITOR)
             data['refresh_result']=status;self.out(data)
         else:self.out({'error':'Endpoint non esistente'},404)
     def log_message(self,format,*args):
         if '/api/' not in str(args):super().log_message(format,*args)
+
+def market_monitor_loop(stop, interval_seconds=30):
+    """Keep processing Kraken's closed 5-minute candles without a web browser.
+
+    The existing process_candles() deduplicates by candle timestamp and does
+    not backfill paper trades. Both this worker and browser refresh share LOCK.
+    Every 30 s provides multiple chances to observe a candle within the
+    existing 90 s entry-freshness window. No real exchange orders exist.
+    """
+    if not 10<=interval_seconds<=300:
+        raise ValueError('Intervallo monitor non valido')
+    with LOCK:
+        MONITOR.update(started_at=int(time.time()),interval_seconds=interval_seconds,
+                       error=None)
+    while not stop.is_set():
+        try:
+            with LOCK:
+                MONITOR['last_attempt']=int(time.time())
+                c=connect()
+                try:
+                    status=refresh(c)
+                finally:
+                    c.close()
+                MONITOR['status']=dict(status)
+                if any(value=='OK' for value in status.values()):
+                    MONITOR['last_success']=int(time.time())
+                MONITOR['error']=None if all(value=='OK' for value in status.values()) else (
+                    'Uno o più feed Kraken non disponibili')
+        except Exception as exc:
+            # A transient network/SQLite error must not terminate monitoring.
+            with LOCK:
+                MONITOR['error']='Monitor: '+type(exc).__name__
+            print('NEXUS monitor: '+type(exc).__name__,flush=True)
+        if stop.wait(interval_seconds):
+            break
+
 
 def maintenance_loop(stop):
     # Automated offline validation (no trades, no user database mutations).
@@ -185,8 +226,10 @@ def main():
     server=ThreadingHTTPServer(('127.0.0.1',8765),Handler)
     stop=threading.Event()
     threading.Thread(target=maintenance_loop,args=(stop,),daemon=True).start()
+    threading.Thread(target=market_monitor_loop,args=(stop,),daemon=True).start()
     print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
     print('Dashboard: http://127.0.0.1:8765')
+    print('Monitoraggio BTC/ETH ogni 30 s mentre il programma resta acceso, anche senza browser.')
     print('Premi CTRL+C per chiudere. Nessuna operazione reale.')
     if '--no-browser' not in sys.argv:
         threading.Timer(0.8,lambda:webbrowser.open('http://127.0.0.1:8765')).start()
