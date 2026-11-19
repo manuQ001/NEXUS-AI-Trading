@@ -2,6 +2,14 @@
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
 
+## Release 2.8.0 — portafoglio MEME EUR unificato (solo simulazione)
+
+La versione 2.8 usa **un solo portafoglio MEME virtuale in euro**, inizialmente da €45 e già compreso nei €150 complessivi; non crea un saldo demo USD aggiuntivo. Il vecchio storico demo USD resta archiviato nel database SQLite senza incidere sul saldo. Le nuove posizioni MEME sono denominate in EUR, con cambio USD/EUR giornaliero di riferimento e prezzi DEX Screener indicativi.
+
+Il monitor MEME PAPER, quando il server locale è aperto e l'automazione è attiva, può aprire autonomamente fino a **3 posizioni da €3 per scansione**, fino a **8 posizioni simultanee**, controllare le quotazioni circa ogni 30 secondi e tentare uscite virtuali per stop −10%, target +20% o dopo 2 ore. La ricerca di nuovi candidati è prevista ogni 5 minuti. Queste sono **regole sperimentali**, non garanzie di esecuzione, vendibilità o rendimento; gli ingressi non avvengono se feed/prezzi/cambio non sono disponibili. Le commissioni simulate MEME sono 3% per lato.
+
+**Nessuna transazione reale viene autorizzata.** Non vengono collegati wallet, chiavi private, exchange per ordini o servizi di pagamento. Conservare `nexus.sqlite3` prima di aggiornare. Per installazioni già alla 2.7, usare il sistema di aggiornamento verificato con backup integrato solo dopo la pubblicazione della release e l'esito dei test; chiudere NEXUS prima di applicarla.
+
 ## Release 2.7.0 — aggiornamento da NEXUS 2.6
 
 La 2.7 aggiunge monitor autonomo delle candele chiuse mentre Python resta acceso, diagnosi dei WAIT, HEAD OF DESK/SNIPER/EXIT, AI esterna facoltativa solo consultiva e Diario AI prospettico. **PAPER ONLY**. Le API AI esterne restano disattivate senza chiave. Nessun miglioramento di redditività è garantito.
