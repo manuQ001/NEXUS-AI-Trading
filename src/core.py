@@ -284,14 +284,16 @@ def handle_exit(c,symbol,candle,*,allow_target=True):
     c.execute('UPDATE wallets SET cash=cash+? WHERE strategy="core"',(settlement['net_proceeds'],))
     c.execute('DELETE FROM positions WHERE symbol=?',(symbol,))
     reason=decision['reason']
-    details=reason
-    if decision['ambiguous_both_touched']:
-        details+=' (stop prioritario: ordine intrabar sconosciuto)'
-    if decision['gap_through_stop']:
-        details+=' (gap: prezzo open sfavorevole)'
+    # Keep the canonical trade detail exactly "Stop loss" for the existing
+    # 30-minute RISK cooldown, while explaining uncertainty in event logs.
     c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',
-              (int(time.time()),symbol,'SELL',p['qty'],price,fee,pnl,details))
-    emit(c,'EXIT',f'{symbol}: {details} virtuale, P/L €{pnl:+.2f}', 'warning' if pnl<0 else 'info')
+              (int(time.time()),symbol,'SELL',p['qty'],price,fee,pnl,reason))
+    annotation=''
+    if decision['ambiguous_both_touched']:
+        annotation+='; stop prioritario: ordine intrabar sconosciuto'
+    if decision['gap_through_stop']:
+        annotation+='; gap: open sfavorevole'
+    emit(c,'EXIT',f'{symbol}: {reason} virtuale{annotation}, P/L €{pnl:+.2f}', 'warning' if pnl<0 else 'info')
 
 def closed_candle_fresh(candle, now=None, max_age_seconds=90):
     """A five-minute candle is actionable only shortly after its close.
