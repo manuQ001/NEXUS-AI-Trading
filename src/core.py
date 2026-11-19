@@ -61,6 +61,22 @@ def fetch_kraken(symbol, interval=5):
     return candles[:-1]
 
 
+def fetch_kraken_ask(symbol):
+    """Fetch a current indicative ask; no wallet keys or trading endpoints."""
+    pair=SYMBOLS[symbol]
+    url=f'https://api.kraken.com/0/public/Ticker?pair={pair}'
+    req=Request(url,headers={'User-Agent':'NEXUS-Paper-Only/2.0'})
+    with urlopen(req,timeout=8) as response:
+        data=json.load(response)
+    if data.get('error') or not isinstance(data.get('result'),dict) or len(data['result'])!=1:
+        raise ValueError('Ticker Kraken non valido')
+    quote=next(iter(data['result'].values()))
+    ask=float(quote['a'][0])
+    if not math.isfinite(ask) or ask<=0:
+        raise ValueError('Prezzo ask non valido')
+    return ask
+
+
 def store_closed_candles(c, symbol, candles):
     """Archive Kraken's closed candles; idempotent and never creates orders."""
     if symbol not in SYMBOLS:
@@ -154,15 +170,26 @@ def daily_loss(c):
     return float(value)
 
 
-def try_buy(c,symbol,candles,indicator):
+def try_buy(c,symbol,candles,indicator,quote_price=None):
     if not indicator['buy']: return
+    if quote_price is None:
+        emit(c,'RISK',f'{symbol}: ingresso bloccato: manca quotazione di acquisto attuale','warning');return
+    try:
+        quote_price=float(quote_price)
+        close=float(candles[-1]['close'])
+        atr_value=float(indicator['atr'])
+    except (ValueError,TypeError,KeyError,IndexError):
+        emit(c,'RISK',f'{symbol}: quotazione o ATR non validi','warning');return
+    if (not all(math.isfinite(x) and x>0 for x in (quote_price,close,atr_value))
+            or abs(quote_price/close-1)>0.015):
+        emit(c,'RISK',f'{symbol}: quotazione non affidabile o troppo distante dal segnale','warning');return
     if c.execute('SELECT 1 FROM positions LIMIT 1').fetchone():
         emit(c,'RISK',f'{symbol}: ingresso bloccato: già presente una posizione');return
     if daily_loss(c)<=-sum(START.values())*DAILY_MAX:
         emit(c,'RISK','Limite giornaliero di perdita raggiunto','warning');return
     cash=c.execute('SELECT cash FROM wallets WHERE strategy="core"').fetchone()[0]
-    last=candles[-1]; price=last['close']*(1+SLIPPAGE)
-    distance=max(indicator['atr']*1.5,price*.003)
+    price=quote_price*(1+SLIPPAGE)
+    distance=max(atr_value*1.5,price*.003)
     risk_euro=sum(START.values())*RISK_PER_TRADE
     qty=min(risk_euro/distance,(cash*POSITION_FRACTION)/(price*(1+FEE)))
     if qty<=0 or qty*price<5:
@@ -171,7 +198,7 @@ def try_buy(c,symbol,candles,indicator):
     c.execute('UPDATE wallets SET cash=cash-? WHERE strategy="core"',(qty*price+fee,))
     c.execute('INSERT INTO positions VALUES(?,?,?,?,?,?,?,?)',(symbol,'core',qty,price,price-distance,price+distance*2,fee,int(time.time())))
     c.execute('INSERT INTO trades(timestamp,symbol,action,qty,price,fee,pnl,details) VALUES(?,?,?,?,?,?,?,?)',(int(time.time()),symbol,'BUY',qty,price,fee,0,indicator['why']))
-    emit(c,'SNIPER',f'{symbol}: acquisto VIRTUALE {qty:.6f} a €{price:.2f}; stop €{price-distance:.2f}')
+    emit(c,'SNIPER',f'{symbol}: acquisto VIRTUALE {qty:.6f} a €{price:.2f} (ask Kraken indicativo + slippage); stop €{price-distance:.2f}')
 
 
 def handle_exit(c,symbol,candle):
@@ -239,7 +266,12 @@ def process_candles(c,symbol,candles):
         had_position=bool(c.execute('SELECT 1 FROM positions LIMIT 1').fetchone())
         emit(c,'HEAD OF DESK',f'{symbol}: segnale rilevato, richiesta autorizzazione RISK')
         emit(c,'RISK',f'{symbol}: limite 0,5% rischio teorico/trade; ordine subordinato ai controlli')
-        try_buy(c,symbol,candles,ind)
+        quote=None
+        if not had_position:
+            try:quote=fetch_kraken_ask(symbol)
+            except (OSError,ValueError,TypeError,KeyError,IndexError) as exc:
+                emit(c,'RISK',f'{symbol}: impossibile ottenere ask Kraken, ingresso bloccato ({type(exc).__name__})','warning')
+        try_buy(c,symbol,candles,ind,quote_price=quote)
         opened=bool(c.execute('SELECT 1 FROM positions WHERE symbol=?',(symbol,)).fetchone())
         record_decision(c,symbol,last['time'],'BLOCK' if had_position or not opened else 'BUY', 'Posizione esistente o veto RISK' if had_position or not opened else ind['why'])
     return ind
