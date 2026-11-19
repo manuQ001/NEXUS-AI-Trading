@@ -144,13 +144,34 @@ def atr(candles,n=14):
 
 
 def signal(candles):
-    if len(candles)<35:return {'buy':False,'why':'Dati insufficienti'}
+    """Exact same BUY gate as 2.6, with explicit WAIT reasons for diagnostics."""
+    if len(candles)<35:
+        return {'buy':False,'why':'WAIT — storico insufficiente (minimo 35 candele)',
+                'reason_code':'INSUFFICIENT_HISTORY'}
     closes=[v['close'] for v in candles]
     fast=ema(closes,9); slow=ema(closes,21); momentum=rsi(closes); volatility=atr(candles)
     previous_fast=ema(closes[:-1],9); previous_slow=ema(closes[:-1],21)
     cross=previous_fast<=previous_slow and fast>slow
-    is_buy=bool(cross and 45<=momentum<=70 and volatility>0)
-    return {'buy':is_buy,'why':('Incrocio EMA 9/21 con filtro RSI' if is_buy else 'Nessun ingresso secondo EMA 9/21 + RSI'),
+    rsi_ok=45<=momentum<=70
+    atr_ok=math.isfinite(volatility) and volatility>0
+    is_buy=bool(cross and rsi_ok and atr_ok)
+    if not cross:
+        if fast>slow:
+            reason='WAIT — EMA 9 già sopra EMA 21: nessun nuovo incrocio rialzista'
+        else:
+            reason='WAIT — EMA 9 non ha incrociato EMA 21 dal basso'
+        code='EMA_NO_CROSS'
+    elif not rsi_ok:
+        reason=f'WAIT — incrocio EMA presente ma RSI {momentum:.1f} fuori intervallo 45–70'
+        code='RSI_OUT_OF_RANGE'
+    elif not atr_ok:
+        reason='WAIT — incrocio EMA e RSI validi, ma volatilità ATR non valida'
+        code='ATR_INVALID'
+    else:
+        reason='BUY — incrocio EMA 9/21 e filtro RSI confermati; RISK deve ancora autorizzare'
+        code='BUY_VALID'
+    return {'buy':is_buy,'why':reason,'reason_code':code,
+            'filters':{'ema_cross':bool(cross),'rsi_range':bool(rsi_ok),'atr_positive':bool(atr_ok)},
             'ema9':fast,'ema21':slow,'rsi':momentum,'atr':volatility}
 
 
