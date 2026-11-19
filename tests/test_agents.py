@@ -46,6 +46,17 @@ class TestAgents(unittest.TestCase):
         self.assertFalse(r['paper_candidate'])
         self.assertTrue(r['risk_veto'])
         self.assertEqual(next(a for a in r['agents'] if a['name']=='RISK')['status'],'blocked')
+    def test_agent_risk_preview_respects_core_circuit_breaker(self):
+        r=review('BTC',self.candles,self.indicator,core_cash=94.49)
+        self.assertTrue(r['risk_veto'])
+        self.assertFalse(r['paper_candidate'])
+        risk=next(a for a in r['agents'] if a['name']=='RISK')
+        self.assertIn('Circuit breaker',risk['reason'])
+    def test_agent_preview_does_not_authorize_execution(self):
+        r=review('BTC',self.candles,self.indicator,core_cash=105)
+        risk=next(a for a in r['agents'] if a['name']=='RISK')
+        self.assertEqual(risk['status'],'preliminary_ok')
+        self.assertIn('preliminare',r['note'])
     def test_risk_veto_for_feed(self):
         r=review('BTC',self.candles,self.indicator,feed_ok=False)
         self.assertFalse(r['paper_candidate'])
