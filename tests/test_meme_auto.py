@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from core import connect,wallet_status
-from meme_auto import tick,status,choose_candidate,decide_exit,init_auto
+from meme_auto import tick,status,choose_candidate,decide_exit,init_auto,dynamic_stake
 from meme_portfolio import trade,portfolio
 M='So11111111111111111111111111111111111111112'
 A='DezXAZ8z7PnrnRJjz3wXBoRgixCaKGYcB2bM9aBfM3'
@@ -27,7 +27,7 @@ class TestMemeAuto(unittest.TestCase):
             return dict(Q,price_usd=.01 if len(count)==1 else .014)
         first=tick(self.c,now=2000,scout=report,quote=quote,fx_rate=fx)
         self.assertEqual(len(portfolio(self.c)['positions']),1)
-        self.assertEqual(portfolio(self.c)['cash_eur'],42)
+        self.assertEqual(portfolio(self.c)['cash_eur'],43.5)
         second=tick(self.c,now=2030,scout=report,quote=quote,fx_rate=fx)
         self.assertEqual(len(portfolio(self.c)['positions']),0)
         self.assertTrue(any(x['action']=='AUTO_SELL' for x in second['journal']))
@@ -68,12 +68,33 @@ class TestMemeAuto(unittest.TestCase):
         tick(self.c,now=2000,scout=lambda:{'candidates':[dict(Q,address=M,liquidity_usd=2)]},
              quote=lambda _:Q,fx_rate=fx)
         self.assertEqual(portfolio(self.c)['positions'],[])
+    def test_dynamic_sizing_and_cash_reserve(self):
+        w=self.c.execute("SELECT initial FROM wallets WHERE strategy='meme'").fetchone()
+        self.assertEqual(w['initial'],45)
+        self.assertEqual(dynamic_stake(self.c,Q,Q),1.5)
+        medium=dict(Q,liquidity_usd=4000,volume_24h_usd=5000)
+        strong=dict(Q,liquidity_usd=20000,volume_24h_usd=30000)
+        self.assertEqual(dynamic_stake(self.c,medium,medium),3.0)
+        self.assertEqual(dynamic_stake(self.c,strong,strong),4.5)
+        self.c.execute("UPDATE wallets SET cash=10 WHERE strategy='meme'")
+        self.assertIsNone(dynamic_stake(self.c,strong,strong))
+        self.c.execute("UPDATE wallets SET cash=12 WHERE strategy='meme'")
+        self.assertEqual(dynamic_stake(self.c,strong,strong),3.0)
+    def test_orders_have_different_stakes(self):
+        rows=[dict(Q,address=M),dict(Q,address=A,liquidity_usd=5000,volume_24h_usd=5000),
+              dict(Q,address=B,liquidity_usd=20000,volume_24h_usd=20000)]
+        by_addr={r['address']:r for r in rows}
+        tick(self.c,now=2000,scout=lambda:{'candidates':rows},
+             quote=lambda a:by_addr[a],fx_rate=fx)
+        costs=sorted(p['cost_eur'] for p in portfolio(self.c)['positions'])
+        self.assertEqual(costs,[1.5,3.0,4.5])
+        self.assertEqual(portfolio(self.c)['cash_eur'],36.0)
     def test_multiple_distinct_orders_same_scan(self):
         rows=[dict(Q,address=x) for x in (M,A,B)]
         tick(self.c,now=2000,scout=lambda:{'candidates':rows},quote=lambda _:Q,fx_rate=fx)
         positions=portfolio(self.c)['positions']
         self.assertEqual(len(positions),3)
-        self.assertEqual(portfolio(self.c)['cash_eur'],36)
+        self.assertEqual(portfolio(self.c)['cash_eur'],40.5)
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_eur_trades').fetchone()[0],3)
         values={x['address'] for x in positions}
         self.assertEqual(len(values),3)
