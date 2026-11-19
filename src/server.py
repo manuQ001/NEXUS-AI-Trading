@@ -382,7 +382,7 @@ def market_monitor_loop(stop, interval_seconds=30):
             break
 
 
-def meme_auto_loop(stop, interval_seconds=30):
+def meme_auto_loop(stop, interval_seconds=15):
     """Experimental MEME PAPER engine, independent of dashboard and BTC/ETH."""
     from meme_auto import tick
     while not stop.is_set():
@@ -422,7 +422,7 @@ def main():
     print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
     print('Dashboard: http://127.0.0.1:8765')
     print('Monitoraggio BTC/ETH ogni 30 s mentre il programma resta acceso, anche senza browser.')
-    print('MEME AUTO PAPER: compravendite SIMULATE autonome ogni 30 s, scan ogni 5 minuti; nessuna transazione reale.')
+    print('MEME AUTO PAPER: compravendite SIMULATE autonome: monitor ogni 15 s circa, scan ogni 5 minuti; nessuna transazione reale.')
     print('Premi CTRL+C per chiudere. Nessuna operazione reale.')
     if '--no-browser' not in sys.argv:
         threading.Timer(0.8,lambda:webbrowser.open('http://127.0.0.1:8765')).start()
