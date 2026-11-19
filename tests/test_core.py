@@ -198,6 +198,50 @@ class TestCore(unittest.TestCase):
         handle_exit(self.c,'BTC',{'time':1700000600,'open':p['entry'],
             'high':p['target']+10,'low':p['stop']+0.01})
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades WHERE action="SELL"').fetchone()[0],0)
+    def test_exit_ambiguous_stop_preserves_cooldown_reason(self):
+        candles=self.candles()
+        try_buy(self.c,'BTC',candles,{'buy':True,'atr':1,'why':'TEST'},
+                quote_price=candles[-1]['close'])
+        p=self.c.execute('SELECT * FROM positions').fetchone()
+        handle_exit(self.c,'BTC',{'open':p['entry'],
+                                  'high':p['target']+1,'low':p['stop']-1})
+        trade=self.c.execute('SELECT details FROM trades WHERE action="SELL"').fetchone()
+        self.assertEqual(trade['details'],'Stop loss')
+        event=self.c.execute('SELECT message FROM events WHERE agent="EXIT" ORDER BY id DESC LIMIT 1').fetchone()
+        self.assertIn('stop prioritario',event['message'])
+        self.assertGreater(risk_limits_status(self.c)['stop_cooldown_seconds_remaining'],0)
+    def test_gap_reconnect_can_close_stop_but_not_open_new_buy(self):
+        base=self.candles(80)
+        process_candles(self.c,'BTC',base)
+        with patch('core.time.time',return_value=base[-1]['time']+301):
+            decision=try_buy(self.c,'BTC',base,{'buy':True,'atr':1,'why':'TEST'},
+                             quote_price=base[-1]['close'])
+            self.assertTrue(decision['approved'])
+        pos=self.c.execute('SELECT * FROM positions').fetchone()
+        newer=[dict(x) for x in base]
+        newer.append({'time':base[-1]['time']+900,'open':pos['stop']-2,
+                      'high':pos['stop']+1,'low':pos['stop']-3,
+                      'close':pos['stop']-1,'volume':100})
+        process_candles(self.c,'BTC',newer)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM positions').fetchone()[0],0)
+        trade=self.c.execute('SELECT details,price FROM trades WHERE action="SELL"').fetchone()
+        self.assertEqual(trade['details'],'Stop loss')
+        self.assertLess(trade['price'],pos['stop'])
+    def test_gap_reconnect_does_not_claim_unobserved_target(self):
+        base=self.candles(80)
+        process_candles(self.c,'BTC',base)
+        with patch('core.time.time',return_value=base[-1]['time']+301):
+            decision=try_buy(self.c,'BTC',base,{'buy':True,'atr':1,'why':'TEST'},
+                             quote_price=base[-1]['close'])
+            self.assertTrue(decision['approved'])
+        pos=self.c.execute('SELECT * FROM positions').fetchone()
+        newer=[dict(x) for x in base]
+        newer.append({'time':base[-1]['time']+900,'open':pos['target']+1,
+                      'high':pos['target']+3,'low':pos['target']+.5,
+                      'close':pos['target']+2,'volume':100})
+        process_candles(self.c,'BTC',newer)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM positions').fetchone()[0],1)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades WHERE action="SELL"').fetchone()[0],0)
     def test_stop_first(self):
         try_buy(self.c,'BTC',self.candles(),{'buy':True,'atr':1,'why':'TEST'},quote_price=self.candles()[-1]['close'])
         p=self.c.execute('SELECT * FROM positions').fetchone()
