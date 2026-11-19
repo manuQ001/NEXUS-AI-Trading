@@ -17,6 +17,28 @@ COOLDOWN_SECONDS=3600
 MIN_AUTO_LIQUIDITY=500.0
 MIN_AUTO_VOLUME=500.0
 MAX_ENTRIES_PER_SCAN=3
+MIN_STAKE_EUR=1.5
+MAX_INITIAL_FRACTION=0.10
+CASH_RESERVE_FRACTION=0.20
+
+def dynamic_stake(c,candidate,quote):
+    """Conservative, deterministic paper sizing; no LLM controls the wallet."""
+    w=c.execute("SELECT cash,initial FROM wallets WHERE strategy='meme'").fetchone()
+    if w is None:return None
+    cash=float(w['cash']);initial=float(w['initial'])
+    liquidity=min(_number(candidate.get('liquidity_usd')) or 0,
+                  _number(quote.get('liquidity_usd')) or 0)
+    volume=min(_number(candidate.get('volume_24h_usd')) or 0,
+               _number(quote.get('volume_24h_usd')) or 0)
+    strength=min(liquidity,volume)
+    if strength<MIN_AUTO_LIQUIDITY or not math.isfinite(initial) or initial<=0:return None
+    if strength>=10000:desired=4.5
+    elif strength>=2500:desired=3.0
+    else:desired=MIN_STAKE_EUR
+    cap=round(initial*MAX_INITIAL_FRACTION,2)
+    available=round(cash-initial*CASH_RESERVE_FRACTION,2)
+    stake=round(min(desired,cap,available),2)
+    return stake if stake>=MIN_STAKE_EUR else None
 
 def _number(v):
     try:
@@ -46,6 +68,7 @@ def status(c):
             'error':s['last_error'],'stop_loss_pct':-10,'take_profit_pct':20,
             'max_hold_minutes':120,'monitor_seconds':30,'scan_seconds':SCAN_SECONDS,
             'max_positions':MAX_POSITIONS,'max_entries_per_scan':MAX_ENTRIES_PER_SCAN,
+            'sizing':'DYNAMIC_EUR','min_stake_eur':MIN_STAKE_EUR,'max_initial_fraction':MAX_INITIAL_FRACTION,'cash_reserve_fraction':CASH_RESERVE_FRACTION,
             'mode':'AUTONOMOUS_PAPER_ONLY',
             'journal':[dict(x) for x in c.execute(
                 'SELECT * FROM meme_auto_journal ORDER BY id DESC LIMIT 12')]}
@@ -135,10 +158,6 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 candidates=eligible_candidates(c,rows,now)
                 for candidate in candidates:
                     if bought>=MAX_ENTRIES_PER_SCAN or count>=MAX_POSITIONS:break
-                    cash=float(c.execute("SELECT cash FROM wallets WHERE strategy='meme'").fetchone()[0])
-                    if cash+1e-9<STAKE_EUR:
-                        messages.append('FONDI_MEME_VIRTUALI_INSUFFICIENTI')
-                        break
                     mint=candidate['address']
                     try:
                         q=quote(mint)
@@ -149,7 +168,11 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                                 or volume is None or volume<MIN_AUTO_VOLUME):
                             messages.append('CANDIDATO_QUOTE_NON_IDONEA')
                             continue
-                        result=trade(c,mint,'BUY',q,fx,now=now)
+                        stake=dynamic_stake(c,candidate,q)
+                        if stake is None:
+                            messages.append('CAPITALE_DISPONIBILE_O_RISERVA_INSUFFICIENTE')
+                            break
+                        result=trade(c,mint,'BUY',q,fx,now=now,stake_eur=stake)
                         _log(c,now,mint,'AUTO_BUY','EUR '+str(result['cost_eur'])+
                              ' · paper · vendibilità NON verificata')
                         bought+=1
