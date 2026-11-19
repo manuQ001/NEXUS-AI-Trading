@@ -11,12 +11,40 @@ class TestAgents(unittest.TestCase):
     def test_book_pass_only_advisory(self):
         original=review('BTC',self.candles,self.indicator)
         quality={'status':'PASS','reasons':[],'spread_bps':8.0,'bid_ask_drift_bps':2.0,'request_ms_second':120,'observed_at':1700000000}
-        result=attach_market_quality(original,quality)
+        book={'symbol':'BTC','observed_at':1700000000,'best_ask':101.,'best_bid':99.,
+              'asks':[{'price':101.,'volume':1.0}]}
+        result=attach_market_quality(original,quality,book=book)
         self.assertTrue(result['paper_candidate'])
         self.assertEqual(result['market_consultation'],'PRELIMINARY_ONLY')
         self.assertTrue(result['market_quality']['advisory_only'])
         self.assertNotIn('market_quality',original)
         self.assertIn('non modifica',result['note'])
+    def test_book_pass_without_matching_book_suppresses_candidate(self):
+        original=review('BTC',self.candles,self.indicator)
+        quality={'status':'PASS','reasons':[],'observed_at':1700000000}
+        result=attach_market_quality(original,quality)
+        self.assertFalse(result['paper_candidate'])
+        self.assertEqual(result['sniper_estimate']['status'],'UNAVAILABLE')
+        mismatch={'symbol':'ETH','observed_at':1700000000}
+        result=attach_market_quality(original,quality,book=mismatch)
+        self.assertFalse(result['paper_candidate'])
+        self.assertEqual(result['sniper_estimate']['status'],'UNAVAILABLE')
+    def test_book_participation_limits_sniper_candidate(self):
+        original=review('BTC',self.candles,self.indicator)
+        quality={'status':'PASS','reasons':[],'observed_at':1700000000}
+        tiny={'symbol':'BTC','observed_at':1700000000,'best_ask':101.,'best_bid':99.,
+              'asks':[{'price':101.,'volume':0.00001}]}
+        result=attach_market_quality(original,quality,book=tiny)
+        self.assertFalse(result['paper_candidate'])
+        self.assertEqual(result['sniper_estimate']['status'],'ESTIMATE_PARTIAL')
+        self.assertEqual(next(x for x in result['agents'] if x['name']=='SNIPER')['status'],'estimate_blocked')
+    def test_risk_veto_skips_sniper_even_if_book_pass(self):
+        original=review('BTC',self.candles,self.indicator,daily_realized=-4)
+        quality={'status':'PASS','reasons':[],'observed_at':1700000000}
+        result=attach_market_quality(original,quality,book={'symbol':'BTC','observed_at':1700000000})
+        self.assertTrue(result['risk_veto'])
+        self.assertFalse(result['paper_candidate'])
+        self.assertEqual(result['sniper_estimate']['status'],'NOT_REQUESTED')
     def test_book_caution_suppresses_advisory_candidate(self):
         original=review('BTC',self.candles,self.indicator)
         result=attach_market_quality(original,{'status':'CAUTION','reasons':['HTTP troppo lento'],'spread_bps':65})
