@@ -196,6 +196,16 @@ def assess_paper_order(c, symbol, candles, indicator, quote_price=None):
         return veto('Già presente una posizione aperta')
     if daily_loss(c)<=-sum(START.values())*DAILY_MAX:
         return veto('Limite perdita realizzata giornaliera (2%)')
+    utc_start=int(datetime.now(timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0).timestamp())
+    buys_today=c.execute('SELECT COUNT(*) FROM trades WHERE action="BUY" AND timestamp>=?',(utc_start,)).fetchone()[0]
+    if buys_today>=6:
+        return veto('Limite di 6 acquisti virtuali giornalieri raggiunto')
+    last_stop=c.execute('''SELECT timestamp FROM trades
+        WHERE action="SELL" AND details="Stop loss"
+        ORDER BY timestamp DESC, id DESC LIMIT 1''').fetchone()
+    if last_stop and int(time.time())-int(last_stop['timestamp'])<1800:
+        return veto('Pausa obbligatoria di 30 minuti dopo uno stop loss')
+
     price=ask*(1+SLIPPAGE)
     distance=max(atr_value*1.5,price*.003)
     cash_row=c.execute('SELECT cash FROM wallets WHERE strategy="core"').fetchone()
