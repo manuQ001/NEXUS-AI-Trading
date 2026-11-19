@@ -58,7 +58,7 @@ class Handler(BaseHTTPRequestHandler):
                     first=fetch_depth(symbol,count=20)
                     latest=fetch_depth(symbol,count=20)
                     quality=inspect_book_quality(first,latest)
-                    report=attach_market_quality(report,quality)
+                    report=attach_market_quality(report,quality,book=latest)
                 except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError) as book_exc:
                     report=attach_market_quality(report,error=type(book_exc).__name__)
                 self.out({'ok':True,'report':report})
