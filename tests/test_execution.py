@@ -3,10 +3,50 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from execution import execution_price, execution_fee, sell_settlement, hypothetical_partial_fill, execution_stress_scenarios, sniper_book_preview
+from execution import execution_price, execution_fee, sell_settlement, hypothetical_partial_fill, execution_stress_scenarios, sniper_book_preview, assess_exit_bar, assess_exit_ticks
 
 
 class TestExecution(unittest.TestCase):
+    def test_exit_ohlc_prefers_stop_when_both_touched(self):
+        d=assess_exit_bar({'open':100,'high':111,'low':94},stop=95,target=110)
+        self.assertEqual(d['reason'],'Stop loss')
+        self.assertEqual(d['reference'],95)
+        self.assertTrue(d['ambiguous_both_touched'])
+    def test_exit_gap_down_uses_worse_open(self):
+        d=assess_exit_bar({'open':90,'high':97,'low':89},stop=95,target=110)
+        self.assertEqual(d['reference'],90)
+        self.assertTrue(d['gap_through_stop'])
+    def test_exit_target_capped_even_after_gap_up(self):
+        d=assess_exit_bar({'open':120,'high':122,'low':115},stop=95,target=110)
+        self.assertEqual(d['reason'],'Take profit')
+        self.assertEqual(d['reference'],110)
+    def test_exit_suppress_target_only_on_gap(self):
+        d=assess_exit_bar({'open':101,'high':115,'low':98},stop=95,target=110,allow_target=False)
+        self.assertIsNone(d['reference'])
+        self.assertTrue(d['target_suppressed'])
+        bad=assess_exit_bar({'open':90,'high':114,'low':88},stop=95,target=110,allow_target=False)
+        self.assertEqual(bad['reason'],'Stop loss')
+    def test_exit_validate_incoherent_candle(self):
+        for c in ({'open':100,'high':90,'low':99},
+                  {'open':100,'high':110,'low':float('nan')},
+                  {'open':100,'high':110,'low':101}):
+            with self.assertRaises(ValueError):
+                assess_exit_bar(c,95,110)
+    def test_tick_replay_ignores_pre_entry_hits(self):
+        ticks=[(1000,130),(1001,100),(1002,94),(1003,120)]
+        d=assess_exit_ticks(ticks,1001,95,110)
+        self.assertEqual(d['reason'],'Stop loss')
+        self.assertEqual(d['observed_at'],1002)
+        self.assertEqual(d['evidence'],'TRADE_PRINT_ONLY_NOT_EXECUTABLE')
+    def test_tick_replay_first_hit_is_target(self):
+        ticks=[(1000,120),(1001,110),(1002,91)]
+        d=assess_exit_ticks(ticks,1001,95,110)
+        self.assertEqual(d['reason'],'Take profit')
+        self.assertEqual(d['observed_at'],1001)
+    def test_tick_replay_rejects_unsorted_data(self):
+        with self.assertRaises(ValueError):
+            assess_exit_ticks([(1001,100),(1000,95)],999,95,110)
+        self.assertIsNone(assess_exit_ticks([(1000,96)],1001,95,110)['reason'])
     def sample_book(self):
         return {'symbol':'BTC','observed_at':1700000000,'best_ask':101.0,'best_bid':99.0,
                 'asks':[{'price':101.0,'volume':1.0},{'price':102.0,'volume':2.0}]}
