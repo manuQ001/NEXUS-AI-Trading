@@ -23,11 +23,8 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          required = [
-              'src/core.py', 'src/server.py', 'src/dashboard.html',
-              'src/selftest.py', 'src/maintenance.py', 'src/backtest.py',
-              'src/downloader.py', 'updater.py', 'migrate.py', 'updates.json'
-          ]
+          from updater import FILES
+          required = list(FILES) + ['migrate.py','AVVIA_WINDOWS.ps1']
           missing = [p for p in required if not Path(p).is_file()]
           if missing:
               raise SystemExit(f'Missing source files: {missing}')
@@ -47,14 +44,8 @@ jobs:
               raise SystemExit('Invalid tag')
           version=tag[1:]
           root=pathlib.Path('.')
-          files = [
-              'src/core.py','src/server.py','src/dashboard.html',
-              'src/selftest.py','src/maintenance.py','src/backtest.py',
-              'src/downloader.py','updater.py','migrate.py',
-              'updates.json','README.md',
-              'tests/test_backtest.py','tests/test_core.py',
-              'tests/test_maintenance.py','tests/test_downloader.py'
-          ]
+          from updater import FILES
+          files = list(dict.fromkeys([*FILES, 'migrate.py','AVVIA_WINDOWS.ps1']))
           output=f'NEXUS_AI_{version.replace(".", "_")}.zip'
           with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:
               for file in files:
