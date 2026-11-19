@@ -321,7 +321,7 @@ setInterval(()=>{if(document.visibilityState==='visible'){
 const eurMeme=x=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:4}).format(Number(x)||0);
 function renderMemeDemo(d){
   $('meme-demo-cash').textContent=eurMeme(d.cash_eur);
-  $('meme-demo-equity').textContent=usdDemo(d.equity_eur);
+  $('meme-demo-equity').textContent=eurMeme(d.equity_eur);
   $('meme-demo-open').textContent=(d.positions||[]).length+' / '+(d.max_positions||8);
   $('meme-fx-note').textContent='Cambio USD/EUR: '+(d.fx?Number(d.fx.usd_eur).toFixed(5)+' (riferimento '+d.fx.rate_date+')':'non disponibile')+(d.legacy_demo_positions_archived?' · '+d.legacy_demo_positions_archived+' vecchie posizioni USD demo conservate soltanto in archivio':'');
   const when=t=>new Date(t*1000).toLocaleString('it-IT');
@@ -343,7 +343,7 @@ function renderMemeDemo(d){
       '<td><strong>'+esc(price(p.entry_price_usd))+'</strong></td>'+
       '<td><strong>'+esc(price(p.last_price_usd))+'</strong><div class="sub">'+(fresh?'● Prezzo recente':'● Prezzo non aggiornato')+'</div></td>'+
       '<td><b class="'+(Number(p.price_change_pct)>=0?'green':'red')+'">'+esc(signed(p.price_change_pct))+'%</b></td>'+
-      '<td><b class="'+(positive?'green':'red')+'">'+esc(signed(p.estimated_pnl_credits,4))+' € virtuali</b>'+
+      '<td><b class="'+(positive?'green':'red')+'">'+eurMeme(p.estimated_pnl_eur)+'</b>'+
         '<div class="sub">'+esc(signed(p.estimated_roi_pct))+'% netto stimato</div></td>'+
       '<td><span class="'+(fresh?'green':'red')+'">'+(fresh?'RECENTE':'NON AGGIORNATO')+'</span>'+
         '<div class="sub">'+esc(when(p.last_checked_at))+' · '+esc(p.mark_age_seconds)+'s fa</div></td>'+
@@ -351,7 +351,7 @@ function renderMemeDemo(d){
   }).join('')||'<tr><td colspan="7" class="muted">Nessuna posizione MEME aperta</td></tr>';
   $('meme-demo-history').innerHTML=(d.trades||[]).map(t=>
     '<div class="event">'+esc(when(t.timestamp))+' · '+esc(t.symbol)+' · '+esc(t.action)+
-    (t.pnl_eur==null?'':' · <b class="'+(t.pnl_usd<0?'red':'green')+'">'+usdDemo(t.pnl_usd)+'</b>')+
+    (t.pnl_eur==null?'':' · <b class="'+(t.pnl_eur<0?'red':'green')+'">'+usdDemo(t.pnl_eur)+'</b>')+
     '<div class="sub">'+esc(t.note)+'</div></div>'
   ).join('')||'<div class="sub">Nessuna operazione MEME</div>';
 }
