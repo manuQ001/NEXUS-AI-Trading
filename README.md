@@ -49,3 +49,9 @@ py .\src\server.py --no-browser
 Per disabilitare: chiudere il server e riavviarlo senza la variabile (`Remove-Item Env:NEXUS_OLLAMA_MODEL`). Senza configurazione il pannello mostra `disabled`, non effettua chiamate di rete. Il modello riceve soltanto un piccolo riepilogo numerico delle decisioni dei moduli a regole, non il portafoglio o il database; non scrive sul disco e non modifica le decisioni. Non ha accesso a strumenti di trading né a wallet. I testi generati non sono segnali verificati e non provano redditività.
 
 **Mai abilitare ordini reali con output di modello non verificato.** WHALE/SHILL non ricevono dati inventati e restano inattivi finché non saranno collegate fonti affidabili.
+
+## Grafici live WebSocket (sviluppo non ancora rilasciato)
+
+La dashboard mantiene lo storico delle **candele chiuse a 5 minuti** per gli indicatori e le decisioni del simulatore. In parallelo, quando la pagina è visibile, il browser apre `wss://ws.kraken.com/v2` e sottoscrive `trade` per `BTC/EUR` e `ETH/EUR`, senza autenticazione. I trade arrivano quando realmente eseguiti sull'exchange: **non esiste garanzia di un aggiornamento ogni millisecondo**. Il grafico live visualizza gli ultimi tick ricevuti, non ricostruisce ogni trade precedente all'apertura della pagina e non modifica le candele di trading. Aggiornamento visivo limitato a massimo 10 volte al secondo per non sovraccaricare il browser; riconnessione con backoff se si interrompe il WebSocket e indicatore che segnala dati non aggiornati.
+
+Se la rete impedisce WebSocket, rimane il vecchio feed REST tramite aggiornamento periodico. L'orario riportato è quello del trade, non una misura garantita di latenza. Le decisioni di trading **restano legate alle candele chiuse**.
