@@ -143,3 +143,19 @@ SEARCH conserva **le stesse regole di ingresso** (incrocio dal basso EMA 9/21 su
 Il protocollo consultivo `coordinate_advisory` confronta in modo **deterministico** il segnale di SEARCH, il veto preliminare RISK, la qualità del book Kraken e la stima di profondità SNIPER. Restituisce un responso spiegabile (`WAIT`, `RISK_VETO`, `AWAIT_BOOK`, `MARKET_NOT_VERIFIED`, `EXECUTION_NOT_VERIFIED`, `NO_CANDIDATE`, `PRELIMINARY_CANDIDATE`) o `INCONSISTENT` in presenza di contraddizioni esplicite. Ogni responso include la motivazione, l'elenco dei pareri e gli eventuali codici di conflitto. Prima che il book venga interrogato si usa `AWAIT_BOOK`, non si presume che sia affidabile. La dashboard rende visibili il verdetto e le contraddizioni quando si preme **Consulta agenti**.
 
 Questo coordinamento è **solo analitico**: `execution_authorized` rimane sempre `false`. Il codice non modifica `try_buy`, le condizioni EMA/RSI, il portafoglio o il database, e non permette a un modello linguistico di emettere ordini. Anche `PRELIMINARY_CANDIDATE` significa soltanto che i pareri consultivi sono coerenti, non che l'operazione sia eseguibile o profittevole. WHALE e SHILL rimangono non collegati: non vengono inventati dati on-chain o social.
+
+## Sviluppo 2.7 — AI esterna facoltativa per SEARCH e HEAD OF DESK
+
+L'advisor esterno usa la **OpenAI Responses API** con un'unica chiamata per produrre due punti di vista testuali separati: ricerca SEARCH e confronto HEAD OF DESK, più rischi e incertezze. Per attivarlo su Windows PowerShell (solo nella sessione corrente):
+
+```powershell
+$env:NEXUS_OPENAI_MODEL="gpt-4.1-mini"
+$env:NEXUS_OPENAI_API_KEY="INSERISCI_LA_TUA_CHIAVE_IN_PRIVATO"
+py -3.15 .\src\server.py
+```
+
+**Non inserire mai la chiave in GitHub, nei messaggi o nei file tracciati.** Usare una chiave di progetto limitata, con limiti di spesa configurati sul portale del fornitore. Il modello e l'accesso API richiedono una sottoscrizione/fatturazione API separata da ChatGPT; nessun pagamento è richiesto per continuare a usare il bot senza advisor. Se manca anche una sola variabile, l'advisor esterno non invia richieste. Se nessuna delle variabili OpenAI è presente, resta possibile configurare l'advisor locale preesistente con `NEXUS_OLLAMA_MODEL`. Non si attivano entrambi contemporaneamente.
+
+Le chiamate esterne avvengono **soltanto** dopo click su «Consulta AI», mai in background, all'apertura della dashboard o durante il monitoraggio automatico. Il payload include solo un piccolo JSON di osservazioni di mercato, stati degli agenti e codici di conflitto, senza database, credenziali, saldi completi, cronologia personale o posizioni dettagliate. Il server invia un massimo di **350 token di output** per richiesta e consente **massimo 5 richieste per avvio del processo**. Il limite si azzera al riavvio e **non costituisce un limite di spesa**; usare comunque un limite sul proprio account del fornitore. Si applicano timeout, limite ai byte di risposta, schema JSON validato e blocco dei redirect. `store:false` viene richiesto per le risposte.
+
+L'AI **non dispone di strumenti**, non invia ordini, non può modificare il database, non cambia `RISK`/`SEARCH`/`try_buy`, e il testo restituito non rientra mai nella logica di acquisto. Anche quando una risposta AI descrive un'opportunità, essa resta un commento incerto, **non una previsione attendibile o un'autorizzazione al trading**. Questo collegamento è pronto nel sorgente 2.7, non nella release 2.6.
