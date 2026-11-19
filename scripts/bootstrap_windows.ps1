@@ -12,9 +12,16 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 if (-not (Test-Path (Join-Path $Source "src\core.py"))) {
     throw "Cartella NEXUS non trovata: $Source. Specifica -Source con il percorso attuale."
 }
-if (Test-Path $Dest) { throw "La cartella di destinazione esiste già: $Dest. Non sovrascrivo nulla." }
-git clone $RepoUrl $Dest
-if ($LASTEXITCODE -ne 0) { throw "Clone GitHub non riuscito" }
+if (Test-Path $Dest) {
+    if (-not (Test-Path (Join-Path $Dest ".git"))) { throw "Cartella di destinazione già esistente, ma non è un clone Git: $Dest" }
+    $remote = git -C $Dest remote get-url origin
+    if ($remote -ne $RepoUrl) { throw "Il clone esistente punta a un repository diverso: $remote" }
+    git -C $Dest pull --ff-only origin main
+    if ($LASTEXITCODE -ne 0) { throw "Impossibile aggiornare il clone Git esistente" }
+} else {
+    git clone $RepoUrl $Dest
+    if ($LASTEXITCODE -ne 0) { throw "Clone GitHub non riuscito" }
+}
 $paths = @(
     "src\core.py","src\server.py","src\dashboard.html","src\selftest.py",
     "src\maintenance.py","src\backtest.py","src\downloader.py",
