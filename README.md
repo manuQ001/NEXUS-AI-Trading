@@ -67,3 +67,9 @@ Il motore paper rifiuta nuovi ingressi basati su una candela 5m che risulti già
 Il motore paper non simula più nuovi acquisti al prezzo della **precedente candela chiusa**. Quando scatta un segnale recente e i controlli RISK lo consentono, richiede il prezzo **ask indicativo** dall'endpoint pubblico Kraken Ticker e applica lo slippage stimato. Senza una risposta valida, oppure quando l'ask differisce di oltre l'1,5% dal prezzo di chiusura del segnale, non apre la posizione simulata. I test sintetici passano una quotazione sintetica, senza accesso di rete.
 
 **Limiti:** il Ticker REST non garantisce la disponibilità o l'eseguibilità della quotazione, non include una misura verificata della sua età e non replica book, volume, ritardi o liquidità. Il backtest continua a usare l'apertura della candela successiva ed è perciò una stima con ipotesi diverse dal paper live. Sarà necessaria una verifica empirica prima di definire i due motori equivalenti. Nessun ordine reale può essere eseguito.
+
+## Correzione EXIT: nessun movimento anteriore all'ingresso
+
+Per i dati reali, una candela OHLC descrive l'intero intervallo di cinque minuti, ma non indica in quale istante siano stati raggiunti massimo e minimo. Se un acquisto virtuale si verifica a intervallo già iniziato, **EXIT non deve usare il massimo o minimo di quello stesso intervallo**: potrebbero precedere l'acquisto. Il simulatore ora ignora per le uscite le candele il cui timestamp di apertura precede `positions.opened_at`; valuta solamente intervalli iniziati dopo (o esattamente all'istante di) ingresso. I test sintetici confermano che questo impedisce chiusure retroattive inventate e permette uscite su intervalli successivi.
+
+Questa scelta è prudente ma può ritardare un'uscita paper rispetto al mercato reale. Per una simulazione intrabar occorrono dati con granularità temporale maggiore e un modello di execution costi/latency separato, non un'assunzione favorevole sui massimi e minimi OHLC.
