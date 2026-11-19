@@ -9,7 +9,7 @@ from backtest import test_strategy, validate_holdout
 from core import fetch_kraken, daily_loss
 from agents import review, local_ai_advice
 from execution import execution_stress_scenarios
-from orderbook import fetch_depth, depth_study
+from orderbook import fetch_depth, depth_study, inspect_book_quality
 from maintenance import run_tests, check_updates, VERSION, ROOT
 from downloader import download_if_available, read_staged
 
@@ -82,8 +82,11 @@ class Handler(BaseHTTPRequestHandler):
             if symbol not in ('BTC','ETH'):
                 self.out({'ok':False,'error':'Simbolo non valido'},400);return
             try:
+                # Two read-only HTTP snapshots; never used to approve paper orders.
+                first=fetch_depth(symbol,count=20)
                 book=fetch_depth(symbol,count=20)
                 report=depth_study(book,order_eur=25)
+                report['quality']=inspect_book_quality(first,book)
                 self.out({'ok':True,'report':report})
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError) as exc:
                 self.out({'ok':False,'error':'Book Kraken non disponibile o non valido: '+type(exc).__name__},503)
