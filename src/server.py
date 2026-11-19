@@ -186,14 +186,23 @@ class Handler(BaseHTTPRequestHandler):
                     if os.environ.get('NEXUS_OPENAI_MODEL') or os.environ.get('NEXUS_OPENAI_API_KEY')
                     else local_ai_advice(base))
             if advice.get('available'):
-                with LOCK:
-                    c=connect()
-                    try:
-                        journal_result=record_ai_research(c,base,advice)
-                        c.commit()
-                    finally:
-                        c.close()
-                advice['research_journal']=journal_result
+                # A journal disk failure cannot discard an already-paid
+                # advisory response or cause users to repeat a billable call.
+                try:
+                    with LOCK:
+                        c=connect()
+                        try:
+                            journal_result=record_ai_research(c,base,advice)
+                            c.commit()
+                        finally:
+                            c.close()
+                    advice['research_journal']=journal_result
+                except (OSError,ValueError,TypeError) as exc:
+                    advice['research_journal']={'saved':False,
+                        'reason':'JOURNAL_UNAVAILABLE','error_type':type(exc).__name__}
+                except __import__('sqlite3').Error:
+                    advice['research_journal']={'saved':False,
+                        'reason':'JOURNAL_UNAVAILABLE','error_type':'DatabaseError'}
             self.out({'ok':True,'advice':advice})
         except (ValueError,TypeError) as exc:
             self.out({'ok':False,'error':str(exc)[:200]},400)
