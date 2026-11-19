@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from execution import execution_price, execution_fee, sell_settlement, hypothetical_partial_fill
+from execution import execution_price, execution_fee, sell_settlement, hypothetical_partial_fill, execution_stress_scenarios
 
 
 class TestExecution(unittest.TestCase):
@@ -56,6 +56,17 @@ class TestExecution(unittest.TestCase):
             kwargs.update(kw)
             with self.assertRaises(ValueError):
                 hypothetical_partial_fill(**kwargs)
+    def test_hypothetical_scenario_report_has_no_execution(self):
+        r=execution_stress_scenarios(100,25)
+        self.assertEqual(len(r['scenarios']),3)
+        self.assertEqual(r['mode'],'HYPOTHETICAL STUDY - NO ORDERS')
+        self.assertIn('NON misure',r['warning'])
+        fills=[x['fill_percentage'] for x in r['scenarios']]
+        self.assertEqual(fills[0],100)
+        self.assertGreater(fills[1],fills[2])
+    def test_stress_report_rejects_invalid_reference(self):
+        with self.assertRaises(ValueError): execution_stress_scenarios(float('nan'))
+        with self.assertRaises(ValueError): execution_stress_scenarios(100,-25)
     def test_rejects_invalid_rates_and_prices(self):
         for bad in (0,-1,float('nan'),float('inf')):
             with self.subTest(value=bad):
