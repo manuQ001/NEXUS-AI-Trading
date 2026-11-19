@@ -39,7 +39,25 @@ class TestMemeAuto(unittest.TestCase):
         p=dict(self.c.execute('SELECT * FROM meme_eur_positions').fetchone())
         self.assertEqual(decide_exit(p,.008,80,FX['usd_eur']),'STOP_LOSS')
         self.assertEqual(decide_exit(p,.015,80,FX['usd_eur']),'TAKE_PROFIT')
-        self.assertEqual(decide_exit(p,.01,50+7200,FX['usd_eur']),'TIMEOUT_2H')
+        self.assertEqual(decide_exit(p,.01,50+900,FX['usd_eur']),'TIMEOUT_15M')
+    def test_trailing_peak_persisted_and_sell_when_net_roi_reverses(self):
+        trade(self.c,M,'BUY',Q,FX,now=100)
+        prices=[.012, .0114]
+        def quote(_):
+            return dict(Q,price_usd=prices.pop(0))
+        first=tick(self.c,now=110,scout=lambda:{'candidates':[]},quote=quote,fx_rate=fx)
+        self.assertEqual(len(portfolio(self.c)['positions']),1)
+        self.assertIsNotNone(self.c.execute('SELECT peak_net_roi FROM meme_auto_trail WHERE address=?',(M,)).fetchone())
+        second=tick(self.c,now=125,scout=lambda:{'candidates':[]},quote=quote,fx_rate=fx)
+        self.assertEqual(len(portfolio(self.c)['positions']),0)
+        self.assertTrue(any(x['action']=='AUTO_SELL' and 'TRAILING_STOP' in x['note'] for x in second['journal']))
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_auto_trail').fetchone()[0],0)
+    def test_missing_quote_does_not_trigger_timeout_or_fake_sale(self):
+        trade(self.c,M,'BUY',Q,FX,now=100)
+        tick(self.c,now=1100,scout=lambda:{'candidates':[]},
+             quote=lambda _: (_ for _ in ()).throw(ValueError('feed unavailable')),fx_rate=fx)
+        self.assertEqual(len(portfolio(self.c)['positions']),1)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_eur_trades WHERE action="SELL"').fetchone()[0],0)
     def test_disabled_does_not_call_sources(self):
         init_auto(self.c)
         self.c.execute('UPDATE meme_auto_state SET enabled=0 WHERE id=1')
