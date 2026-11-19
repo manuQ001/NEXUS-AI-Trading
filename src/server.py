@@ -72,6 +72,14 @@ class Handler(BaseHTTPRequestHandler):
                 self.out({'ok':False,'error':str(exc)[:200]},400)
         elif path=='/api/ai-review':
             self.out({'ok':False,'error':'Usa il pulsante Analisi AI (POST protetto)'},405)
+        elif path=='/api/meme-scout':
+            # Manual, bounded public-data research. No SQLite writes, no orders.
+            try:
+                from meme_scout import scan
+                self.out(scan())
+            except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
+                self.out({'ok':False,'mode':'READ_ONLY','meme_execution':'BLOCKED',
+                          'error':'Fonte memecoin non disponibile o non valida: '+type(exc).__name__},503)
         elif path=='/api/orderbook-study':
             from urllib.parse import parse_qs
             symbol=parse_qs(urlsplit(self.path).query).get('symbol',['BTC'])[0]
