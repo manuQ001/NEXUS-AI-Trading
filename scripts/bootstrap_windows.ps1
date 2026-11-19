@@ -56,6 +56,19 @@ if (-not $text.Contains($original)) { throw "Versione downloader inattesa" }
 $text = $text.Replace("from pathlib import Path", "from pathlib import Path`nfrom urllib.parse import urlsplit")
 $text = $text.Replace($original,$replacement)
 [System.IO.File]::WriteAllText($downloader,$text,[System.Text.UTF8Encoding]::new($false))
+# Adegua i test della V2.4 alla nuova configurazione V2.4.1.
+$testFile = Join-Path $Dest "tests\\test_maintenance.py"
+$testContent = Get-Content $testFile -Raw
+if (-not $testContent.Contains("self.assertEqual(VERSION,'2.4.0')")) { throw "Test versione inatteso: controllo manuale necessario" }
+$testContent = $testContent.Replace("self.assertEqual(VERSION,'2.4.0')", "self.assertEqual(VERSION,'2.4.1')")
+$oldTest = "x=check_updates();self.assertFalse(x['configured'])"
+$newTest = "from unittest.mock import patch" + "`n" +
+           "        with patch('maintenance.get_config', return_value={}):" + "`n" +
+           "            x=check_updates()" + "`n" +
+           "        self.assertFalse(x['configured'])"
+if (-not $testContent.Contains($oldTest)) { throw "Test manifest inatteso: controllo manuale necessario" }
+$testContent = $testContent.Replace($oldTest, $newTest)
+[System.IO.File]::WriteAllText($testFile,$testContent,[System.Text.UTF8Encoding]::new($false))
 $updates = Join-Path $Dest "updates.json"
 [System.IO.File]::WriteAllText($updates, '{ "manifest_url": "https://raw.githubusercontent.com/manuQ001/NEXUS-AI-Trading/main/latest.json" }' + "`n", [System.Text.UTF8Encoding]::new($false))
 Push-Location $Dest
