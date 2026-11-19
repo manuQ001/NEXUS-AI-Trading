@@ -48,7 +48,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.out({'ok':False,'error':'Esegui Aggiorna mercato prima di consultare gli agenti'},400);return
                 report=review(symbol,candles,snap.get('indicators',{}).get(symbol,{}) or {},
                               positions=snap['positions'],daily_realized=realized,
-                              feed_ok=snap.get('status',{}).get(symbol)=='OK')
+                              feed_ok=snap.get('status',{}).get(symbol)=='OK',
+                              core_cash=next((w['cash'] for w in snap['wallets'] if w['strategy']=='core'),None))
                 self.out({'ok':True,'report':report})
             except (ValueError,TypeError) as exc:
                 self.out({'ok':False,'error':str(exc)[:200]},400)
@@ -68,7 +69,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.out({'ok':False,'error':'Aggiorna il mercato prima di interrogare il modello'},400);return
                 base=review(symbol,candles,snap.get('indicators',{}).get(symbol,{}) or {},
                             positions=snap['positions'],daily_realized=realized,
-                            feed_ok=snap.get('status',{}).get(symbol)=='OK')
+                            feed_ok=snap.get('status',{}).get(symbol)=='OK',
+                              core_cash=next((w['cash'] for w in snap['wallets'] if w['strategy']=='core'),None))
                 self.out({'ok':True,'advice':local_ai_advice(base)})
             except (ValueError,TypeError) as exc:
                 self.out({'ok':False,'error':str(exc)[:200]},400)
