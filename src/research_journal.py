@@ -6,6 +6,7 @@ execution prices or profit. No credentials or private account data are stored.
 import json
 import math
 import time
+from hypothesis import validate_hypotheses, check_hypothesis, NEUTRAL_BPS
 
 HORIZONS=(3,12)  # 15 and 60 minutes on uninterrupted 5-minute candles
 
@@ -24,6 +25,10 @@ def init(c):
         analysis_json TEXT NOT NULL,
         UNIQUE(symbol,base_candle_time,provider,model)
     )''')
+    # Forward-compatible schema migration. Existing consults remain unscored.
+    cols={row[1] for row in c.execute('PRAGMA table_info(ai_research)').fetchall()}
+    if 'hypotheses_json' not in cols:
+        c.execute('ALTER TABLE ai_research ADD COLUMN hypotheses_json TEXT')
     c.execute('''CREATE TABLE IF NOT EXISTS ai_research_outcomes (
         research_id INTEGER NOT NULL,
         horizon_bars INTEGER NOT NULL,
@@ -71,12 +76,20 @@ def record(c, report, advice, *, now=None):
     safe=json.dumps(analysis,ensure_ascii=False)
     if len(safe)>4000:
         return {'saved':False,'reason':'INVALID_ANALYSIS'}
+    # Local Ollama currently provides prose only; do not synthesize predictions.
+    hypotheses=advice.get('hypotheses')
+    if hypotheses is not None:
+        try:
+            hypotheses=validate_hypotheses(hypotheses)
+        except ValueError:
+            return {'saved':False,'reason':'INVALID_HYPOTHESES'}
     init(c)
     cursor=c.execute('''INSERT OR IGNORE INTO ai_research
-        (created_at,symbol,base_candle_time,base_close,provider,model,proposal,risk_veto,analysis_json)
-        VALUES(?,?,?,?,?,?,?,?,?)''',
+        (created_at,symbol,base_candle_time,base_close,provider,model,proposal,risk_veto,analysis_json,hypotheses_json)
+        VALUES(?,?,?,?,?,?,?,?,?,?)''',
         (now,symbol,base,close,provider,model,str(report.get('proposal','WAIT'))[:20],
-         int(report.get('risk_veto') is True),safe))
+         int(report.get('risk_veto') is True),safe,
+         json.dumps(hypotheses,ensure_ascii=False) if hypotheses is not None else None))
     return {'saved':cursor.rowcount==1,
             'reason':'SAVED' if cursor.rowcount==1 else 'DUPLICATE_SNAPSHOT'}
 
@@ -133,7 +146,7 @@ def latest(c, *, limit=20):
     if not 1<=limit<=100:raise ValueError('Limite non valido')
     init(c)
     rows=c.execute('''SELECT id,created_at,symbol,base_candle_time,base_close,
-        provider,model,proposal,risk_veto,analysis_json
+        provider,model,proposal,risk_veto,analysis_json,hypotheses_json
         FROM ai_research ORDER BY id DESC LIMIT ?''',(limit,)).fetchall()
     entries=[]
     for row in rows:
@@ -145,7 +158,20 @@ def latest(c, *, limit=20):
               'base_close','provider','model','proposal','risk_veto')}
         item['analysis']=json.loads(row['analysis_json'])
         item['outcomes']=outcomes
+        hypotheses=(json.loads(row['hypotheses_json'])
+                    if row['hypotheses_json'] else None)
+        if hypotheses is not None:
+            item['hypotheses']=[]
+            for hypothesis in validate_hypotheses(hypotheses):
+                outcome=next((x for x in outcomes
+                              if x['horizon_bars']==hypothesis['horizon_bars']),None)
+                assessment=check_hypothesis(hypothesis['direction'],
+                    outcome['status'] if outcome else None,
+                    outcome['price_change_bps'] if outcome else None)
+                item['hypotheses'].append({**hypothesis,'assessment':assessment})
+        else:
+            item['hypotheses']=None
         entries.append(item)
     return {'entries':entries,'mode':'RESEARCH ONLY / NO TRADE SCORING',
-            'horizons_bars':list(HORIZONS),
-            'note':'Movimenti di prezzo osservati dopo il consulto, NON accuratezza AI, P/L o ordini. Intervalli incompleti segnati DATA_GAP.'}
+            'horizons_bars':list(HORIZONS),'neutral_band_bps':NEUTRAL_BPS,
+            'note':'Confronto direzionale descrittivo con fascia neutra fissa ±10 bps; NON profitto, win rate operativo o prova di capacità predittiva. Intervalli incompleti: DATA_GAP.'}
