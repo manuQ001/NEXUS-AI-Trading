@@ -2,7 +2,7 @@
 from core import signal, atr, FEE, SLIPPAGE, RISK_PER_TRADE, DAILY_MAX, POSITION_FRACTION
 from datetime import datetime, timezone
 import math
-from execution import execution_price, execution_fee, sell_settlement
+from execution import execution_price, execution_fee, sell_settlement, assess_exit_bar
 
 def test_strategy(candles, starting_cash=105.0):
     if len(candles)<70: return {'ok':False,'error':'Servono almeno 70 candele chiuse','candles':len(candles)}
@@ -27,12 +27,14 @@ def test_strategy(candles, starting_cash=105.0):
         day=datetime.fromtimestamp(c['time'],timezone.utc).strftime('%Y-%m-%d')
         dayloss=daily_realized.get(day,0)
         if pos:
-            # Intrabar conservative rule: stop before target, gap through stop gets open price.
-            if c['low']<=pos['stop']:
-                raw=min(c['open'],pos['stop']);reason='STOP'
-            elif c['high']>=pos['target']:
-                raw=pos['target'];reason='TARGET'
-            else:raw=None;reason=None
+            # The same conservative OHLC policy is used by PAPER and backtest.
+            # A missing interval cannot justify a favourable target fill.
+            missing_interval=c['time']-candles[i-1]['time']!=300
+            decision=assess_exit_bar(c,pos['stop'],pos['target'],
+                                     allow_target=not missing_interval)
+            raw=decision['reference']
+            reason=('STOP' if decision['reason']=='Stop loss' else
+                    'TARGET' if decision['reason']=='Take profit' else None)
             if raw is not None:
                 fill=sell_settlement(pos['qty'],pos['entry'],pos['entry_fee'],raw,
                                      fee_rate=FEE,slippage_rate=SLIPPAGE)
