@@ -9,7 +9,7 @@ def run_selftest():
         try:
             synthetic=[{'time':1700000000+i*300,'open':100+i,'high':101+i,'low':99+i,'close':100+i,'volume':100} for i in range(45)]
             ind={'buy':True,'atr':1.0,'why':'SELFTEST SINTETICO: segnale forzato solo nel test'}
-            try_buy(c,'BTC',synthetic,ind)
+            try_buy(c,'BTC',synthetic,ind,quote_price=synthetic[-1]['close'])
             p=c.execute('SELECT * FROM positions WHERE symbol="BTC"').fetchone()
             if p is None: raise AssertionError('SNIPER non ha aperto la posizione virtuale')
             # Simulate a later candle hitting target, without touching the stop.
@@ -20,7 +20,7 @@ def run_selftest():
             # Independent stop loss scenario: fresh DB, no real trades involved.
             c.close()
             c=connect(Path(folder)/'stop.sqlite3')
-            try_buy(c,'ETH',synthetic,ind)
+            try_buy(c,'ETH',synthetic,ind,quote_price=synthetic[-1]['close'])
             p2=c.execute('SELECT * FROM positions WHERE symbol="ETH"').fetchone()
             if p2 is None:raise AssertionError('SNIPER non ha aperto il test stop')
             handle_exit(c,'ETH',{'open':p2['entry'],'high':p2['entry'],'low':p2['stop']-1.0})
