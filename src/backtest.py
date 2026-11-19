@@ -76,3 +76,36 @@ def test_strategy(candles, starting_cash=105.0):
             'profit_factor':round(gross_gain/gross_loss,3) if gross_loss else None,
             'open_position':bool(pos),'trades':trades[-40:],'curve':curves[::max(1,len(curves)//80)],
             'assumptions':'Segnale sulla candela chiusa precedente, entrata all’open successivo, long spot senza leva; stop/target intrabar con stop prioritario; commissioni 0,25% e slippage 0,05% per lato. Nessuna uscita nella barra di ingresso. Non riproduce order book, latenza, imposte o liquidazioni.'}
+
+
+def validate_holdout(candles, starting_cash=105.0):
+    """Chronological 70/30 out-of-sample diagnostic with 36-bar indicator warmup.
+
+    This does not optimize parameters, claim independence, or persist trades.
+    Training and holdout are each separate paper simulations; capital resets.
+    """
+    if len(candles)<180:
+        return {'ok':False,'error':'Validazione non disponibile: servono almeno 180 candele chiuse',
+                'candles':len(candles)}
+    check=test_strategy(candles,starting_cash=starting_cash)
+    if not check['ok']:
+        return check
+    boundary=int(len(candles)*0.70)
+    train=test_strategy(candles[:boundary],starting_cash=starting_cash)
+    holdout=test_strategy(candles[boundary-36:],starting_cash=starting_cash)
+    if not train['ok'] or not holdout['ok']:
+        return {'ok':False,'error':'Impossibile validare i due segmenti'}
+    trades=holdout['closed_trades']
+    enough=trades>=30 and holdout['gaps_over_5m']==0 and train['gaps_over_5m']==0
+    return {
+        'ok':True,'candles':len(candles),'split_index':boundary,
+        'train':train,'holdout':holdout,
+        'train_candles':boundary,
+        'holdout_candles':len(candles)-boundary,
+        'holdout_start_time':candles[boundary]['time'],
+        'enough_evidence':enough,
+        'assessment':('Campione preliminare, NON sufficiente per sostenere redditività'
+                      if not enough else
+                      'Campione con almeno 30 trade: serve comunque verifica su periodi molto più lunghi e mercati diversi'),
+        'method':'Separazione cronologica 70/30, 36 candele passate usate solo per riscaldare gli indicatori della verifica finale; capitale virtuale reimpostato nei due segmenti, nessuna selezione dei parametri.'
+    }
