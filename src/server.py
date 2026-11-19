@@ -3,7 +3,7 @@ import json, sys, threading, webbrowser, time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
-from core import connect, startup_events, snapshot, refresh
+from core import connect, startup_events, snapshot, refresh, load_closed_history, historical_coverage
 from selftest import run_selftest
 from backtest import test_strategy, validate_holdout
 from core import fetch_kraken
@@ -30,6 +30,12 @@ class Handler(BaseHTTPRequestHandler):
         elif path=='/api/selftest':
             try: self.out(run_selftest())
             except Exception as exc: self.out({'ok':False,'error':str(exc),'mode':'SELFTEST - DATI SINTETICI'},500)
+        elif path=='/api/history':
+            with LOCK:
+                c=connect()
+                report={sym:historical_coverage(c,sym) for sym in ('BTC','ETH')}
+                c.close()
+            self.out({'ok':True,'markets':report})
         elif path in ('/api/backtest','/api/validation'):
             from urllib.parse import parse_qs
             params=parse_qs(urlsplit(self.path).query)
@@ -38,10 +44,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.out({'ok':False,'error':'Simbolo non valido'},400);return
             try:
                 # Read-only study: never uses the trading database.
-                candles=fetch_kraken(symbol)
+                with LOCK:
+                    c=connect()
+                    candles=load_closed_history(c,symbol)
+                    c.close()
+                if len(candles)<70:
+                    candles=fetch_kraken(symbol)
+                    source='Kraken OHLC 5m recente (solo candele chiuse)'
+                else:
+                    source='Archivio SQLite locale Kraken OHLC 5m (solo candele chiuse)'
                 report=validate_holdout(candles) if path=='/api/validation' else test_strategy(candles)
                 report['symbol']=symbol
-                report['data_source']='Kraken OHLC 5m (solo candele chiuse)'
+                report['data_source']=source
                 self.out(report)
             except Exception as exc:
                 self.out({'ok':False,'error':'Backtest non disponibile: '+str(exc)[:200]},503)
