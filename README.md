@@ -2,6 +2,14 @@
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
 
+## Release 2.8.3 — MEME Scalper con vista live automatica (solo simulazione)
+
+Nuove uscite MEME PAPER: stop loss a -6% netto stimato, take profit a +12% netto stimato, trailing stop attivo dopo +8% di rendimento netto massimo con distanza di 4 punti percentuali, e limite temporale di 15 minuti. Il picco del trailing è memorizzato in SQLite per sopravvivere ai riavvii; la vendita virtuale richiede sempre una nuova quotazione valida e non viene inventata quando manca il feed. Lo storico delle posizioni e il database esistenti restano intatti.
+
+Il motore controlla i prezzi indicativi delle posizioni aperte circa ogni 15 secondi mentre il server è attivo. La dashboard, quando visibile, ricarica automaticamente portafoglio e stato AUTO ogni 2 secondi, senza pulsanti manuali. **Questo non è uno stream di tick real-time**: DEX Screener REST non garantisce una nuova quotazione né la sua effettiva negoziabilità a ogni richiesta. Una pagina aggiornata non rende più fresco un feed vecchio. Alcune uscite potrebbero avvenire più tardi delle soglie e i costi reali potrebbero essere diversi dal modello a 3% per lato.
+
+Il sistema rimane PAPER ONLY senza wallet collegati, chiavi di scambio o ordini reali. Prima di valutare capitale reale, servono prezzi con timestamp affidabili, liquidità/quotazioni eseguibili e un backtest realistico.
+
 ## Release 2.8.2 — MEME Scout più ampio e diagnosi scansioni
 
 MEME Scout considera fino a 30 profili Solana per scansione (in precedenza 16) e l'automazione non tronca più la selezione ai primi 12 candidati. Lo stato AUTO ora riporta quanti token hanno superato il filtro iniziale, o se la fonte non ha fornito alcun token. Non vengono eliminate le verifiche di liquidità, volume, prezzo, cambio o disponibilità in portafoglio.
