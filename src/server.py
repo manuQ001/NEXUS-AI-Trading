@@ -114,10 +114,10 @@ class Handler(BaseHTTPRequestHandler):
                 finally:c.close()
             self.out(result)
         elif path=='/api/meme-demo':
-            from meme_demo import demo_state
+            from meme_portfolio import portfolio
             with LOCK:
                 c=connect()
-                try: result=demo_state(c);c.commit()
+                try: result=portfolio(c);c.commit()
                 finally:c.close()
             self.out(result)
         elif path=='/api/meme-scout':
@@ -247,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
             # Click-only, zero-body, same-origin action. No real exchange integrations.
             from urllib.parse import parse_qs
             from meme_scout import ADDRESS
-            from meme_demo import indicative_quote, quick_trade, demo_state
+            from meme_portfolio import indicative_quote, trade, portfolio, get_fx
             origin=self.headers.get('Origin')
             fetch_site=self.headers.get('Sec-Fetch-Site')
             authorized=(self.headers.get('X-NEXUS-Demo-Click')=='1'
@@ -277,8 +277,9 @@ class Handler(BaseHTTPRequestHandler):
                 with LOCK:
                     c=connect()
                     try:
-                        outcome=quick_trade(c,address,action,quote)
-                        state=demo_state(c);c.commit()
+                        fx=get_fx(c)
+                        outcome=trade(c,address,action,quote,fx)
+                        state=portfolio(c);c.commit()
                     finally:c.close()
                 outcome['quote_source']=source
                 if source.startswith('MEME SCOUT'):
