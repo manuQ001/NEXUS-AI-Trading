@@ -71,53 +71,7 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError,TypeError) as exc:
                 self.out({'ok':False,'error':str(exc)[:200]},400)
         elif path=='/api/ai-review':
-            from urllib.parse import parse_qs
-            params=parse_qs(urlsplit(self.path).query)
-            symbol=params.get('symbol',['BTC'])[0]
-            if symbol not in ('BTC','ETH'):
-                self.out({'ok':False,'error':'Simbolo non valido'},400);return
-            try:
-                with LOCK:
-                    c=connect()
-                    snap=snapshot(c); realized=daily_loss(c)
-                    c.close()
-                candles=snap.get('candles',{}).get(symbol,[])
-                if not candles:
-                    self.out({'ok':False,'error':'Aggiorna il mercato prima di interrogare il modello'},400);return
-                base=review(symbol,candles,snap.get('indicators',{}).get(symbol,{}) or {},
-                            positions=snap['positions'],daily_realized=realized,
-                            feed_ok=snap.get('status',{}).get(symbol)=='OK',
-                              core_cash=next((w['cash'] for w in snap['wallets'] if w['strategy']=='core'),None))
-                # Record a closed-candle reference to audit later market
-                # observations; never infer a forecast from the AI prose.
-                base['reference_close']=float(candles[-1]['close'])
-                # Explicit click only. Prefer external adviser when configured;
-                # otherwise preserve the existing optional local Ollama mode.
-                # Neither result is fed back into trade authorization.
-                import os
-                advice=(external_ai_advice(base)
-                        if os.environ.get('NEXUS_OPENAI_MODEL') or os.environ.get('NEXUS_OPENAI_API_KEY')
-                        else local_ai_advice(base))
-                if advice.get('available'):
-                    with LOCK:
-                        c=connect()
-                        try:
-                            journal_result=record_ai_research(c,base,advice)
-                            c.commit()
-                        finally:
-                            c.close()
-                    advice['research_journal']=journal_result
-                self.out({'ok':True,'advice':advice})
-            except (ValueError,TypeError) as exc:
-                self.out({'ok':False,'error':str(exc)[:200]},400)
-        elif path=='/api/ai-research':
-            with LOCK:
-                c=connect()
-                try:
-                    result=latest_ai_research(c,limit=20)
-                finally:
-                    c.close()
-            self.out({'ok':True,'report':result})
+            self.out({'ok':False,'error':'Usa il pulsante Analisi AI (POST protetto)'},405)
         elif path=='/api/orderbook-study':
             from urllib.parse import parse_qs
             symbol=parse_qs(urlsplit(self.path).query).get('symbol',['BTC'])[0]
@@ -195,6 +149,54 @@ class Handler(BaseHTTPRequestHandler):
                 data['monitor']=dict(MONITOR)
             data['refresh_result']=status;self.out(data)
         else:self.out({'error':'Endpoint non esistente'},404)
+    def do_POST(self):
+        path=urlsplit(self.path).path
+        if path!='/api/ai-review':
+            self.out({'ok':False,'error':'Endpoint non esistente'},404);return
+        origin=self.headers.get('Origin')
+        fetch_site=self.headers.get('Sec-Fetch-Site')
+        if (self.headers.get('X-NEXUS-Research-Click')!='1'
+                or (origin and origin not in ('http://127.0.0.1:8765','http://localhost:8765'))
+                or (fetch_site and fetch_site not in ('same-origin','none'))
+                or self.headers.get('Content-Length','0')!='0'):
+            self.out({'ok':False,'error':'Richiesta AI non autorizzata'},403);return
+        from urllib.parse import parse_qs
+        params=parse_qs(urlsplit(self.path).query)
+        symbol=params.get('symbol',['BTC'])[0]
+        if symbol not in ('BTC','ETH'):
+            self.out({'ok':False,'error':'Simbolo non valido'},400);return
+        try:
+            with LOCK:
+                c=connect()
+                try:
+                    snap=snapshot(c); realized=daily_loss(c)
+                finally:
+                    c.close()
+            candles=snap.get('candles',{}).get(symbol,[])
+            if not candles:
+                self.out({'ok':False,'error':'Aggiorna il mercato prima di interrogare il modello'},400);return
+            base=review(symbol,candles,snap.get('indicators',{}).get(symbol,{}) or {},
+                        positions=snap['positions'],daily_realized=realized,
+                        feed_ok=snap.get('status',{}).get(symbol)=='OK',
+                        core_cash=next((w['cash'] for w in snap['wallets']
+                                       if w['strategy']=='core'),None))
+            base['reference_close']=float(candles[-1]['close'])
+            import os
+            advice=(external_ai_advice(base)
+                    if os.environ.get('NEXUS_OPENAI_MODEL') or os.environ.get('NEXUS_OPENAI_API_KEY')
+                    else local_ai_advice(base))
+            if advice.get('available'):
+                with LOCK:
+                    c=connect()
+                    try:
+                        journal_result=record_ai_research(c,base,advice)
+                        c.commit()
+                    finally:
+                        c.close()
+                advice['research_journal']=journal_result
+            self.out({'ok':True,'advice':advice})
+        except (ValueError,TypeError) as exc:
+            self.out({'ok':False,'error':str(exc)[:200]},400)
     def log_message(self,format,*args):
         if '/api/' not in str(args):super().log_message(format,*args)
 
