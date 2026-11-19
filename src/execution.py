@@ -144,3 +144,77 @@ def execution_stress_scenarios(midpoint, order_eur=25.0):
             'reference_mid_eur':mid,'requested_eur':amount,
             'participation_rate':.25,'scenarios':results,
             'warning':'Volumi, spread e impatto del ritardo sono ipotesi inventate per test, NON misure di mercato. Nessuna previsione di eseguibilità.'}
+
+
+def sniper_book_preview(book, *, order_eur=25.0, participation_rate=0.10,
+                        slippage_bps=5.0, delay_impact_bps=10.0,
+                        fee_rate=0.0025):
+    """Conservative READ-ONLY BUY study using visible Kraken asks.
+
+    Levels are OBSERVED; participation, slippage and delay impact are
+    EXPLICIT HYPOTHESES, not market measurements or guaranteed fills.
+    The requested quantity is sized from the best ask with cost cushion.
+    It NEVER writes to an account, places an order or clears RISK.
+    """
+    amount=_positive_finite(order_eur,'Budget')
+    if amount>10000:
+        raise ValueError('Budget di studio eccessivo')
+    part=_rate(participation_rate,'Partecipazione')
+    if part<=0:raise ValueError('Partecipazione nulla')
+    fee=_rate(fee_rate,'Commissione')
+    try:
+        slip=float(slippage_bps);delay=float(delay_impact_bps)
+    except (TypeError,ValueError,OverflowError) as exc:
+        raise ValueError('Costi ipotetici non validi') from exc
+    if not all(math.isfinite(x) and 0<=x<10000 for x in (slip,delay)):
+        raise ValueError('Costi ipotetici non validi')
+    if not isinstance(book,dict):
+        raise ValueError('Book non valido')
+    asks=book.get('asks')
+    if not isinstance(asks,list) or not asks or len(asks)>20:
+        raise ValueError('Ask non valide')
+    best=_positive_finite(book.get('best_ask'),'Best ask')
+    bid=_positive_finite(book.get('best_bid'),'Best bid')
+    if bid>=best:
+        raise ValueError('Book incrociato')
+    penalty=(slip+delay)/10000
+    requested=amount/(best*(1+penalty)*(1+fee))
+    remaining=requested;matched=0.;gross=0.;last=0.;prev=0.
+    for level in asks:
+        if not isinstance(level,dict):raise ValueError('Livello non valido')
+        price=_positive_finite(level.get('price'),'Prezzo')
+        volume=_positive_finite(level.get('volume'),'Volume')
+        if prev and price<=prev:raise ValueError('Ask non ordinate')
+        if not prev and price!=best:raise ValueError('Best ask incoerente')
+        prev=price
+        take=min(remaining,volume*part)
+        if take>0:
+            matched+=take
+            gross+=take*price*(1+penalty)
+            last=price
+        remaining=max(0.,requested-matched)
+        if remaining<=requested*1e-10:break
+    pct=min(100.,100*matched/requested)
+    remaining=max(0.,requested-matched)
+    fee_eur=gross*fee
+    total=gross+fee_eur
+    # Walking higher asks can consume more than the budget despite
+    # sizing with the best ask. Mark that result as NOT BUDGET-SAFE.
+    budget_ok=total<=amount*(1+1e-10)
+    full=remaining<=requested*1e-10
+    return {
+        'status':'ESTIMATE_FULL' if full and budget_ok else (
+            'ESTIMATE_PARTIAL' if budget_ok else 'OVER_BUDGET'),
+        'order_budget_eur':amount,'requested_qty':requested,
+        'estimated_filled_qty':matched,'estimated_unfilled_qty':remaining,
+        'estimated_fill_pct':round(pct,4),
+        'estimated_vwap_eur':gross/matched if matched else None,
+        'estimated_gross_eur':gross,'estimated_fee_eur':fee_eur,
+        'estimated_total_eur':total,'budget_ok':budget_ok,
+        'observed_best_ask_eur':best,'observed_best_bid_eur':bid,
+        'assumed_participation_pct':part*100,
+        'assumed_slippage_bps':slip,'assumed_delay_impact_bps':delay,
+        'fee_rate_pct':fee*100,'source':'Kraken asks snapshot',
+        'mode':'READ ONLY / MIXED OBSERVED DEPTH + HYPOTHETICAL COSTS',
+        'warning':'Book osservato, ma quota di partecipazione, slippage e movimento nel ritardo sono ipotesi. Nessun fill garantito, nessun ordine inviato.'
+    }
