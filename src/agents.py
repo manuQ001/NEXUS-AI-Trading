@@ -123,6 +123,9 @@ def attach_market_quality(report, quality=None, *, error=None, book=None):
             if status!='PASS':
                 agent['status']='market_unverified' if status=='UNAVAILABLE' else 'market_caution'
                 agent['reason']=description+'; nessun candidato BUY dal consulto'
+            elif result.get('proposal')=='BUY' and not result.get('risk_veto') and not result.get('paper_candidate'):
+                agent['status']='execution_unverified'
+                agent['reason']='SNIPER non conferma la copertura del budget: '+result['sniper_estimate']['status']+'; nessun candidato BUY dal consulto'
             else:
                 agent['reason']=agent['reason']+'; book: '+description
         elif agent['name']=='SNIPER':
