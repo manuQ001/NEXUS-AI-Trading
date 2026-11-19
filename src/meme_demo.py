@@ -11,7 +11,7 @@ from meme_scout import _get_json, ADDRESS, PAIRS_ROOT
 
 START_USD=45.0
 STAKE_USD=3.0
-MAX_POSITIONS=8
+MAX_POSITIONS=3
 BUY_COST=0.03     # pessimistic model: 3% impact/fees per side
 SELL_COST=0.03
 MIN_LIQUIDITY=1000.0
@@ -56,7 +56,7 @@ def demo_state(c, now=None):
     trades=[dict(x) for x in c.execute('SELECT * FROM meme_demo_trades ORDER BY id DESC LIMIT 30')]
     return {
         'mode':'DEMO_USD_PAPER','unit':'USD_demo','starting_credits':START_USD,
-        'cash_credits':round(cash,6),'stake_credits':STAKE_USD,'max_positions':MAX_POSITIONS,
+        'cash_credits':round(cash,6),'stake_credits':STAKE_USD,
         'positions':positions,'trades':trades,
         'nominal_last_mark_equity':round(cash+sum(
             p['estimated_net_value_credits'] for p in positions),6),
@@ -130,7 +130,7 @@ def quick_trade(c,address,action,quote,now=None):
     if action=='BUY':
         if pos is not None:raise ValueError('Test già aperto su questo token')
         n=c.execute('SELECT COUNT(*) FROM meme_demo_positions').fetchone()[0]
-        if n>=MAX_POSITIONS:raise ValueError(f'Massimo {MAX_POSITIONS} test aperti')
+        if n>=MAX_POSITIONS:raise ValueError('Massimo tre test aperti')
         if cash+1e-9<STAKE_USD:raise ValueError('Crediti demo insufficienti')
         qty=STAKE_USD/(price*(1+BUY_COST))
         with c:
