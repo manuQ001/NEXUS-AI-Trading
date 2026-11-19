@@ -2,7 +2,17 @@
 import argparse, hashlib, json, shutil, sys, tempfile, zipfile, subprocess, time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
-FILES=['src/core.py','src/server.py','src/dashboard.html','src/selftest.py','src/maintenance.py','src/backtest.py','src/downloader.py','src/agents.py','src/execution.py','src/orderbook.py','tests/test_orderbook.py','tests/test_agents.py','tests/test_execution.py','tests/test_backtest.py','tests/test_core.py','tests/test_maintenance.py','tests/test_downloader.py','updater.py','README.md','updates.json']
+FILES=[
+    'src/core.py','src/server.py','src/dashboard.html','src/selftest.py',
+    'src/maintenance.py','src/backtest.py','src/downloader.py',
+    'src/agents.py','src/execution.py','src/orderbook.py',
+    'src/external_ai.py','src/research_journal.py','src/hypothesis.py',
+    'tests/test_orderbook.py','tests/test_agents.py','tests/test_execution.py',
+    'tests/test_backtest.py','tests/test_core.py','tests/test_maintenance.py',
+    'tests/test_downloader.py','tests/test_external_ai.py','tests/test_monitor.py',
+    'tests/test_ai_http.py','tests/test_research_journal.py','tests/test_hypothesis.py',
+    'updater.py','README.md','updates.json'
+]
 MAX_ZIP=5*1024*1024
 
 def sha256(path):
