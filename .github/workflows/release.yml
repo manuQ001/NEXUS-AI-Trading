@@ -1,0 +1,95 @@
+name: Publish NEXUS release
+
+on:
+  push:
+    tags:
+      - "v[0-9]*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify required files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          required = [
+              'src/core.py', 'src/server.py', 'src/dashboard.html',
+              'src/selftest.py', 'src/maintenance.py', 'src/backtest.py',
+              'src/downloader.py', 'updater.py', 'migrate.py', 'updates.json'
+          ]
+          missing = [p for p in required if not Path(p).is_file()]
+          if missing:
+              raise SystemExit(f'Missing source files: {missing}')
+          PY
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p "test_*.py"
+      - name: Assemble ZIP and SHA-256 manifest
+        id: build
+        env:
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, re, zipfile
+          tag=os.environ['TAG']
+          if not re.fullmatch(r'v\d+\.\d+(?:\.\d+)?', tag):
+              raise SystemExit('Invalid tag')
+          version=tag[1:]
+          root=pathlib.Path('.')
+          files = [
+              'src/core.py','src/server.py','src/dashboard.html',
+              'src/selftest.py','src/maintenance.py','src/backtest.py',
+              'src/downloader.py','updater.py','migrate.py',
+              'updates.json','README.md',
+              'tests/test_backtest.py','tests/test_core.py',
+              'tests/test_maintenance.py','tests/test_downloader.py'
+          ]
+          output=f'NEXUS_AI_{version.replace(".", "_")}.zip'
+          with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:
+              for file in files:
+                  z.write(file,file)
+          payload=pathlib.Path(output).read_bytes()
+          sha=hashlib.sha256(payload).hexdigest()
+          repo=os.environ['REPOSITORY']
+          manifest={
+              'available_version': version,
+              'zip_url':f'https://github.com/{repo}/releases/download/{tag}/{output}',
+              'sha256':sha
+          }
+          pathlib.Path('latest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
+          print(f'{output}: {sha}')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              print(f'zip={output}',file=out)
+          PY
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          ZIP_NAME: ${{ steps.build.outputs.zip }}
+        run: gh release create "$TAG" "$ZIP_NAME" latest.json --title "NEXUS AI $TAG" --notes "Paper trading only. Verify checksums and tests before updating."
+      - name: Update latest manifest on main
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cp latest.json /tmp/nexus-latest.json
+          git fetch origin main
+          git checkout -B main origin/main
+          cp /tmp/nexus-latest.json latest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update NEXUS release manifest for ${RELEASE_TAG}"
+            git push origin main
+          fi
