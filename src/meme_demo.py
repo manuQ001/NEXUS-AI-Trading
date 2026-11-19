@@ -34,18 +34,34 @@ def initialize(c):
     c.execute('INSERT OR IGNORE INTO meme_demo_account(id,cash_usd) VALUES(1,45.0)')
 
 
-def demo_state(c):
+def demo_state(c, now=None):
+    """Return saved marks with freshness, price change and estimated net paper P/L.
+
+    All P/L values are theoretical, assuming the published price and modeled
+    SELL_COST. Failed quotes do not overwrite previous saved marks.
+    """
     initialize(c)
+    now=int(time.time()) if now is None else int(now)
     cash=float(c.execute('SELECT cash_usd FROM meme_demo_account WHERE id=1').fetchone()[0])
     positions=[dict(x) for x in c.execute('SELECT * FROM meme_demo_positions ORDER BY opened_at DESC')]
+    for p in positions:
+        age=max(0,now-int(p['last_checked_at']))
+        p['mark_age_seconds']=age
+        p['mark_status']='AGGIORNATO' if age<=90 else 'NON_AGGIORNATO'
+        p['price_change_pct']=round((p['last_price_usd']/p['entry_price_usd']-1)*100,3) if p['entry_price_usd']>0 else None
+        net=p['quantity']*p['last_price_usd']*(1-SELL_COST)
+        p['estimated_net_value_credits']=round(net,8)
+        p['estimated_pnl_credits']=round(net-p['cost_usd'],8)
+        p['estimated_roi_pct']=round(100*(net/p['cost_usd']-1),3) if p['cost_usd']>0 else None
     trades=[dict(x) for x in c.execute('SELECT * FROM meme_demo_trades ORDER BY id DESC LIMIT 30')]
     return {
         'mode':'DEMO_USD_PAPER','unit':'USD_demo','starting_credits':START_USD,
         'cash_credits':round(cash,6),'stake_credits':STAKE_USD,
         'positions':positions,'trades':trades,
         'nominal_last_mark_equity':round(cash+sum(
-            p['quantity']*p['last_price_usd']*(1-SELL_COST) for p in positions),6),
-        'note':'Credito USD demo isolato: NON è il conto MEME da €45 e non usa cambio EUR/USD. Ultimo prezzo osservato, non necessariamente attuale. Nessuna garanzia di vendibilità.'
+            p['estimated_net_value_credits'] for p in positions),6),
+        'observed_at':now,
+        'note':'Credito USD demo isolato dai €45 MEME. Prezzi osservati via DEX Screener ogni circa 30 secondi se AUTO attivo; una quotazione non aggiornata rimane marcata come tale. P/L stimato al netto del costo di uscita modellato del 3%, non un prezzo eseguibile o una prova di vendibilità.'
     }
 
 
