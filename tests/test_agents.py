@@ -2,12 +2,55 @@ import sys, unittest, json
 from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from agents import review, local_ai_advice, attach_market_quality, assess_signal_evidence
+from agents import review, local_ai_advice, attach_market_quality, assess_signal_evidence, coordinate_advisory
 
 class TestAgents(unittest.TestCase):
     def setUp(self):
         self.candles=[{'time':1700000000+i*300,'close':100.0} for i in range(100)]
         self.indicator={'buy':True,'atr':1.2,'why':'TEST'}
+    def test_coordination_wait_without_signal(self):
+        report=review('BTC',self.candles,{'buy':False,'atr':1.2,'why':'WAIT'})
+        coordination=report['coordination']
+        self.assertEqual(coordination['verdict'],'WAIT')
+        self.assertFalse(coordination['candidate_for_review'])
+        self.assertFalse(coordination['execution_authorized'])
+    def test_coordination_waits_for_market_book(self):
+        report=review('BTC',self.candles,self.indicator)
+        self.assertEqual(report['coordination']['verdict'],'AWAIT_BOOK')
+        self.assertFalse(report['coordination']['execution_authorized'])
+    def test_coordination_preserves_risk_veto(self):
+        report=review('BTC',self.candles,self.indicator,daily_realized=-4)
+        self.assertEqual(report['coordination']['verdict'],'RISK_VETO')
+        self.assertFalse(report['coordination']['candidate_for_review'])
+    def test_coordination_unavailable_book_is_not_a_trade(self):
+        report=attach_market_quality(review('BTC',self.candles,self.indicator),error='TimeoutError')
+        self.assertEqual(report['coordination']['verdict'],'MARKET_NOT_VERIFIED')
+        self.assertFalse(report['coordination']['execution_authorized'])
+    def test_coordination_full_estimate_still_not_authorized(self):
+        report=review('BTC',self.candles,self.indicator)
+        quality={'status':'PASS','reasons':[],'observed_at':1700000000}
+        book={'symbol':'BTC','observed_at':1700000000,'best_ask':101.,'best_bid':99.,
+              'asks':[{'price':101.,'volume':10.0}]}
+        result=attach_market_quality(report,quality,book=book)
+        self.assertEqual(result['coordination']['verdict'],'PRELIMINARY_CANDIDATE')
+        self.assertTrue(result['coordination']['candidate_for_review'])
+        self.assertFalse(result['coordination']['execution_authorized'])
+    def test_coordination_detects_conflict_without_mutating_report(self):
+        report=review('BTC',self.candles,self.indicator)
+        report['risk_veto']=True
+        prior=repr(report)
+        verdict=coordinate_advisory(report)
+        self.assertEqual(verdict['verdict'],'INCONSISTENT')
+        self.assertIn('RISK_VETO_STATUS_MISMATCH',verdict['conflicts'])
+        self.assertEqual(repr(report),prior)
+    def test_coordination_partial_sniper_is_not_approved(self):
+        report=review('BTC',self.candles,self.indicator)
+        quality={'status':'PASS','reasons':[],'observed_at':1700000000}
+        book={'symbol':'BTC','observed_at':1700000000,'best_ask':101.,'best_bid':99.,
+              'asks':[{'price':101.,'volume':0.00001}]}
+        result=attach_market_quality(report,quality,book=book)
+        self.assertEqual(result['coordination']['verdict'],'EXECUTION_NOT_VERIFIED')
+        self.assertFalse(result['coordination']['candidate_for_review'])
     def test_intelligence_is_descriptive_and_read_only(self):
         initial=repr(self.candles)
         ind=dict(self.indicator,ema9=102.,ema21=101.,rsi=60.)
