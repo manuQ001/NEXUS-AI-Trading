@@ -67,7 +67,8 @@ if __name__=='__main__':
     args=p.parse_args()
     try:
         if args.apply_staged:
-            from src.downloader import read_staged
+            sys.path.insert(0,str(ROOT/'src'))
+            from downloader import read_staged
             staged=read_staged()
             if not staged:raise ValueError('Nessun aggiornamento verificato pronto')
             print('Applico versione', staged['version'])
