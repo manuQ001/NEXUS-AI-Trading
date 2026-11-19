@@ -110,8 +110,12 @@ def attach_market_quality(report, quality=None, *, error=None, book=None):
             result['paper_candidate']=False
             result['sniper_estimate']={'status':'UNAVAILABLE','reason':type(exc).__name__,'mode':'READ ONLY'}
     else:
-        result['sniper_estimate']={'status':'NOT_REQUESTED' if not result.get('paper_candidate') else 'UNAVAILABLE',
-                                  'mode':'READ ONLY'}
+        if result.get('paper_candidate') and status=='PASS':
+            # No matching observed book: never show a positive SNIPER candidate.
+            result['paper_candidate']=False
+            result['sniper_estimate']={'status':'UNAVAILABLE','mode':'READ ONLY'}
+        else:
+            result['sniper_estimate']={'status':'NOT_REQUESTED','mode':'READ ONLY'}
     if status!='PASS':
         result['paper_candidate']=False
     for agent in result['agents']:
