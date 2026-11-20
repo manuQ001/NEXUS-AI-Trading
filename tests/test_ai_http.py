@@ -70,13 +70,13 @@ class TestAiHttp(unittest.TestCase):
               'indicators':{'BTC':{}},'positions':[],
               'status':{'BTC':'OK'},'wallets':[]}
         with patch.object(server,'LOCAL_ORIGINS',
-                          ('http://127.0.0.1:8766','http://localhost:8766')), \\
-             patch('server.connect',return_value=database), \\
-             patch('server.snapshot',return_value=data), \\
-             patch('server.daily_loss',return_value=0), \\
-             patch('server.review',return_value={'symbol':'BTC'}) as review, \\
-             patch('server.local_ai_advice',return_value={'available':False}), \\
-             patch('server.record_ai_research',return_value={'saved':True}), \\
+                          ('http://127.0.0.1:8766','http://localhost:8766')), \
+             patch('server.connect',return_value=database), \
+             patch('server.snapshot',return_value=data), \
+             patch('server.daily_loss',return_value=0), \
+             patch('server.review',return_value={'symbol':'BTC'}) as review, \
+             patch('server.local_ai_advice',return_value={'available':False}), \
+             patch('server.record_ai_research',return_value={'saved':True}), \
              patch.dict('os.environ',{},clear=True):
             h.do_POST()
         review.assert_called_once()
