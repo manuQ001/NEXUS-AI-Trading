@@ -212,6 +212,15 @@ def tick(c,now=None):
                 if _log_wait(c,now,addr,quote['symbol'],reason,agents):
                     wait_recorded+=1
                 continue
+            # Optional AI consensus is a veto only. Python must already vote BUY.
+            # Exits, risk latches and deterministic eligibility remain independent.
+            from v4_ai_paper_gate import approve_entry
+            ai_ok,ai_reason=approve_entry(c,addr,quote['observed_at'],now)
+            agents['ai_consensus']=ai_reason
+            if not ai_ok:
+                if _log_wait(c,now,addr,quote['symbol'],ai_reason,agents):
+                    wait_recorded+=1
+                continue
             # Opt-in was explicit in project planning; legacy account untouched.
             qty=stake*(1-BUY_COST)/float(quote['price_usd'])
             c.execute("""INSERT INTO v4_paper_positions(
