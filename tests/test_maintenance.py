@@ -80,6 +80,19 @@ class TestMaintenance(unittest.TestCase):
         self.assertIn('id="meme-auto-toggle"',html)
         self.assertNotIn('PAPER ONLY • €150',html)
 
+    def test_v44_trade_animations_only_on_new_server_records(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('let nxV4Seen=false;',html)
+        self.assertIn('let nxV4HighestTradeId=0;',html)
+        self.assertIn('function nxV4TrackEvents(d)',html)
+        self.assertIn('if(nxV4Seen){',html)
+        self.assertIn('Number(t.id)>nxV4HighestTradeId',html)
+        self.assertIn("changes.opened.has(String(p.address||''))",html)
+        self.assertIn('Number(tr.id)===changes.latestId',html)
+        self.assertIn('prefers-reduced-motion:reduce',html)
+        self.assertIn("document.getElementById('nx-v4-event-status')",html)
+        self.assertNotIn('Math.random()',html)
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())
