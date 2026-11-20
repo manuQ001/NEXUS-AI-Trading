@@ -1,3 +1,33 @@
+## NEXUS 3.13.0 — Decision Timeline live
+
+La scheda **Terminale → Live Desk** integra **Decision Timeline**:
+un elenco animato e filtrabile con eventi realmente registrati in
+SQLite, tratti da tre fonti locali gia operative:
+
+- `meme_auto_journal`: decisioni e azioni PAPER, inclusi il blocco Risk
+  e le valutazioni dei ruoli. Un `AUTO_BUY` o `AUTO_SELL` e un ordine
+  virtuale del simulatore, non una transazione blockchain.
+- `meme_scan_decisions`: token osservati con esiti e ragioni dei filtri
+  dello scanner. Un token esaminato non e stato necessariamente acquistato.
+- `meme_shadow_signals`: segnali teorici e risultati a cinque minuti
+  quando valutabili. Non equivalgono a un ordine PAPER o reale.
+
+La dashboard puo filtrare gli eventi per **Scanner, Shadow, Risk,
+PAPER, Decisioni**. Ogni record ha un identificatore stabile basato
+sulla riga del database, una fonte esplicita e l'orario di registrazione.
+L'animazione di ingresso avviene solo per nuovi record, non al semplice
+refresh di una pagina o per i heartbeat di rete. Sono mostrati fino
+a 30 record recenti, letti dal nuovo endpoint read-only
+`GET /api/meme-decision-timeline`, e aggiornati quando arrivano eventi
+SSE significativi o con controllo periodico ogni 12 secondi.
+
+**Il componente NON crea eventi, ordini, quotazioni o segnali.
+Non aggiunge feed a pagamento, non richiede wallet, non modifica
+portafoglio o Risk Lock.** I ruoli dello scanner restano regole
+diagnostiche e non modelli LLM indipendenti. Nel rispetto delle
+preferenze di accessibilita `prefers-reduced-motion`, le animazioni
+vengono disabilitate.
+
 ## NEXUS 3.12.2 — Correzione grafico "Failed to fetch"
 
 Quando il Market Pulse mostra prezzi realmente osservati ma il grafico
