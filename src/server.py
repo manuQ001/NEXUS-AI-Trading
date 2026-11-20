@@ -164,6 +164,15 @@ class Handler(BaseHTTPRequestHandler):
                     c.commit()
                 finally:c.close()
             self.out(result)
+        elif path=='/api/v4-agents':
+            from v4_agents import report as v4_report
+            with LOCK:
+                c=connect()
+                try:
+                    data=v4_report(c)
+                    c.commit()
+                finally:c.close()
+            self.out(data)
         elif path=='/api/meme-decision-timeline':
             from meme_timeline import timeline
             with LOCK:
@@ -547,6 +556,8 @@ def meme_auto_loop(stop, interval_seconds=10):
                     shadow_result=evaluate_shadow(c)
                     from meme_risk_intelligence import inspect_next as inspect_next_risk
                     risk_result=inspect_next_risk(c)
+                    from v4_agents import tick as v4_tick
+                    v4_result=v4_tick(c)
                     c.commit()
                     new_events=[dict(row) for row in c.execute(
                         'SELECT id FROM meme_auto_journal WHERE id>? ORDER BY id LIMIT 60',
