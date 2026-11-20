@@ -137,7 +137,7 @@ def choose_candidate(c,candidates,now,exclude=None):
     choices=eligible_candidates(c,candidates,now,exclude)
     return choices[0] if choices else None
 
-def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
+def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx,force_scan=False):
     """One cycle. Caller holds server mutex; all fills remain virtual."""
     now=int(time.time()) if now is None else int(now)
     init_auto(c)
@@ -187,7 +187,7 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                     messages.append('AUTO_SELL '+reason)
             except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
                 messages.append('QUOTE_NON_DISPONIBILE '+type(exc).__name__)
-    if now-int(a['last_scan'])>=SCAN_SECONDS:
+    if force_scan or now-int(a['last_scan'])>=SCAN_SECONDS:
         c.execute('UPDATE meme_auto_state SET last_scan=? WHERE id=1',(now,))
         if fx is None:
             messages.append('SCAN_SOSPESO_SENZA_CAMBIO')
