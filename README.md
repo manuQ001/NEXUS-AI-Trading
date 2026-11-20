@@ -1,3 +1,34 @@
+## NEXUS 3.8.1 — Active Market Pulse Hotfix
+
+Nella 3.8.0 lo storico delle quote si aggiornava principalmente ogni
+scansione (~60 secondi) o quando esistevano posizioni aperte. In assenza
+di posizioni, i grafici potevano quindi apparire fermi.
+
+La 3.8.1 introduce `meme_prices.refresh_watchlist`: in ogni ciclo
+del motore MEME (circa 10 secondi, quando AUTO e attivo) vengono
+ricontrollati **massimo 3 token** candidati realmente osservati negli
+ultimi dieci minuti, con liquidita osservata almeno 10.000 USD e volume
+24h almeno 20.000 USD. Le nuove richieste usano la fonte DEX Screener
+REST gia presente. Le posizioni aperte continuano a essere monitorate
+dal motore di trading esistente, senza duplicare il polling.
+
+L'aggiornamento memorizza l'ora dell'ultima quota valida anche se il
+prezzo e invariato; invece, l'evento di variazione `PAPER_QUOTES` e un
+nuovo punto sul grafico esistono **solo per prezzi distinti ricevuti**.
+Un feed che non cambia prezzo non deve dare l'impressione di nuovi tick.
+
+La dashboard mostra l'ultimo controllo riuscito, il numero di token
+verificati e gli eventuali errori del monitor. L'API locale
+`GET /api/meme-market-pulse` restituisce anche questi metadati nella
+chiave `monitor`. Il polling e limitato, non e un WebSocket di
+prezzi o trade reali; il tempo di aggiornamento dipende dalla rete
+e dalla capacita del provider.
+
+Il monitor rispetta la sospensione esplicita di MEME AUTO. Se il Risk
+Lock e attivo, i grafici continuano a essere osservati ma **nessun
+acquisto virtuale viene sbloccato**. Nessuna modifica a commissioni,
+stop, storico, saldo o ordini reali.
+
 ## NEXUS 3.8.0 — Market Pulse osservato, eventi SSE e analisi dei costi
 
 NEXUS riceve i token PumpPortal/DEX Screener gia documentati nelle versioni
