@@ -304,6 +304,37 @@ body{background:#0b1019}.shell{max-width:1180px}
 #nx-terminal[data-focus=v4] .nx-v4-head{gap:12px;flex-wrap:wrap}
 .nx-focus-nav{gap:6px}.nx-focus-button{padding:12px 10px;font-size:12px}}
 
+
+/* NEXUS motion layer — event-driven, subtle and accessible */
+#nx-v4-panel{position:relative;overflow:hidden;border-color:#33465e;background:linear-gradient(140deg,#152237 0%,#0c1524 70%);box-shadow:0 18px 45px #01061262}
+#nx-v4-panel:before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,transparent,#39d7c0,#7a87ff,transparent);opacity:.75;pointer-events:none}
+#nx-v4-panel .nx-v4-head .nx-live-title{font-size:16px;letter-spacing:.025em}
+#nx-v4-panel .nx-v4-kpis>div{transition:border-color .22s ease,transform .22s ease;min-width:0}
+#nx-v4-panel .nx-v4-kpis strong{font-size:clamp(19px,2vw,27px);letter-spacing:-.025em;overflow-wrap:anywhere}
+#nx-v4-panel .nx-v4-sub{background:#111e30;border-color:#2b3e56}
+#nx-v4-panel .nx-v4-entry{border-bottom:1px solid #2b4059;padding:12px 8px;line-height:1.55}
+#nx-v4-panel .nx-v4-entry:last-child{border-bottom:0}
+.nx-v4-position-card{border:1px solid #345574!important;border-radius:12px;margin-top:9px;background:linear-gradient(120deg,#183148,#111e30);padding:14px!important}
+.nx-v4-position-card b{display:block;font-size:15px}
+.nx-v4-position-card small{font-size:12px}
+.nx-v4-position-card.nx-pnl-up{border-left:3px solid #43d9ae!important}
+.nx-v4-position-card.nx-pnl-down{border-left:3px solid #ef8194!important}
+.nx-v4-trade-buy{border-left:3px solid #54cbb8!important;padding-left:12px!important;background:#123a342e}
+.nx-v4-trade-sell{border-left:3px solid #83aaff!important;padding-left:12px!important;background:#2638622b}
+.nx-v4-trade-buy b,.nx-v4-trade-sell b{font-size:13px}
+#nx-v4-event-status{color:#9fc2d8;font-size:12px;min-height:20px;margin-top:8px}
+#nx-v4-event-status[data-event=buy]{color:#51e7ba}
+#nx-v4-event-status[data-event=sell]{color:#9ec2ff}
+#nx-v4-event-status[data-event=loss]{color:#fa9dab}
+.nx-v4-new-position{animation:nxPositionOpen .65s cubic-bezier(.16,1,.3,1) both}
+.nx-v4-new-trade{animation:nxTradeArrival .8s cubic-bezier(.2,.8,.2,1) both}
+.nx-v4-value-change{animation:nxValuePulse .85s ease-out}
+@keyframes nxPositionOpen{0%{opacity:.2;transform:translateY(14px) scale(.985);box-shadow:0 0 0 1px #48dac060}60%{opacity:1;box-shadow:0 0 0 5px #48dac018}100%{opacity:1;transform:none;box-shadow:none}}
+@keyframes nxTradeArrival{0%{opacity:.35;transform:translateX(-12px)}100%{opacity:1;transform:none}}
+@keyframes nxValuePulse{0%{filter:brightness(1.8);transform:translateY(-2px)}100%{filter:brightness(1);transform:none}}
+@media(max-width:680px){#nx-v4-panel{padding:12px}#nx-v4-panel .nx-v4-head .nx-live-title{font-size:14px}.nx-v4-position-card{padding:12px!important}}
+@media(prefers-reduced-motion:reduce){.nx-v4-new-position,.nx-v4-new-trade,.nx-v4-value-change{animation:none!important}#nx-v4-panel .nx-v4-kpis>div{transition:none}}
+
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> </div><div class="sub">TRADING PAPER · CONTROLLO DEL BOT</div></div><div class="flex"><span class="chip">● SOLO DENARO VIRTUALE</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav nx-nav-slim" aria-label="Navigazione principale">
 <a href="#meme-section">◉ Dashboard</a><a href="#performance-section">▥ Risultati</a>
@@ -418,6 +449,7 @@ body{background:#0b1019}.shell{max-width:1180px}
    <div class="nx-v4-sub" style="margin-top:12px">
     <div class="nx-live-title">ULTIME OPERAZIONI · BUY / SELL VIRTUALI</div>
     <div id="nx-v4-trades"><div class="nx-live-muted">Nessuna operazione virtuale eseguita.</div></div>
+    <div id="nx-v4-event-status" role="status" aria-live="polite" aria-atomic="true">In attesa di operazioni registrate</div>
    </div>
    <div id="nx-v4-warning" class="nx-live-muted" style="margin-top:12px">Dati virtuali e non eseguibili sul mercato.</div>
  </section>
@@ -1336,6 +1368,51 @@ async function nxLoadDecisionTimeline(){
 
 /* Independent V4 experimental account. No client-side order requests. */
 let nxV4InFlight=false;
+// Event IDs and position addresses are compared with the previous server snapshot.
+// The FIRST successful fetch establishes a baseline and never triggers an alert.
+// Repainting the same record does not create false trades or animations.
+let nxV4Seen=false;
+let nxV4PreviousPositions=new Set();
+let nxV4HighestTradeId=0;
+let nxV4PreviousEquity=null;
+function nxV4AnimateValue(el){
+ if(!el||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ el.classList.remove('nx-v4-value-change');
+ void el.offsetWidth;
+ el.classList.add('nx-v4-value-change');
+}
+function nxV4TrackEvents(d){
+ const positions=Array.isArray(d.positions)?d.positions:[];
+ const trades=Array.isArray(d.trades)?d.trades:[];
+ const addresses=new Set(positions.map(p=>String(p.address||'')));
+ const tradeIds=trades.map(t=>Number(t.id)).filter(Number.isSafeInteger);
+ const maxId=tradeIds.length?Math.max(...tradeIds):0;
+ const equity=Number(d.equity_eur);
+ const opened=new Set();
+ let latest=null;
+ if(nxV4Seen){
+  for(const addr of addresses)if(addr&&!nxV4PreviousPositions.has(addr))opened.add(addr);
+  // Since the server sends newest first, a newly observed trade can be found
+  // without guessing from price changes or local timers.
+  latest=trades.find(t=>Number.isSafeInteger(Number(t.id))&&Number(t.id)>nxV4HighestTradeId)||null;
+  if(latest){
+   const isBuy=latest.side==='BUY_PAPER';
+   const loss=latest.side==='SELL_PAPER'&&Number(latest.pnl_eur)<0;
+   const el=document.getElementById('nx-v4-event-status');
+   el.dataset.event=loss?'loss':isBuy?'buy':'sell';
+   el.textContent=(isBuy?'Nuovo acquisto virtuale':latest.side==='SELL_PAPER'?'Nuova vendita virtuale':'Nuova operazione')+
+    ' · '+String(latest.symbol||'Token')+' · '+new Date(Number(latest.timestamp)*1000).toLocaleTimeString('it-IT');
+  }
+  if(Number.isFinite(equity)&&Number.isFinite(nxV4PreviousEquity)&&Math.abs(equity-nxV4PreviousEquity)>=0.005){
+   nxV4AnimateValue(document.getElementById('nx-v4-equity'));
+  }
+ }
+ nxV4Seen=true;
+ nxV4PreviousPositions=addresses;
+ nxV4HighestTradeId=Math.max(nxV4HighestTradeId,maxId);
+ if(Number.isFinite(equity))nxV4PreviousEquity=equity;
+ return {opened,latestId:latest?Number(latest.id):null};
+}
 async function nxLoadV4(){
  if(nxV4InFlight)return;
  nxV4InFlight=true;
@@ -1345,6 +1422,7 @@ async function nxLoadV4(){
   const d=await response.json();
   if(d.mode!=='ISOLATED_MULTIAGENT_PAPER')throw Error('Risposta V4 non valida');
   const euro=v=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Number(v)||0);
+  const changes=nxV4TrackEvents(d);
   $('nx-v4-mode').textContent=d.risk_latched?'RISK LOCK V4 ATTIVO':
      !d.enabled?'V4 SOSPESO':'AGENT PAPER · '+String(d.last_decision||'ATTENDO QUOTE');
   $('nx-v4-toggle').textContent=d.enabled?'SOSPENDI V4 PAPER':'RIPRENDI V4 PAPER';
@@ -1357,7 +1435,10 @@ async function nxLoadV4(){
   positions.replaceChildren();
   if(!(d.positions||[]).length)positions.textContent='Nessuna posizione PAPER aperta: gli agenti attendono condizioni valide.';
   for(const p of (d.positions||[])){
-   const item=document.createElement('div');item.className='nx-v4-entry';
+   const item=document.createElement('div');item.className='nx-v4-entry nx-v4-position-card';
+   const pnl=Number(p.modeled_net_pnl_eur);
+   item.classList.add(pnl>=0?'nx-pnl-up':'nx-pnl-down');
+   if(changes.opened.has(String(p.address||'')))item.classList.add('nx-v4-new-position');
    const title=document.createElement('b');title.textContent=String(p.symbol||'?')+' · '+euro(p.stake_eur);
    const note=document.createElement('small');note.textContent=
      'P/L NET teorico '+euro(p.modeled_net_pnl_eur)+' · '+(p.stale_quote?'QUOTE VECCHIE':'QUOTE OBS REST');
@@ -1400,7 +1481,9 @@ async function nxLoadV4(){
   if(!(d.trades||[]).length)trades.textContent='Nessun acquisto o vendita PAPER registrato.';
   for(const tr of (d.trades||[]).slice(0,7)){
    const item=document.createElement('div');item.className='nx-v4-entry';
-   const title=document.createElement('b');title.textContent=tr.side+' · '+tr.symbol+' · '+euro(tr.amount_eur);
+   item.classList.add(tr.side==='BUY_PAPER'?'nx-v4-trade-buy':'nx-v4-trade-sell');
+   if(Number(tr.id)===changes.latestId)item.classList.add('nx-v4-new-trade');
+   const title=document.createElement('b');title.textContent=(tr.side==='BUY_PAPER'?'ACQUISTO':tr.side==='SELL_PAPER'?'VENDITA':String(tr.side))+' · '+tr.symbol+' · '+euro(tr.amount_eur);
    const note=document.createElement('small');note.textContent=
       new Date(tr.timestamp*1000).toLocaleString('it-IT')+' · '+tr.reason+
       (tr.pnl_eur==null?'':' · P/L NET '+euro(tr.pnl_eur));
