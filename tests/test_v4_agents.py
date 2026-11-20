@@ -30,6 +30,42 @@ class TestV4Paper(unittest.TestCase):
     def seed(self,a,at=1000,liq=30000,vol=80000):
         for t,p in [(at-20,.0100),(at-10,.0105),(at,.0108)]:
             observe(self.c,a,quote(a,p,liq,vol),now=t)
+    def test_consensus_disabled_by_default_and_status_never_contains_key(self):
+        from unittest.mock import patch
+        with patch.dict('os.environ',{
+            'NEXUS_V4_AI_PAPER_GATE':'0',
+            'NEXUS_V4_AI_SHADOW_ENABLED':'0',
+            'NEXUS_OPENAI_API_KEY':'key-private-do-not-display'
+        }):
+            d=report(self.c,now=1000)
+        gate=d['ai_consensus']
+        self.assertFalse(gate['gate_enabled'])
+        self.assertFalse(gate['shadow_enabled'])
+        self.assertEqual(gate['approved_entries_in_recent_log'],0)
+        self.assertEqual(gate['vetoed_candidates_in_recent_log'],0)
+        self.assertNotIn('key-private-do-not-display',str(d))
+
+    def test_consensus_required_blocks_unreviewed_buy_and_never_blocks_existing_sell(self):
+        from unittest.mock import patch
+        self.seed(A)
+        with patch.dict('os.environ',{'NEXUS_V4_AI_PAPER_GATE':'1'}):
+            state=tick(self.c,now=1000)
+            d=report(self.c,now=1000)
+        self.assertEqual(state['new_trades'],0)
+        self.assertEqual(d['trade_count'],0)
+        self.assertTrue(d['ai_consensus']['gate_enabled'])
+        self.assertGreaterEqual(d['ai_consensus']['vetoed_candidates_in_recent_log'],1)
+        # Disable only the gate to open a PAPER position; re-enable it
+        # before verifying that protective exits still work.
+        with patch.dict('os.environ',{'NEXUS_V4_AI_PAPER_GATE':'0'}):
+            tick(self.c,now=1001)
+        self.assertEqual(len(report(self.c,now=1001)['positions']),1)
+        observe(self.c,A,quote(A,.0138),now=1010)
+        with patch.dict('os.environ',{'NEXUS_V4_AI_PAPER_GATE':'1'}):
+            tick(self.c,now=1010)
+        self.assertEqual(report(self.c,now=1010)['closed_count'],1)
+        self.assertEqual(report(self.c,now=1010)['positions'],[])
+
     def test_equity_history_records_only_real_engine_snapshots(self):
         from v4_agents import equity_history
         empty=equity_history(self.c)
