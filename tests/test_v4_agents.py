@@ -146,7 +146,7 @@ class TestV4Paper(unittest.TestCase):
         tick(self.c,now=1010)
         self.assertEqual(report(self.c)['wait_decision_count'],first)
         # Same token, changed actual REST-observed liquidity -> changed reason.
-        observe(self.c,A,quote(A,.0108,liq=30000,vol=80000),now=1020)
+        observe(self.c,A,quote(A,.0100,liq=30000,vol=80000),now=1020)
         tick(self.c,now=1020)
         self.assertEqual(report(self.c)['wait_decision_count'],first+1)
         self.assertIn('Momentum',report(self.c)['recent_waits'][0]['reason'])
