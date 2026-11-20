@@ -107,6 +107,22 @@ class TestRealAIShadow(unittest.TestCase):
             out,usage=_make_request(item,'sk-secret1234567890')
         self.assertEqual(out['verdict'],'WAIT')
         self.assertEqual(usage['input'],100)
+    def test_http_errors_show_safe_status_and_never_raw_body(self):
+        import io
+        from urllib.error import HTTPError
+        from v4_ai_shadow import _safe_api_error
+        raw=b'{"error":{"code":"insufficient_quota","message":"PRIVATE_DO_NOT_LOG"}}'
+        exc=HTTPError('https://api.openai.com/v1/responses',429,
+                      'Too Many Requests',{},io.BytesIO(raw))
+        safe=_safe_api_error(exc)
+        self.assertEqual(safe,'HTTP_429_insufficient_quota')
+        self.assertNotIn('PRIVATE',safe)
+        self.assertNotIn('api.openai.com',safe)
+        self.assertEqual(_safe_api_error(ValueError('key_secret_here')),'ValueError')
+        exc2=HTTPError('https://api.openai.com/v1/responses',401,
+                       'Unauthorized',{},io.BytesIO(b'not-json'))
+        self.assertEqual(_safe_api_error(exc2),'HTTP_401')
+
     def test_ui_contains_real_model_disclaimer(self):
         html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
         for anchor in ['/api/v4-ai-shadow','nx-v4-ai-reviews','nx-v4-ai-count',
