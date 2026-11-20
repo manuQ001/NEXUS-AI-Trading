@@ -8,7 +8,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from core import connect
 from meme_auto import init_auto,tick
 from meme_desk import record_scan
-from meme_prices import observe,changes_after,snapshot
+from meme_prices import observe,changes_after,snapshot,refresh_watchlist
 from meme_portfolio import portfolio
 from server import publish_paper_event,events_after
 
@@ -43,6 +43,53 @@ class TestMarketPulse(unittest.TestCase):
         self.assertFalse(snapshot(self.c,now=200)['quotes'][0]['fresh'])
         self.assertEqual(portfolio(self.c)['cash_eur'],45)
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_eur_trades').fetchone()[0],0)
+    def test_watched_token_refresh_every_ten_seconds_without_positions(self):
+        self.c.execute("UPDATE wallets SET cash=37 WHERE strategy='meme'")
+        self.c.commit()
+        with patch('meme_auto.review_meme_agents',side_effect=AssertionError('paid API')):
+            tick(self.c,now=2000,scout=lambda:{'candidates':[dict(Q)]},
+                 quote=lambda _:Q,fx_rate=lambda c,now=None:FX)
+        calls=[]
+        def quote(address):
+            calls.append(address)
+            return dict(Q,price_usd=.011 if len(calls)==1 else .012)
+        first=refresh_watchlist(self.c,now=2001,quote=quote)
+        early=refresh_watchlist(self.c,now=2005,quote=quote)
+        later=refresh_watchlist(self.c,now=2011,quote=quote)
+        self.assertEqual([first['checked'],early['checked'],later['checked']],[1,0,1])
+        self.assertEqual(len(calls),2)
+        latest=snapshot(self.c,now=2011)
+        self.assertEqual(latest['quotes'][0]['price_usd'],.012)
+        self.assertEqual(latest['quotes'][0]['age_seconds'],0)
+        self.assertEqual(len(latest['quotes'][0]['observations']),3)
+        self.assertTrue(latest['risk']['latched'])
+        self.assertEqual(portfolio(self.c)['cash_eur'],37)
+        self.assertEqual(len(portfolio(self.c)['positions']),0)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_eur_trades').fetchone()[0],0)
+    def test_monitor_rejects_paid_fake_and_failed_quotes_without_crash(self):
+        observe(self.c,A,Q,now=100)
+        observation_count=snapshot(self.c,now=100)['sample_count']
+        bad=refresh_watchlist(self.c,now=101,quote=lambda _:dict(Q,price_usd='NaN'))
+        self.assertEqual(bad['checked'],0)
+        self.assertEqual(bad['errors'],1)
+        self.assertEqual(snapshot(self.c,now=101)['sample_count'],observation_count)
+        self.assertEqual(snapshot(self.c,now=101)['monitor']['last_error'],'ValueError')
+    def test_monitor_respects_user_auto_suspension(self):
+        observe(self.c,A,Q,now=100)
+        self.c.execute("UPDATE meme_auto_state SET enabled=0 WHERE id=1")
+        calls=[]
+        stopped=refresh_watchlist(self.c,now=101,quote=lambda _:calls.append('called'))
+        self.assertEqual(stopped['status'],'AUTO_SUSPENDED')
+        self.assertEqual(calls,[])
+    def test_watchlist_stops_polling_expired_or_illiquid_profiles(self):
+        observe(self.c,A,dict(Q,liquidity_usd=100),now=100)
+        calls=[]
+        self.assertEqual(refresh_watchlist(self.c,now=101,quote=lambda a:calls.append(a))['checked'],0)
+        self.assertEqual(calls,[])
+        self.c.execute("UPDATE meme_quote_monitor SET last_attempt=0 WHERE id=1")
+        observe(self.c,A,Q,now=120)
+        self.assertEqual(refresh_watchlist(self.c,now=900,quote=lambda a:calls.append(a))['checked'],0)
+        self.assertEqual(calls,[])
     def test_invalid_source_address_quote_never_yields_sample(self):
         self.assertIsNone(observe(self.c,'invalid',Q,now=100))
         self.assertIsNone(observe(self.c,A,dict(Q,price_usd=0),now=100))
