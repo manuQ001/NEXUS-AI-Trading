@@ -4,7 +4,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from maintenance import check_updates,VERSION
 from updater import sha256,safe_package
 class TestMaintenance(unittest.TestCase):
-    def test_version(self):self.assertEqual(VERSION,'3.13.0')
+    def test_version(self):self.assertEqual(VERSION,'4.0.0')
     def test_manifest_unconfigured(self):
         from unittest.mock import patch
         with patch('maintenance.get_config', return_value={}):
@@ -50,7 +50,7 @@ class TestMaintenance(unittest.TestCase):
                     self.nav_links.append(props['href'])
         html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
         p=Inspect();p.feed(html)
-        self.assertEqual(p.views,['live','prices','shadow','risk','desk','tools'])
+        self.assertEqual(p.views,['live','prices','shadow','risk','desk','v4','tools'])
         for name in ['nx-event-tape','nx-event-counter','nx-active-focus-label',
                      'nx-market-pulse','nx-shadow-lab','nx-risk-lab','nx-desk-control',
                      'nx-advanced','meme-auto-toggle']:

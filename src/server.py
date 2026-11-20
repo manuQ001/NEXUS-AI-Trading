@@ -164,6 +164,15 @@ class Handler(BaseHTTPRequestHandler):
                     c.commit()
                 finally:c.close()
             self.out(result)
+        elif path=='/api/v4-agents':
+            from v4_agents import report as v4_report
+            with LOCK:
+                c=connect()
+                try:
+                    data=v4_report(c)
+                    c.commit()
+                finally:c.close()
+            self.out(data)
         elif path=='/api/meme-decision-timeline':
             from meme_timeline import timeline
             with LOCK:
@@ -346,6 +355,24 @@ class Handler(BaseHTTPRequestHandler):
         else:self.out({'error':'Endpoint non esistente'},404)
     def do_POST(self):
         path=urlsplit(self.path).path
+        if path=='/api/v4-toggle':
+            origin=self.headers.get('Origin')
+            fetch_site=self.headers.get('Sec-Fetch-Site')
+            if (self.headers.get('X-NEXUS-Demo-Click')!='1'
+                    or self.headers.get('Content-Length','0')!='0'
+                    or (origin and origin not in ('http://127.0.0.1:8765','http://localhost:8765'))
+                    or (fetch_site and fetch_site not in ('same-origin','none'))):
+                self.out({'ok':False,'error':'Richiesta V4 non autorizzata'},403);return
+            from v4_agents import initialize as init_v4,report as v4_report
+            with LOCK:
+                c=connect()
+                try:
+                    init_v4(c)
+                    c.execute('UPDATE v4_paper_state SET enabled=1-enabled WHERE id=1')
+                    c.commit()
+                    current=v4_report(c)
+                finally:c.close()
+            self.out({'ok':True,'v4':current});return
         if path=='/api/meme-auto-toggle':
             origin=self.headers.get('Origin')
             fetch_site=self.headers.get('Sec-Fetch-Site')
@@ -547,6 +574,17 @@ def meme_auto_loop(stop, interval_seconds=10):
                     shadow_result=evaluate_shadow(c)
                     from meme_risk_intelligence import inspect_next as inspect_next_risk
                     risk_result=inspect_next_risk(c)
+                    # Isolate experimental V4 errors from the established
+                    # MEME scanner, Shadow and legacy PAPER worker.
+                    c.execute('SAVEPOINT v4_experiment')
+                    try:
+                        from v4_agents import tick as v4_tick
+                        v4_result=v4_tick(c)
+                        c.execute('RELEASE SAVEPOINT v4_experiment')
+                    except Exception as v4_exc:
+                        c.execute('ROLLBACK TO SAVEPOINT v4_experiment')
+                        c.execute('RELEASE SAVEPOINT v4_experiment')
+                        print('NEXUS V4 PAPER experiment: '+type(v4_exc).__name__,flush=True)
                     c.commit()
                     new_events=[dict(row) for row in c.execute(
                         'SELECT id FROM meme_auto_journal WHERE id>? ORDER BY id LIMIT 60',
