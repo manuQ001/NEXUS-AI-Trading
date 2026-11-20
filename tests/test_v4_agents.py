@@ -89,6 +89,45 @@ class TestV4Paper(unittest.TestCase):
         result=tick(self.c,now=1000)
         self.assertEqual(result['new_trades'],0)
         self.assertEqual(report(self.c)['trade_count'],0)
+    def test_performance_counts_all_closed_trades_and_modeled_fees(self):
+        self.seed(A)
+        tick(self.c,now=1000)
+        opened=report(self.c,now=1000)
+        self.assertIsNone(opened['performance']['win_rate_pct'])
+        self.assertEqual(opened['performance']['closed'],0)
+        self.assertAlmostEqual(opened['performance']['modeled_fees_eur'],.75,places=4)
+        observe(self.c,A,quote(A,.0138),now=1010)
+        tick(self.c,now=1010)
+        result=report(self.c,now=1011)
+        perf=result['performance']
+        self.assertEqual(perf['closed'],1)
+        self.assertEqual(perf['wins'],1)
+        self.assertEqual(perf['losses'],0)
+        self.assertEqual(perf['win_rate_pct'],100.0)
+        self.assertAlmostEqual(perf['realized_net_pnl_eur'],
+                               result['trades'][0]['pnl_eur'],places=4)
+        gross_sale=result['trades'][0]['amount_eur']/(1-.03)
+        self.assertAlmostEqual(perf['modeled_fees_eur'],
+                               round(.75+gross_sale*.03,4),places=4)
+        self.assertGreater(result['last_tick_age_seconds'],0)
+
+    def test_performance_includes_more_than_latest_twenty_trades(self):
+        # Verify lifetime aggregation does not rely on the 20-item API view.
+        for n in range(25):
+            self.c.execute("""INSERT INTO v4_paper_trades(
+                timestamp,address,symbol,side,reason,price_usd,
+                amount_eur,pnl_eur,model_fee_pct)
+                VALUES(?,?,?,?,?,?,?,?,?)""",
+                (1000+n,A,'TEST','SELL_PAPER','FIXTURE',.01,10.0,
+                 1.0 if n<10 else -1.0,3.0))
+        perf=report(self.c,now=1100)['performance']
+        self.assertEqual(perf['closed'],25)
+        self.assertEqual(perf['wins'],10)
+        self.assertEqual(perf['losses'],15)
+        self.assertEqual(perf['win_rate_pct'],40.0)
+        self.assertEqual(perf['realized_net_pnl_eur'],-5.0)
+        self.assertEqual(report(self.c,now=1100)['trade_count'],25)
+
     def test_buy_and_auto_sell_are_modeled_with_both_3pct_costs(self):
         self.seed(A)
         tick(self.c,now=1000)
