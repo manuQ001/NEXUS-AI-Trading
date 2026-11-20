@@ -1,3 +1,33 @@
+## NEXUS 3.9.1 — Fair Shadow Rotation e verifica copertura
+
+Correzione su richiesta: con sei segnali Shadow pendenti la versione 3.9.0
+monitorava sempre i primi tre e poteva lasciare gli altri senza dati.
+
+La nuova rotazione **round robin** ripartisce i tre controlli REST disponibili
+ogni ~10 secondi fra **tutti** i segnali Shadow ancora pendenti. Il cursore
+viene salvato nel database SQLite e sopravvive al riavvio; nessuna quota
+fittizia viene generata e il numero di richieste per ciclo resta limitato.
+Le posizioni aperte del portafoglio PAPER sono monitorate a parte con le
+regole esistenti e non utilizzano questa rotazione.
+
+Nel nuovo Shadow Lab vengono ora mostrate:
+- **Copertura effettiva**: quote future trovate rispetto ai segnali conclusi,
+  casi senza dati e loro percentuali.
+- **Fasce di score 50–69, 70–84, 85–100**: numero di segnali valutabili,
+  percentuale con variazione netta teorica positiva e variazione media netta
+  teorica. I segnali senza prezzo futuro non vengono conteggiati come vittorie,
+  perdite o come campioni valutati; sono contabilizzati separatamente.
+
+I dati provengono da quote REST osservate, non da un feed blockchain
+tick-by-tick. Le quote osservate non garantiscono possibilita di esecuzione,
+vendibilita, slippage reale o rendimento. Lo scoring resta deterministicamente
+basato su liquidita, volume ed eta di pool quando nota; non include
+verifiche on-chain automatiche anti-rug.
+
+**Protezione**: nessun ordine reale o acquisto Shadow, nessuna modifica al
+portafoglio principale, e Risk Lock persistente invariato. Mantiene
+compatibilita col database 3.9.0 tramite migrazione additiva del solo cursore.
+
 ## NEXUS 3.9.0 — Smart Decision & Shadow Trading (solo osservazione)
 
 Nuovo **Shadow Lab** in MEME HUNTER e API locale `GET /api/meme-shadow`.
