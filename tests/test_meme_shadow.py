@@ -45,6 +45,40 @@ class TestShadowTrading(unittest.TestCase):
         result=report(self.c)['signals'][0]
         self.assertEqual(result['gross_change_pct'],0)
         self.assertLess(result['modeled_net_change_pct'],0)
+    def test_round_robin_visits_all_six_pending_mints_within_two_cycles(self):
+        tokens=['ABCDEF'[i]+A[1:] for i in range(6)]
+        for address in tokens:
+            observe(self.c,address,dict(Q,address=address),now=1000)
+        self.assertEqual(capture(self.c,[dict(Q,address=a) for a in tokens[:3]],now=1000),3)
+        self.assertEqual(capture(self.c,[dict(Q,address=a) for a in tokens[3:]],now=1001),3)
+        calls=[]
+        def quote(address):
+            calls.append(address)
+            return dict(Q,address=address,price_usd=.011)
+        first=refresh_watchlist(self.c,now=1010,quote=quote)
+        second=refresh_watchlist(self.c,now=1020,quote=quote)
+        self.assertEqual(first['checked'],3)
+        self.assertEqual(second['checked'],3)
+        self.assertEqual(len(set(calls)),6)
+        self.assertEqual(set(calls),set(tokens))
+        self.assertEqual(portfolio(self.c)['cash_eur'],45)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_eur_trades').fetchone()[0],0)
+    def test_report_coverage_and_score_bands_keep_missing_out_of_success_rate(self):
+        tokens=['GH'[i]+A[1:] for i in range(2)]
+        for address in tokens:
+            observe(self.c,address,dict(Q,address=address),now=1000)
+        self.assertEqual(capture(self.c,[dict(Q,address=tokens[0])],now=1000),1)
+        self.assertEqual(capture(self.c,[dict(Q,address=tokens[1])],now=1001),1)
+        observe(self.c,tokens[0],dict(Q,address=tokens[0],price_usd=.012),now=1300)
+        evaluate(self.c,now=1605)
+        data=report(self.c)
+        self.assertEqual(data['observed'],1)
+        self.assertEqual(data['insufficient_data'],1)
+        self.assertEqual(data['coverage']['evaluated_total'],2)
+        self.assertEqual(data['coverage']['with_future_quote'],1)
+        self.assertEqual(data['coverage']['quote_coverage_pct'],50.0)
+        self.assertEqual(sum(b['observed'] for b in data['coverage']['by_score_band']),1)
+        self.assertEqual(sum(b['positive_after_modeled_fees'] for b in data['coverage']['by_score_band']),1)
     def test_stale_future_quote_does_not_fabricate_outcome(self):
         record_scan(self.c,[dict(Q)],now=1000)
         observe(self.c,A,dict(Q,price_usd=.05),now=1700)
