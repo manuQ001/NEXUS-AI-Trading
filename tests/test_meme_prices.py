@@ -177,11 +177,33 @@ class TestMarketPulse(unittest.TestCase):
         source=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
         for anchor in ('nx-candle-chart','nx-candle-token','nx-candle-timeframe',
                        'nx-candle-status','function nxDrawObservedCandles',
-                       "fetch('/api/meme-market-candles?address='"):
+                       "nxLatestPulseQuotes=list;"):
             self.assertIn(anchor,source)
         self.assertIn('nessun prezzo o intervallo inventato',source)
         self.assertIn('prefers-reduced-motion',source)
 
+    def test_snapshot_includes_ohlc_from_existing_rest_reads_for_dashboard(self):
+        for t,p in [(100,.01),(110,.01),(130,.012),(195,.011),(340,.014)]:
+            observe(self.c,A,dict(Q,price_usd=p),now=t)
+        data=snapshot(self.c,now=350)
+        self.assertEqual(len(data['quotes']),1)
+        q=data['quotes'][0]
+        self.assertEqual([b['time'] for b in q['sampled_candles_1m']],[60,120,180,300])
+        self.assertEqual([b['time'] for b in q['sampled_candles_5m']],[0,300])
+        self.assertEqual(q['sampled_candles_1m'][0]['observations'],2)
+        self.assertEqual(q['sampled_candles_1m'][1]['close'],.012)
+        self.assertEqual(q['sampled_candles_5m'][0]['high'],.012)
+        self.assertEqual(q['sampled_candles_5m'][0]['low'],.01)
+        self.assertEqual(portfolio(self.c)['cash_eur'],45)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_eur_trades').fetchone()[0],0)
+    def test_dashboard_reuses_single_market_pulse_request_for_ohlc(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn("fetch('/api/meme-market-pulse'",html)
+        self.assertNotIn("fetch('/api/meme-market-candles?",html)
+        self.assertIn('sampled_candles_1m',html)
+        self.assertIn('sampled_candles_5m',html)
+        self.assertIn('nxLatestPulseQuotes=list;',html)
+        self.assertIn('nxDrawObservedCandles({',html)
     def test_cost_model_reports_gross_vs_net_friction(self):
         cost=snapshot(self.c)['cost_model']
         self.assertAlmostEqual(cost['minimum_gross_move_to_break_even_pct'],6.186,places=2)

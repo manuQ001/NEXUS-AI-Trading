@@ -1,3 +1,27 @@
+## NEXUS 3.12.2 — Correzione grafico "Failed to fetch"
+
+Quando il Market Pulse mostra prezzi realmente osservati ma il grafico
+candlestick segnala `Failed to fetch`, la causa puo essere la richiesta
+HTTP separata per `/api/meme-market-candles`. Ora il backend aggrega
+i campioni OHLC di **1 minuto e 5 minuti** gia presenti in SQLite nella
+risposta esistente di `GET /api/meme-market-pulse`:
+`quotes[].sampled_candles_1m` e `quotes[].sampled_candles_5m`.
+Il frontend sceglie localmente i campioni del token e del timeframe senza
+una seconda richiesta HTTP, quindi senza un'altra opportunita di errore
+`Failed to fetch` in ogni ciclo di aggiornamento.
+
+Restano validi i limiti delle candele campionate: solo letture REST
+realmente registrate, dati vecchi segnalati, periodi mancanti non
+inventati, nessun volume per candela inventato. L'endpoint autonomo
+`/api/meme-market-candles` rimane disponibile per la diagnostica,
+ma non e necessario per disegnare il grafico nella dashboard.
+
+Nessun nuovo provider, nessuna nuova richiesta esterna, nessuno sblocco
+di MEME AUTO o del Risk Lock e nessuna modifica al portafoglio.
+Un server locale non aggiornato alla 3.12.2 deve essere riavviato
+dopo l'installazione: in assenza delle nuove serie il frontend mostra
+una nota esplicita sulla versione mancante invece di inventare prezzi.
+
 ## NEXUS 3.12.1 — Diagnostica "Nessuna quotazione disponibile"
 
 La sezione Prezzi ora distingue **AUTO_SUSPENDED**, **WAITING_FIRST_SCAN**,
