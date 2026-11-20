@@ -355,6 +355,17 @@ body{background:#0b1019}.shell{max-width:1180px}
  #nx-v4-panel .nx-v4-kpis>div{padding:12px 10px}
 }
 
+
+/* Recorded-equity chart: responsive, not a simulated ticker */
+.nx-v4-chart-wrap{border:1px solid #30485f;background:linear-gradient(155deg,#111f31,#0d1929);border-radius:14px;padding:17px;margin:14px 0;min-width:0}
+.nx-v4-chart-header,.nx-v4-chart-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.nx-v4-chart-legend{display:flex;gap:13px;font-size:11px;font-weight:750}
+.nx-v4-buy-dot{color:#4be2b5}.nx-v4-sell-dot{color:#a0b9ff}
+.nx-v4-equity-chart{width:100%;height:220px;display:block;margin:9px 0;overflow:visible}
+.nx-v4-chart-footer{font-size:11px;color:#9db1c8;border-top:1px solid #253a50;padding-top:9px}
+#nx-v4-chart-notice{font-size:11px;margin-top:8px;line-height:1.5}
+@media(max-width:680px){.nx-v4-chart-wrap{padding:12px 8px}.nx-v4-equity-chart{height:190px}}
+
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> </div><div class="sub">TRADING PAPER · CONTROLLO DEL BOT</div></div><div class="flex"><span class="chip">● SOLO DENARO VIRTUALE</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav nx-nav-slim" aria-label="Navigazione principale">
 <a href="#meme-section">◉ Dashboard</a><a href="#performance-section">▥ Risultati</a>
@@ -418,6 +429,16 @@ body{background:#0b1019}.shell{max-width:1180px}
     <div><small>POSIZIONI</small><strong id="nx-v4-positions-count">—</strong></div>
     <div><small>DRAWDOWN</small><strong id="nx-v4-drawdown">—</strong></div>
    </div>
+   <section class="nx-v4-chart-wrap" aria-label="Andamento del portafoglio virtuale">
+    <div class="nx-v4-chart-header">
+     <div><div class="nx-live-title">ANDAMENTO DEL PORTAFOGLIO</div>
+      <div class="nx-live-muted">Equity registrata dal motore · nessun dato inventato</div></div>
+     <div class="nx-v4-chart-legend"><span class="nx-v4-buy-dot">● BUY</span><span class="nx-v4-sell-dot">● SELL</span></div>
+    </div>
+    <svg id="nx-v4-equity-chart" class="nx-v4-equity-chart" viewBox="0 0 760 220" role="img" aria-label="Grafico temporale del saldo virtuale" preserveAspectRatio="none"></svg>
+    <div class="nx-v4-chart-footer"><span id="nx-v4-chart-range">Storico in caricamento</span><span id="nx-v4-chart-count">—</span></div>
+    <div class="nx-live-muted" id="nx-v4-chart-notice">Lo storico parte dal primo campione salvato.</div>
+   </section>
    <div class="nx-v4-split">
      <div class="nx-v4-sub">
        <div class="nx-live-title">POSIZIONI APERTE</div>
@@ -1526,7 +1547,93 @@ async function nxLoadV4(){
    $('nx-v4-warning').textContent=String(err.message);
  }finally{nxV4InFlight=false;}
 }
+
+// SVG drawn only from persisted, timestamped account observations.
+// Do not interpolate missing data or substitute artificial equity points.
+let nxV4HistoryInFlight=false;
+async function nxLoadV4History(){
+ if(nxV4HistoryInFlight)return;
+ nxV4HistoryInFlight=true;
+ try{
+  const r=await fetch('/api/v4-equity-history',{cache:'no-store'});
+  if(!r.ok)throw Error('Storico V4 non disponibile (HTTP '+r.status+')');
+  const d=await r.json();
+  if(d.mode!=='V4_OBSERVED_EQUITY_HISTORY')throw Error('Formato storico sconosciuto');
+  nxRenderV4Chart(d);
+ }catch(e){
+  document.getElementById('nx-v4-chart-notice').textContent='Grafico non disponibile: '+e.message;
+ }finally{nxV4HistoryInFlight=false}
+}
+function nxRenderV4Chart(data){
+ const svg=document.getElementById('nx-v4-equity-chart');
+ if(!svg)return;
+ const pts=(Array.isArray(data.points)?data.points:[]).filter(p=>
+  Number.isFinite(Number(p.timestamp))&&Number.isFinite(Number(p.equity_eur))&&
+  Number(p.timestamp)>0&&Number(p.equity_eur)>=0);
+ svg.replaceChildren();
+ const range=document.getElementById('nx-v4-chart-range');
+ const count=document.getElementById('nx-v4-chart-count');
+ const note=document.getElementById('nx-v4-chart-notice');
+ note.textContent=data.warning||'Campioni registrati dal motore PAPER.';
+ count.textContent=pts.length+' campioni registrati';
+ if(!pts.length){range.textContent='In attesa del primo campione del motore';return}
+ const ns='http://www.w3.org/2000/svg',W=760,H=220,L=64,R=20,T=18,B=37;
+ const times=pts.map(p=>Number(p.timestamp));
+ const values=pts.map(p=>Number(p.equity_eur));
+ const minT=Math.min(...times),maxT=Math.max(...times);
+ const low=Math.min(...values),high=Math.max(...values);
+ const pad=Math.max(.05,(high-low)*.12),minY=Math.max(0,low-pad),maxY=high+pad;
+ const x=t=>L+(W-L-R)*(maxT===minT?.5:(t-minT)/(maxT-minT));
+ const y=v=>T+(H-T-B)*(maxY-v)/(maxY-minY||1);
+ const add=(tag,attrs,txt)=>{const n=document.createElementNS(ns,tag);
+  for(const [k,v] of Object.entries(attrs||{}))n.setAttribute(k,String(v));
+  if(txt!==undefined)n.textContent=txt;
+  svg.appendChild(n);return n;};
+ const euro=v=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(v);
+ for(let i=0;i<=3;i++){
+  const val=minY+(maxY-minY)*i/3,Y=y(val);
+  add('line',{x1:L,y1:Y,x2:W-R,y2:Y,stroke:'#30445b','stroke-width':1,'stroke-dasharray':'3 5'});
+  add('text',{x:L-9,y:Y+4,fill:'#a5b6ce','font-size':11,'text-anchor':'end'},euro(val));
+ }
+ const timeFmt=t=>new Date(t*1000).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+ for(const t of maxT===minT?[minT]:[minT,maxT]){
+  add('text',{x:x(t),y:H-9,fill:'#a5b6ce','font-size':11,
+   'text-anchor':t===minT&&maxT!==minT?'start':t===maxT&&maxT!==minT?'end':'middle'},timeFmt(t));
+ }
+ // No curve when there is only one real observation.
+ const coords=pts.map(p=>[x(Number(p.timestamp)),y(Number(p.equity_eur))]);
+ const lineColor=values.at(-1)>=values[0]?'#42d8b0':'#f28da0';
+ if(coords.length>1){
+  add('polyline',{points:coords.map(q=>q.join(',')).join(' '),fill:'none',stroke:lineColor,
+   'stroke-width':2.8,'stroke-linejoin':'round','stroke-linecap':'round'});
+ }
+ for(const idx of new Set([0,coords.length-1])){
+  const [cx,cy]=coords[idx];const dot=add('circle',{cx,cy,r:4,fill:lineColor});
+  const label=document.createElementNS(ns,'title');
+  label.textContent=timeFmt(times[idx])+' · '+euro(values[idx]);dot.appendChild(label);
+ }
+ // Only mark trades that have a nearby recorded equity sample.
+ const trades=Array.isArray(data.trades)?data.trades:[];
+ for(const trade of trades){
+  const t=Number(trade.timestamp);
+  if(!Number.isFinite(t)||t<minT||t>maxT)continue;
+  let ix=0,best=Infinity;
+  for(let j=0;j<times.length;j++){const diff=Math.abs(times[j]-t);if(diff<best){best=diff;ix=j;}}
+  if(best>120)continue;
+  const buy=trade.side==='BUY_PAPER',sell=trade.side==='SELL_PAPER';
+  if(!buy&&!sell)continue;
+  const marker=add('circle',{cx:x(times[ix]),cy:y(values[ix]),r:6,
+    fill:buy?'#42d8b0':'#9cb4ff',stroke:'#0f1b2b','stroke-width':2});
+  const hint=document.createElementNS(ns,'title');
+  hint.textContent=(buy?'BUY PAPER':'SELL PAPER')+' · '+String(trade.symbol||'Token')+
+   ' · '+timeFmt(t)+(trade.pnl_eur==null?'':' · '+euro(Number(trade.pnl_eur)));
+  marker.appendChild(hint);
+ }
+ range.textContent='Dal '+timeFmt(minT)+' al '+timeFmt(maxT);
+}
+
 nxLoadV4();
+nxLoadV4History();
 $('nx-v4-toggle').addEventListener('click',async()=>{
  const button=$('nx-v4-toggle');button.disabled=true;
  try{
@@ -1537,7 +1644,7 @@ $('nx-v4-toggle').addEventListener('click',async()=>{
  }catch(err){$('nx-v4-warning').textContent='Cambio stato V4 non riuscito: '+String(err.message);}
  finally{button.disabled=false;}
 });
-setInterval(()=>{if(document.visibilityState==='visible')nxLoadV4()},10000);
+setInterval(()=>{if(document.visibilityState==='visible'){nxLoadV4();nxLoadV4History()}},10000);
 
 let nxV4AIInFlight=false;
 async function nxLoadV4AI(){
