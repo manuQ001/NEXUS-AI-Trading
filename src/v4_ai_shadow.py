@@ -254,6 +254,64 @@ def finish(c,request,verdict=None,usage=None,error=None):
             issue=? WHERE id=? AND outcome='RESERVED'""",
             (str(error or 'UNKNOWN')[:90],request['audit_id']))
 
+def scanner_diagnostics(c,now=None):
+    """Read-only, bounded explanation of existing server-observed scanner data.
+
+    Never inserts observations, makes network calls or changes trade decisions.
+    The history count measures actual price changes, not repeated REST reads.
+    """
+    from v4_agents import (_latest,_history,agents_decide,_number,
+                           MIN_LIQUIDITY_USD,MIN_VOLUME_24H_USD,MAX_QUOTE_AGE)
+    from meme_prices import initialize as initialize_prices
+    initialize_prices(c)
+    now=int(time.time()) if now is None else int(now)
+    total=int(c.execute('SELECT COUNT(*) FROM meme_quote_latest').fetchone()[0])
+    latest=_latest(c,now)
+    fresh=len(latest)
+    reasons={'MISSING_MARKET_DATA':0,'LOW_LIQUIDITY_OR_VOLUME':0,
+             'INSUFFICIENT_PRICE_CHANGES':0,'VOLATILITY_SPIKE':0,
+             'MOMENTUM_NOT_CONFIRMED':0,'PYTHON_BUY_SIGNAL':0}
+    rows=[]
+    for q in latest:
+        h=_history(c,q['address'],now)
+        price=_number(q.get('price_usd'))
+        liq=_number(q.get('liquidity_usd'))
+        vol=_number(q.get('volume_24h_usd'))
+        verdict,reason,_=agents_decide(q,h)
+        if not price or not liq or not vol:
+            category='MISSING_MARKET_DATA'
+        elif liq<MIN_LIQUIDITY_USD or vol<MIN_VOLUME_24H_USD:
+            category='LOW_LIQUIDITY_OR_VOLUME'
+        elif len([v for v in h if _number(v.get('price_usd'))])<3:
+            category='INSUFFICIENT_PRICE_CHANGES'
+        elif 'Escursione superiore' in reason:
+            category='VOLATILITY_SPIKE'
+        elif verdict=='BUY':
+            category='PYTHON_BUY_SIGNAL'
+        else:
+            category='MOMENTUM_NOT_CONFIRMED'
+        reasons[category]+=1
+        rows.append({'symbol':str(q['symbol'])[:24],
+                     'address':q['address'],'age_seconds':max(0,now-int(q['observed_at'])),
+                     'price_changes':len(h),
+                     'liquidity_usd':liq,'volume_24h_usd':vol,
+                     'python_verdict':verdict,'category':category})
+    audit=c.execute("""SELECT MAX(timestamp) AS last_attempt,
+        COUNT(*) AS total FROM v4_ai_shadow_audit""").fetchone()
+    elapsed=None if not audit['last_attempt'] else max(0,now-int(audit['last_attempt']))
+    next_attempt=max(0,MIN_INTERVAL_SECONDS-elapsed) if elapsed is not None else 0
+    return {'mode':'V45_SCANNER_DIAGNOSTICS','as_of':now,
+            'source':'PERSISTED_DEX_SCREENER_REST_ONLY',
+            'tracked_tokens':total,'fresh_tokens':fresh,
+            'quote_freshness_seconds':MAX_QUOTE_AGE,
+            'evaluated_tokens':len(rows),'reasons':reasons,
+            'candidates':rows[:10],
+            'ai_cooldown_remaining_seconds':next_attempt,
+            'note':('Fotografia dei dati REST disponibili, non certificazione di sicurezza. '
+                    'Le letture ripetute a prezzo invariato non creano variazioni; '
+                    'nessuna richiesta di mercato o AI aggiuntiva.')}
+
+
 def report(c):
     initialize(c)
     from v4_ai_intelligence import report as outcome_report
