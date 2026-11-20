@@ -1,5 +1,5 @@
 """Local dashboard server, no third-party packages or external-order execution."""
-import json, sys, threading, webbrowser, time, sqlite3
+import json, sys, threading, webbrowser, time, sqlite3, os
 from collections import deque
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
@@ -15,6 +15,20 @@ from execution import execution_stress_scenarios
 from orderbook import fetch_depth, depth_study, inspect_book_quality
 from maintenance import run_tests, check_updates, VERSION, ROOT
 from downloader import download_if_available, read_staged
+
+def configured_port():
+    """Choose one local HTTP port without weakening same-origin POST checks."""
+    value=os.environ.get('NEXUS_HTTP_PORT','8765')
+    if not value.isascii() or not value.isdecimal():
+        raise ValueError('NEXUS_HTTP_PORT must be a decimal TCP port')
+    port=int(value)
+    if not 1024<=port<=65535:
+        raise ValueError('NEXUS_HTTP_PORT must be between 1024 and 65535')
+    return port
+
+HTTP_PORT=configured_port()
+LOCAL_ORIGINS=(f'http://127.0.0.1:{HTTP_PORT}',f'http://localhost:{HTTP_PORT}')
+DASHBOARD_URL=LOCAL_ORIGINS[0]
 
 LOCK=threading.Lock()
 # Notifications contain committed local PAPER state, never synthetic transactions.
@@ -378,7 +392,7 @@ class Handler(BaseHTTPRequestHandler):
             fetch_site=self.headers.get('Sec-Fetch-Site')
             if (self.headers.get('X-NEXUS-Demo-Click')!='1'
                     or self.headers.get('Content-Length','0')!='0'
-                    or (origin and origin not in ('http://127.0.0.1:8765','http://localhost:8765'))
+                    or (origin and origin not in LOCAL_ORIGINS)
                     or (fetch_site and fetch_site not in ('same-origin','none'))):
                 self.out({'ok':False,'error':'Richiesta V4 non autorizzata'},403);return
             from v4_agents import initialize as init_v4,report as v4_report
@@ -396,7 +410,7 @@ class Handler(BaseHTTPRequestHandler):
             fetch_site=self.headers.get('Sec-Fetch-Site')
             if (self.headers.get('X-NEXUS-Demo-Click')!='1'
                     or self.headers.get('Content-Length','0')!='0'
-                    or (origin and origin not in ('http://127.0.0.1:8765','http://localhost:8765'))
+                    or (origin and origin not in LOCAL_ORIGINS)
                     or (fetch_site and fetch_site not in ('same-origin','none'))):
                 self.out({'ok':False,'error':'Richiesta demo non autorizzata'},403);return
             from meme_auto import init_auto,status
@@ -420,7 +434,7 @@ class Handler(BaseHTTPRequestHandler):
             fetch_site=self.headers.get('Sec-Fetch-Site')
             authorized=(self.headers.get('X-NEXUS-Demo-Click')=='1'
                         and self.headers.get('Content-Length','0')=='0'
-                        and (not origin or origin in ('http://127.0.0.1:8765','http://localhost:8765'))
+                        and (not origin or origin in LOCAL_ORIGINS)
                         and (not fetch_site or fetch_site in ('same-origin','none')))
             if not authorized:
                 self.out({'ok':False,'error':'Richiesta demo non autorizzata'},403);return
@@ -461,7 +475,7 @@ class Handler(BaseHTTPRequestHandler):
         origin=self.headers.get('Origin')
         fetch_site=self.headers.get('Sec-Fetch-Site')
         if (self.headers.get('X-NEXUS-Research-Click')!='1'
-                or (origin and origin not in ('http://127.0.0.1:8765','http://localhost:8765'))
+                or (origin and origin not in LOCAL_ORIGINS)
                 or (fetch_site and fetch_site not in ('same-origin','none'))
                 or self.headers.get('Content-Length','0')!='0'):
             self.out({'ok':False,'error':'Richiesta AI non autorizzata'},403);return
@@ -649,7 +663,7 @@ def maintenance_loop(stop):
 
 def main():
     c=connect();startup_events(c);c.close()
-    server=ThreadingHTTPServer(('127.0.0.1',8765),Handler)
+    server=ThreadingHTTPServer(('127.0.0.1',HTTP_PORT),Handler)
     stop=threading.Event()
     threading.Thread(target=maintenance_loop,args=(stop,),daemon=True).start()
     threading.Thread(target=market_monitor_loop,args=(stop,),daemon=True).start()
@@ -665,12 +679,12 @@ def main():
     threading.Thread(target=background_cycle,args=(connect,LOCK,stop),
                      daemon=True,name='NEXUS-V4-Real-AI-Shadow').start()
     print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
-    print('Dashboard: http://127.0.0.1:8765')
+    print('Dashboard: '+DASHBOARD_URL)
     print('Monitoraggio BTC/ETH ogni 30 s mentre il programma resta acceso, anche senza browser.')
     print('MEME AUTO PAPER: monitor ~10 s, scansione REST ogni 60 s, discovery profili via WebSocket quando disponibile; nessun ordine reale.')
     print('Premi CTRL+C per chiudere. Nessuna operazione reale.')
     if '--no-browser' not in sys.argv:
-        threading.Timer(0.8,lambda:webbrowser.open('http://127.0.0.1:8765')).start()
+        threading.Timer(0.8,lambda:webbrowser.open(DASHBOARD_URL)).start()
     try:server.serve_forever()
     except KeyboardInterrupt:pass
     finally:stop.set();server.server_close()
