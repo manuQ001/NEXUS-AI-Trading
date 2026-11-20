@@ -1,3 +1,13 @@
+## NEXUS 3.4.0 — Strategia PAPER disciplinata
+
+Prima di ogni BUY automatico MEME richiediamo almeno $10.000 di liquidita osservata e $20.000 di volume 24h, in aggiunta ai controlli preesistenti. Se l'età del pool è nota e inferiore a 30 minuti il candidato è rifiutato. Sono soglie sperimentali da verificare sui risultati, NON una garanzia di sicurezza, performance o vendita eseguibile. Il bot registra AUTO_REJECT quando una verifica di qualità fallisce.
+
+Lo stop primario ora misura una caduta del PREZZO/FX osservato del 5% dall'ingresso, anziche una perdita netta del 6% già quasi interamente consumata dai costi simulati del 3% in ingresso e del 3% in uscita. Un secondo stop di emergenza si applica a perdita netta stimata del 15%; target netto, trailing e timeout restano invariati. Il cambiamento puo aumentare la perdita netta su un singolo trade, non garantisce di ridurla. Il modello costi resta invariato e prudenziale, non è una commissione verificata sul mercato.
+
+Se l'equity MEME stimata scende al 90% o meno del capitale iniziale MEME (45 EUR), un circuito RISK blocca *nuovi* acquisti AUTO e segnala la causa nella dashboard, ma continua a monitorare e chiudere eventuali posizioni aperte. Il blocco viene ricalcolato da equity ad ogni ciclo (puo cessare se l'equity risale). Non azzera dati né reimposta lo storico. Il saldo del portafoglio resta separato da BTC/ETH.
+
+Gli acquisti MANUALI di test non sono modificati da questi filtri AUTO; non usarli per aggirare il blocco di rischio. Il programma opera in sola simulazione, senza chiavi wallet, senza trading reale. Il vincolo di drawdown su prezzi REST indicativi non protegge contro slippage e gap. I risultati del periodo 3.3 e 3.4 devono essere misurati separatamente.
+
 ## NEXUS 3.3.0 — WebSocket discovery dei profili MEME (PAPER)
 
 Il processo mantiene una connessione TLS WebSocket con il feed ufficiale DEX Screener dei **profili token** (/token-profiles/latest/v1), senza API key. Dopo il primo snapshot di baseline, gli indirizzi Solana mai visti sono messi in una coda bounded e controllati tramite il REST ufficiale dei pair token. Soltanto i candidati con dati validi entrano nella valutazione multi-agent e nei controlli di rischio PAPER. Il motore resta completamente virtuale; lo stream non esegue trade di per se.

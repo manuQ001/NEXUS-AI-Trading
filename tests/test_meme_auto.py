@@ -3,9 +3,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from core import connect,wallet_status
-from meme_auto import tick,status,choose_candidate,decide_exit,init_auto,dynamic_stake
+from meme_auto import (tick,status,choose_candidate,decide_exit,init_auto,dynamic_stake,
+                       circuit_breaker,entry_rejection,gross_roi)
 from meme_portfolio import trade,portfolio
 M='So11111111111111111111111111111111111111112'
 A='DezXAZ8z7PnrnRJjz3wXBoRgixCaKGYcB2bM9aBfM3'
@@ -18,8 +20,44 @@ class TestMemeAuto(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()
         self.c=connect(Path(self.temp.name)/'test.sqlite3')
+        # Legacy behavior tests still exercise trade bookkeeping at low liquidity.
+        # Dedicated risk tests below verify strict production entry thresholds.
+        self.entry_patches=[patch('meme_auto.MIN_ENTRY_LIQUIDITY',500),
+                            patch('meme_auto.MIN_ENTRY_VOLUME',500)]
+        for p in self.entry_patches:p.start()
     def tearDown(self):
+        for p in reversed(self.entry_patches):p.stop()
         self.c.close();self.temp.cleanup()
+    def test_new_entry_quality_thresholds_are_fail_closed(self):
+        candidate=dict(Q,liquidity_usd=12000,volume_24h_usd=25000)
+        with patch('meme_auto.MIN_ENTRY_LIQUIDITY',10000),patch('meme_auto.MIN_ENTRY_VOLUME',20000):
+            self.assertIsNone(entry_rejection(candidate,candidate))
+            self.assertEqual(entry_rejection(candidate,dict(candidate,liquidity_usd=1000)),'LIQUIDITA_BASSA')
+            self.assertEqual(entry_rejection(candidate,dict(candidate,volume_24h_usd=1500)),'VOLUME_BASSO')
+            self.assertEqual(entry_rejection(dict(candidate,pool_age_hours=.1),candidate),'POOL_TROPPO_RECENTE')
+            self.assertIsNone(entry_rejection(dict(candidate,pool_age_hours=None),candidate))
+
+    def test_drawdown_circuit_pauses_entries_but_not_existing_exit_logic(self):
+        init_auto(self.c)
+        self.c.execute("UPDATE wallets SET cash=39 WHERE strategy='meme'")
+        self.c.commit()
+        self.assertTrue(circuit_breaker(self.c,2000)['blocked'])
+        state=tick(self.c,now=2000,scout=report,quote=lambda _:Q,fx_rate=fx)
+        self.assertEqual(portfolio(self.c)['positions'],[])
+        self.assertTrue(any(x['action']=='RISK_CIRCUIT' for x in state['journal']))
+        self.assertTrue(state['risk_circuit']['blocked'])
+        self.c.execute("UPDATE wallets SET cash=45 WHERE strategy='meme'")
+        self.c.commit()
+        self.assertFalse(circuit_breaker(self.c,2060)['blocked'])
+        resumed=tick(self.c,now=2060,scout=report,quote=lambda _:Q,fx_rate=fx)
+        self.assertEqual(len(portfolio(self.c)['positions']),1)
+
+    def test_quality_filter_logs_skipped_candidate(self):
+        with patch('meme_auto.MIN_ENTRY_LIQUIDITY',10000),patch('meme_auto.MIN_ENTRY_VOLUME',20000):
+            result=tick(self.c,now=2000,scout=report,quote=lambda _:Q,fx_rate=fx)
+        self.assertFalse(any(x['action']=='AUTO_BUY' for x in result['journal']))
+        self.assertTrue(any(x['action']=='AUTO_REJECT' for x in result['journal']))
+
     def test_buy_sell_and_wallet_separation(self):
         count=[]
         def quote(mint):
@@ -37,7 +75,10 @@ class TestMemeAuto(unittest.TestCase):
     def test_stop_target_timeout(self):
         trade(self.c,M,'BUY',Q,FX,now=50)
         p=dict(self.c.execute('SELECT * FROM meme_eur_positions').fetchone())
-        self.assertEqual(decide_exit(p,.008,80,FX['usd_eur']),'STOP_LOSS')
+        self.assertEqual(decide_exit(p,.008,80,FX['usd_eur']),'EMERGENCY_NET_STOP')
+        self.assertEqual(decide_exit(p,.00949,80,FX['usd_eur']),'PRICE_STOP_LOSS')
+        self.assertIsNone(decide_exit(p,.01,80,FX['usd_eur']))
+        self.assertAlmostEqual(gross_roi(p,.01,FX['usd_eur']),0,places=8)
         self.assertEqual(decide_exit(p,.015,80,FX['usd_eur']),'TAKE_PROFIT')
         self.assertEqual(decide_exit(p,.01,50+900,FX['usd_eur']),'TIMEOUT_15M')
     def test_trailing_peak_persisted_and_sell_when_net_roi_reverses(self):

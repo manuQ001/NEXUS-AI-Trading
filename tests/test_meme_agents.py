@@ -33,6 +33,14 @@ class TestMemeAgents(unittest.TestCase):
         meme_agents._calls=0
     def tearDown(self):
         meme_agents._calls=self.previous
+    def test_empty_candidate_scan_does_not_consume_paid_llm_budget(self):
+        opener=FakeOpener({})
+        result=meme_agents.review([],model='gpt-4.1-mini',
+                                  api_key='x'*25,opener=opener)
+        self.assertEqual(opener.calls,0)
+        self.assertEqual(meme_agents._calls,0)
+        self.assertEqual(result['approved_addresses'],[])
+
     def test_tiny_memecoin_price_is_not_rounded_to_zero(self):
         row=dict(Q,price_usd=0.00000000123)
         result=meme_agents.rule_agents([row])
