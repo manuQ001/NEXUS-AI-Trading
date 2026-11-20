@@ -33,6 +33,11 @@ class TestMemeAgents(unittest.TestCase):
         meme_agents._calls=0
     def tearDown(self):
         meme_agents._calls=self.previous
+    def test_tiny_memecoin_price_is_not_rounded_to_zero(self):
+        row=dict(Q,price_usd=0.00000000123)
+        result=meme_agents.rule_agents([row])
+        self.assertIn(M,result['approved_addresses'])
+
     def test_no_key_means_explicit_rule_agents(self):
         with patch.dict('os.environ',{'NEXUS_MEME_AI_MODEL':'','NEXUS_MEME_AI_API_KEY':''}):
             r=meme_agents.review([Q])
