@@ -1,3 +1,44 @@
+## NEXUS 3.7.0 — Live Command Center + feed nuovi mint Pump.fun
+
+Il terminale MEME include una nuova sezione **LIVE COMMAND CENTER**:
+stato EventSource/SSE locale, WebSocket profili DEX Screener, nuovo WebSocket
+PumpPortal per eventi di creazione token, stato motore PAPER, stream delle
+ultime decisioni e osservazioni di nuovi mint. Gli elementi grafici si
+illuminano e si animano **solo quando arrivano effettivi eventi dal server**.
+Le animazioni sono disabilitabili automaticamente tramite
+`prefers-reduced-motion` del sistema operativo. La dashboard non inventa
+prezzi, operazioni, lanci o segnali per produrre movimento visivo.
+
+**Due fonti diverse:**
+
+- `meme_live.py`: profili pubblicati/aggiornati DEX Screener WebSocket;
+  questi possono essere sottoposti a verifiche REST delle pair e ai filtri
+  esistenti per un eventuale BUY *virtuale*.
+- `meme_mints.py`: feed PumpPortal `subscribeNewToken` a costo zero per
+  eventi di creazione di token Pump.fun/PumpSwap, senza chiave API, su singola
+  connessione TLS con reconnect e bounded dedup. Mostra l'indirizzo, simbolo,
+  nome, ora e origine del provider. Non equivale a una conferma indipendente
+  RPC on-chain e **non abilita automaticamente alcun acquisto**. Non ascolta
+  transazioni di mercato, token trade, account trade, o prezzi in streaming.
+  I prezzi NEXUS rimangono quote indicative REST.
+
+Endpoint locale in sola lettura: `GET /api/meme-mints`, che espone anche
+connessione reale, ultimo messaggio, numero di eventi realmente osservati e
+riconnessioni; eventi `PAPER_MINT` dal canale `/api/meme-events`.
+L'EventSource aggiorna la console e innesca un breve impulso/animazione solo
+dopo un pacchetto concreto, non per simulare attività.
+
+**Limiti rilevanti:** questa fonte copre gli eventi riconosciuti di
+creazione Pump.fun, non *tutti* i nuovi token/mint dell'intera rete Solana.
+Le fonti on-chain indipendenti, i controlli di vendibilita, liquidita bloccata
+e anti-rug automatici completi non sono ancora implementati. Il programma
+non e un bot per denaro reale: nessuna private key, nessuna transazione
+firmata, nessuna garanzia di esecuzione o rendimento.
+
+La protezione drawdown persistente di NEXUS 3.6, gli stop e i database
+storici rimangono invariati. Nessuna riattivazione dei BUY e nessun reset
+di saldo.
+
 ## NEXUS 3.6.0 — Desk Control & Permanent Risk Lock (PAPER)
 
 La versione aggiunge un pannello **DESK CONTROL** sotto Strategy Intelligence con
