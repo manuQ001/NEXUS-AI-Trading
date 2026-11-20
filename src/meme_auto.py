@@ -199,18 +199,31 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 count=c.execute('SELECT COUNT(*) FROM meme_eur_positions').fetchone()[0]
                 bought=0
                 candidates=eligible_candidates(c,rows,now)
-                assessment=review_meme_agents(candidates[:3])
-                c.execute('''INSERT INTO meme_agent_latest(id,updated_at,report_json)
-                    VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET
-                    updated_at=excluded.updated_at,report_json=excluded.report_json''',
-                    (now,json.dumps(assessment,ensure_ascii=False)))
-                _log(c,now,None,'AI_DESK',
-                     assessment['mode']+' · '+assessment['status']+' · '+
-                     str(len(assessment['approved_addresses']))+' candidati senza veto · '+
-                     assessment['note'])
-                for agent in assessment['agents']:
-                    _log(c,now,None,'AGENT_'+agent['name'].replace(' ','_'),
-                         agent['status']+' · '+agent['reason'])
+                # Do not spend paid model calls again on identical candidates
+                # before five minutes; cached verdicts do not bypass risk gates.
+                agent_row=c.execute('SELECT updated_at,report_json FROM meme_agent_latest WHERE id=1').fetchone()
+                addresses=[t['address'] for t in candidates[:3]]
+                cached=json.loads(agent_row['report_json']) if agent_row else None
+                reuse=(cached is not None and now-int(agent_row['updated_at'])<300 and
+                       cached.get('reviewed_addresses')==addresses)
+                if reuse:
+                    assessment=cached
+                    _log(c,now,None,'AGENT_CACHE',
+                         'Riutilizzata valutazione precedente per candidati invariati · '
+                         'nessun nuovo consulto API')
+                else:
+                    assessment=review_meme_agents(candidates[:3])
+                    c.execute('''INSERT INTO meme_agent_latest(id,updated_at,report_json)
+                        VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET
+                        updated_at=excluded.updated_at,report_json=excluded.report_json''',
+                        (now,json.dumps(assessment,ensure_ascii=False)))
+                    _log(c,now,None,'AI_DESK',
+                         assessment['mode']+' · '+assessment['status']+' · '+
+                         str(len(assessment['approved_addresses']))+' candidati senza veto · '+
+                         assessment['note'])
+                    for agent in assessment['agents']:
+                        _log(c,now,None,'AGENT_'+agent['name'].replace(' ','_'),
+                             agent['status']+' · '+agent['reason'])
                 candidates=[t for t in candidates if
                             t['address'] in assessment['approved_addresses']]
                 if not rows:
