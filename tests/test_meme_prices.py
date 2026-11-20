@@ -135,7 +135,7 @@ class TestMarketPulse(unittest.TestCase):
         with self.assertRaises(ValueError):observed_candles(self.c,'BAD')
         observe(self.c,A,Q,now=60)
         observe(self.c,A,dict(Q,price_usd=.02),now=360)
-        d=observed_candles(self.c,A,interval_seconds=300,now=400)
+        d=observed_candles(self.c,A,interval_seconds=300,now=500)
         self.assertEqual([x['time'] for x in d['candles']],[0,300])
         self.assertFalse(d['fresh'])
         # Future observations are never backfilled into earlier reports.
