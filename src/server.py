@@ -3,7 +3,7 @@ import json, sys, threading, webbrowser, time, sqlite3
 from collections import deque
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,parse_qs
 from core import connect, startup_events, snapshot, refresh, load_closed_history, historical_coverage
 from selftest import run_selftest
 from backtest import test_strategy, validate_holdout
@@ -173,6 +173,20 @@ class Handler(BaseHTTPRequestHandler):
                     c.commit()
                 finally:c.close()
             self.out(result)
+        elif path=='/api/meme-market-candles':
+            from meme_prices import observed_candles
+            query=parse_qs(urlsplit(self.path).query)
+            address=query.get('address',[''])[0]
+            try:
+                interval=int(query.get('interval',['60'])[0])
+                with LOCK:
+                    c=connect()
+                    try:
+                        result=observed_candles(c,address,interval_seconds=interval)
+                    finally:c.close()
+                self.out(result)
+            except (ValueError,TypeError):
+                self.out({'error':'Mint o intervallo non valido'},status=400)
         elif path=='/api/meme-market-pulse':
             from meme_prices import snapshot as market_snapshot
             with LOCK:
