@@ -469,7 +469,7 @@ def market_monitor_loop(stop, interval_seconds=30):
 def meme_auto_loop(stop, interval_seconds=10):
     """Experimental MEME PAPER engine, independent of dashboard and BTC/ETH."""
     from meme_auto import tick
-    from meme_prices import changes_after
+    from meme_prices import changes_after,refresh_watchlist
     from meme_live import INBOX
     from meme_scout import scan_profiles
     with LOCK:
@@ -501,6 +501,10 @@ def meme_auto_loop(stop, interval_seconds=10):
                                    force_scan=True)
                     else:
                         state=tick(c)
+                    # Separate quote monitor runs even when no PAPER position is
+                    # open. It never changes cash, orders or risk state.
+                    monitor_result=refresh_watchlist(c)
+                    c.commit()
                     new_events=[dict(row) for row in c.execute(
                         'SELECT id FROM meme_auto_journal WHERE id>? ORDER BY id LIMIT 60',
                         (previous_event_id,))]
