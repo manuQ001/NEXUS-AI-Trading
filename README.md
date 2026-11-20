@@ -1,3 +1,51 @@
+## NEXUS 4.0.0 — Motore multi-agente PAPER sperimentale separato
+
+**NEXUS 4.0** introduce una seconda simulazione autonoma con capitale
+iniziale virtuale di 500 EUR. Non resetta e non modifica il portafoglio
+MEME PAPER esistente da 45 EUR, non elimina il suo Risk Lock e non
+attiva in alcun modo operazioni reali.
+
+Il motore parte abilitato dopo l'aggiornamento, come concordato per
+l'esperimento PAPER, e lavora nel worker locale esistente con un ciclo
+circa ogni 10 secondi quando il server e acceso. L'interfaccia permette
+di sospendere/riprendere **soltanto V4**, senza toccare MEME AUTO legacy.
+Per evitare che un difetto dell'esperimento interrompa il worker
+preesistente, il ciclo V4 e isolato tramite SAVEPOINT SQLite.
+
+**Quattro agenti a regole**: Analyst (momentum su letture REST),
+Risk (liquidita e volume dal provider, volatilita e campo sicurezza
+sempre NON VERIFICATO), Strategy (BUY/WAIT o exit per regole) e
+Portfolio (capitale e limiti). I moduli sono **regole deterministiche,
+NON quattro istanze LLM**: un futuro modello di linguaggio potra
+essere valutato separatamente. Nessun dato viene spacciato per
+verifica on-chain o prova di vendibilita.
+
+Regole iniziali: max 3 posizioni virtuali; impegno massimo 5% di
+500 EUR (25 EUR) per ingresso; almeno 3 variazioni reali nelle
+quotazioni REST; liquidita >=20k USD e volume 24h >=50k USD come
+filtri dello scanner (non prova di sicurezza); prezzo osservato
+entro 45 secondi; movimento +2%..+12% negli ultimi campioni e
+nessun picco oltre il 50%. Vendite virtuali su stop prezzo lordo
+-5%, protezione netta -15%, take-profit netto teorico +12% e
+timeout 15 minuti, **solo se esiste una nuova quotazione REST
+recente**. Il nuovo conto dispone di un Risk Lock separato,
+persistente a -10% dal massimo equity virtuale, che ferma nuovi
+acquisti. Il nuovo lock non e un pulsante di reset del vecchio.
+
+**Limiti del modello:** il capitale e espresso in EUR virtuali ma
+le quantita sono *sintetiche*: viene applicata la variazione dei
+prezzi in USD al capitale virtuale senza convertire USD/EUR; sono
+ipotizzate commissioni del 3% all'ingresso e 3% all'uscita. Questo
+non replica fill, impatto sul book, slippage effettivo, conversione
+valutaria, rug pull o possibilita di rivendere token reali. I
+risultati non sono evidenza di redditivita reale o di sicurezza.
+
+Nuova scheda **Terminale → AI PAPER 4.0**: equity e saldo virtuali,
+posizioni, drawdown, decisioni degli agenti e registro PAPER.
+Endpoint locale read-only `GET /api/v4-agents` e pulsante
+locale di pausa/ripresa con controllo same-origin
+`POST /api/v4-toggle`. Nessun wallet o API di trading reale.
+
 ## NEXUS 3.13.0 — Decision Timeline live
 
 La scheda **Terminale → Live Desk** integra **Decision Timeline**:
