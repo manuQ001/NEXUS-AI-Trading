@@ -135,6 +135,16 @@ class TestMaintenance(unittest.TestCase):
         self.assertIn('nessun win rate calcolabile',html.lower())
         self.assertIn('commissioni simulate',html.lower())
 
+    def test_v44_consensus_card_reads_backend_only(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        for item in ('nx-v4-consensus-status','nx-v4-consensus-shadow',
+                     'nx-v4-consensus-approved','nx-v4-consensus-vetoed'):
+            self.assertEqual(html.count('id="'+item+'"'),1,item)
+        self.assertIn('const ai=d.ai_consensus||{};',html)
+        self.assertIn("Boolean(ai.gate_enabled)",html)
+        self.assertIn('solo dalla configurazione del server',html)
+        self.assertNotIn('NEXUS_OPENAI_API_KEY=',html)
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())
