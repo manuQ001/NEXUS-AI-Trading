@@ -106,10 +106,29 @@ class TestV4Paper(unittest.TestCase):
         action,_,agents=agents_decide(quote(A,.0108,liq=100),history)
         self.assertEqual(action,'WAIT')
         self.assertEqual(agents['risk'],'LOW_LIQUIDITY_OR_VOLUME')
+    def test_pause_v4_blocks_all_new_trades_and_does_not_change_legacy_auto(self):
+        self.seed(A)
+        self.c.execute('UPDATE v4_paper_state SET enabled=0 WHERE id=1')
+        before=portfolio(self.c)['cash_eur']
+        result=tick(self.c,now=1000)
+        self.assertEqual(result['status'],'SUSPENDED')
+        self.assertEqual(report(self.c)['trade_count'],0)
+        self.assertEqual(report(self.c)['cash_eur'],500)
+        self.assertEqual(portfolio(self.c)['cash_eur'],before)
+        self.assertEqual(self.c.execute('SELECT enabled FROM meme_auto_state WHERE id=1').fetchone()[0],1)
+    def test_persistent_separate_state_after_reconnect(self):
+        self.seed(A)
+        tick(self.c,now=1000)
+        self.c.commit()
+        d1=report(self.c,now=1000)
+        d2=report(self.c,now=1010)
+        self.assertEqual(d1['trade_count'],1)
+        self.assertEqual(d2['trade_count'],1)
+        self.assertEqual(d1['cash_eur'],d2['cash_eur'])
     def test_dashboard_v4_panel_is_read_only(self):
         html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
         for term in ['nx-v4-panel','nx-v4-equity','nx-v4-drawdown',
-                     'nx-v4-positions','nx-v4-trades','data-nx-focus="v4"',
+                     'nx-v4-positions','nx-v4-trades','nx-v4-toggle','data-nx-focus="v4"',
                      "fetch('/api/v4-agents'"]:
             self.assertIn(term,html)
         self.assertNotIn("fetch('/api/v4-agents',{method:'POST'",html)
