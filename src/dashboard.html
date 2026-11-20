@@ -335,6 +335,26 @@ body{background:#0b1019}.shell{max-width:1180px}
 @media(max-width:680px){#nx-v4-panel{padding:12px}#nx-v4-panel .nx-v4-head .nx-live-title{font-size:14px}.nx-v4-position-card{padding:12px!important}}
 @media(prefers-reduced-motion:reduce){.nx-v4-new-position,.nx-v4-new-trade,.nx-v4-value-change{animation:none!important}#nx-v4-panel .nx-v4-kpis>div{transition:none}}
 
+
+/* V4.4 usability pass: total P/L, easy-to-scan desktop and mobile status */
+#nx-v4-panel .nx-v4-kpis{grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+#nx-v4-panel .nx-v4-kpis>div{position:relative;overflow:hidden}
+#nx-v4-panel .nx-v4-kpis small{font-size:10px;letter-spacing:.03em;line-height:1.35}
+#nx-v4-panel .nx-v4-kpis strong{font-size:clamp(18px,1.8vw,25px)}
+#nx-v4-panel .nx-v4-primary-metric{border-color:#477391!important;background:linear-gradient(135deg,#193753,#142438)!important}
+#nx-v4-panel .nx-v4-pnl-metric{border-color:#355d65!important}
+#nx-v4-panel .nx-v4-pnl-metric span{display:block;font-size:11px;font-weight:750;color:#b1c2d5;margin-top:5px}
+#nx-v4-panel .nx-positive{color:#4ce5b1!important}
+#nx-v4-panel .nx-negative{color:#ff91a0!important}
+.nx-v4-footline{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;border-top:1px solid #2e4057;padding-top:12px}
+#nx-v4-refreshed{font-size:12px;color:#9eafc5}
+@media(max-width:940px){#nx-v4-panel .nx-v4-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:680px){#nx-v4-panel .nx-v4-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #nx-v4-panel .nx-v4-kpis>.nx-v4-primary-metric,#nx-v4-panel .nx-v4-kpis>.nx-v4-pnl-metric{grid-column:span 1}
+ #nx-v4-panel .nx-v4-kpis strong{font-size:clamp(19px,5vw,25px)}
+ #nx-v4-panel .nx-v4-kpis>div{padding:12px 10px}
+}
+
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> </div><div class="sub">TRADING PAPER · CONTROLLO DEL BOT</div></div><div class="flex"><span class="chip">● SOLO DENARO VIRTUALE</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav nx-nav-slim" aria-label="Navigazione principale">
 <a href="#meme-section">◉ Dashboard</a><a href="#performance-section">▥ Risultati</a>
@@ -391,8 +411,9 @@ body{background:#0b1019}.shell{max-width:1180px}
       <button type="button" class="btn" id="nx-v4-toggle" title="Sospendi o riprendi solo il portafoglio PAPER 4.0">SOSPENDI V4 PAPER</button>
     </div>
    </div>
-   <div class="nx-v4-kpis">
-    <div><small>SALDO TOTALE VIRTUALE</small><strong id="nx-v4-equity">—</strong></div>
+   <div class="nx-v4-kpis" aria-label="Riepilogo portafoglio virtuale">
+    <div class="nx-v4-primary-metric"><small>SALDO TOTALE VIRTUALE</small><strong id="nx-v4-equity">—</strong></div>
+    <div class="nx-v4-pnl-metric"><small>RISULTATO TOTALE</small><strong id="nx-v4-pnl">—</strong><span id="nx-v4-pnl-pct">—</span></div>
     <div><small>DISPONIBILE</small><strong id="nx-v4-cash">—</strong></div>
     <div><small>POSIZIONI</small><strong id="nx-v4-positions-count">—</strong></div>
     <div><small>DRAWDOWN</small><strong id="nx-v4-drawdown">—</strong></div>
@@ -449,7 +470,7 @@ body{background:#0b1019}.shell{max-width:1180px}
    <div class="nx-v4-sub" style="margin-top:12px">
     <div class="nx-live-title">ULTIME OPERAZIONI · BUY / SELL VIRTUALI</div>
     <div id="nx-v4-trades"><div class="nx-live-muted">Nessuna operazione virtuale eseguita.</div></div>
-    <div id="nx-v4-event-status" role="status" aria-live="polite" aria-atomic="true">In attesa di operazioni registrate</div>
+    <div class="nx-v4-footline"><span id="nx-v4-refreshed">Ultimo aggiornamento: —</span><span id="nx-v4-event-status" role="status" aria-live="polite" aria-atomic="true">In attesa di operazioni registrate</span></div>
    </div>
    <div id="nx-v4-warning" class="nx-live-muted" style="margin-top:12px">Dati virtuali e non eseguibili sul mercato.</div>
  </section>
@@ -1427,6 +1448,17 @@ async function nxLoadV4(){
      !d.enabled?'V4 SOSPESO':'AGENT PAPER · '+String(d.last_decision||'ATTENDO QUOTE');
   $('nx-v4-toggle').textContent=d.enabled?'SOSPENDI V4 PAPER':'RIPRENDI V4 PAPER';
   $('nx-v4-equity').textContent=euro(d.equity_eur);
+  const base=Number(d.initial_eur),equity=Number(d.equity_eur);
+  const pnlValid=Number.isFinite(base)&&base>0&&Number.isFinite(equity);
+  const pnl=pnlValid?equity-base:0;
+  const pnlEl=$('nx-v4-pnl'),pnlPct=$('nx-v4-pnl-pct');
+  pnlEl.textContent=pnlValid?(pnl>0?'+':'')+euro(pnl):'—';
+  pnlPct.textContent=pnlValid?(pnl>0?'+':'')+(100*pnl/base).toFixed(2)+'% sul capitale iniziale':'Dato non disponibile';
+  pnlEl.classList.toggle('nx-positive',pnlValid&&pnl>0);
+  pnlEl.classList.toggle('nx-negative',pnlValid&&pnl<0);
+  pnlPct.classList.toggle('nx-positive',pnlValid&&pnl>0);
+  pnlPct.classList.toggle('nx-negative',pnlValid&&pnl<0);
+  $('nx-v4-refreshed').textContent='Aggiornato alle '+new Date().toLocaleTimeString('it-IT');
   $('nx-v4-cash').textContent=euro(d.cash_eur);
   $('nx-v4-positions-count').textContent=(d.positions||[]).length+' / '+d.max_positions;
   $('nx-v4-drawdown').textContent=Number(d.drawdown_pct).toFixed(2)+'%';
