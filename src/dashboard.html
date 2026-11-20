@@ -177,6 +177,7 @@ body{background:radial-gradient(ellipse at 52% -15%,#242044 0,transparent 52%),#
 .nx-focus-button:hover{background:#252b46;color:#f1eaff}
 .nx-focus-button[aria-pressed=true]{background:#332d59;border-color:#9d86f7;color:#faf4ff;box-shadow:inset 0 0 0 1px #715a9a}
 .nx-focus-button:focus-visible{outline:2px solid #b5a3ff;outline-offset:3px}
+.nx-strip>div:nth-child(2),.nx-strip>div:nth-child(3){display:none}
 .nx-live-console{background:linear-gradient(150deg,#141b2f,#0c1423);border-color:#36486c;padding:17px;box-shadow:0 18px 55px #0003}
 .nx-live-title{color:#d5caff;letter-spacing:.065em}.nx-live-chip{border-color:#3b4962;color:#afbdd2}.nx-live-beam{background:#253c55}
 .nx-grid{grid-template-columns:minmax(205px,.85fr) minmax(330px,1.65fr) minmax(230px,1fr)}
@@ -254,7 +255,7 @@ body{background:radial-gradient(ellipse at 52% -15%,#242044 0,transparent 52%),#
  <button type="button" class="nx-focus-button" data-nx-focus="tools" aria-pressed="false">⚙ Strumenti</button></nav>
  <section class="nx-live-console" id="nx-live-console">
    <div class="nx-live-head">
-    <span class="nx-live-title">◉ LIVE COMMAND CENTER</span>
+    <span class="nx-live-title" id="nx-active-focus-label">◉ LIVE COMMAND CENTER</span>
     <span class="nx-live-chip" id="nx-live-connection" data-online="false"><span class="nx-live-dot"></span>SERVER IN ATTESA</span>
    </div>
    <div class="nx-live-chips">
@@ -913,6 +914,11 @@ function nxSetFocus(view){
  const terminal=document.getElementById('nx-terminal');
  if(!terminal)return;
  terminal.dataset.focus=focus;
+ const titles={live:'◉ LIVE COMMAND CENTER',prices:'⌁ MARKET PULSE · PREZZI',
+  shadow:'◇ SHADOW LAB · SEGNALI',risk:'⬡ RISK INTELLIGENCE · AUDIT',
+  desk:'◆ AGENT & DESK CONTROL',tools:'⚙ STRUMENTI AVANZATI'};
+ const label=document.getElementById('nx-active-focus-label');
+ if(label)label.textContent=titles[focus];
  nxFocusControls.forEach(button=>button.setAttribute('aria-pressed',
    String(button.dataset.nxFocus===focus)));
  if(focus==='tools')document.getElementById('nx-advanced').open=true;
