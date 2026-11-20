@@ -88,7 +88,7 @@ class TestV4Paper(unittest.TestCase):
     def test_equity_drawdown_latches_independently_and_survives_restarts(self):
         self.seed(A)
         tick(self.c,now=1000)
-        self.c.execute("""UPDATE v4_paper_state SET cash_eur=445,
+        self.c.execute("""UPDATE v4_paper_state SET cash_eur=420,
             peak_equity_eur=500 WHERE id=1""")
         tick(self.c,now=1001)
         self.assertTrue(report(self.c)['risk_latched'])
