@@ -93,6 +93,16 @@ class TestMaintenance(unittest.TestCase):
         self.assertIn("document.getElementById('nx-v4-event-status')",html)
         self.assertNotIn('Math.random()',html)
 
+    def test_v44_portfolio_profit_uses_actual_initial_capital(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('id="nx-v4-pnl"',html)
+        self.assertIn('id="nx-v4-pnl-pct"',html)
+        self.assertIn('id="nx-v4-refreshed"',html)
+        self.assertIn('Number(d.initial_eur)',html)
+        self.assertIn('equity-base',html)
+        self.assertIn('pnlValid',html)
+        self.assertIn('Dato non disponibile',html)
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())
