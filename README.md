@@ -2,6 +2,10 @@
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
 
+## Release 2.8.5 — pronostico descrittivo nelle posizioni MEME aperte
+
+Ogni posizione virtuale mostra un segnale aggiornato automaticamente nella dashboard: RIALZISTA, RIBASSISTA, INCERTO o DATI_NON_RECENTI, accompagnato da spiegazione e affidabilità bassa/non valutabile. Il segnale è una *descrizione euristica* delle ultime due variazioni osservate (serve una sequenza di almeno tre prezzi diversi), non un modello predittivo né una probabilità di guadagno. Le richieste REST al provider non garantiscono freschezza del prezzo: quando mancano letture recenti si sospende il segnale. Nessuna decisione automatica di trading dipende da questo pronostico; restano le regole esistenti. Le osservazioni di prezzo vengono registrate in una piccola tabella SQLite per ogni posizione aperta e ripulite alla vendita. Test di regressione inclusi. Non sono collegati wallet reali.
+
 ## Release 2.8.4 — correzione acquisti MEME e test di regressione
 
 Corretto il caricamento del capitale iniziale nel controllo dei limiti degli acquisti MEME virtuali: prima il codice interrogava il solo saldo cash e poi leggeva il campo initial mancante, provocando IndexError e impedendo l'aggiornamento dopo il fallimento dei test. Nuovo test automatico per verificare acquisti dinamici fino al 10% del capitale virtuale iniziale. Include le funzioni scalping e dashboard live della 2.8.3. Non modifica il file SQLite esistente.\n\n## Release 2.8.3 — MEME Scalper con vista live automatica (solo simulazione)
