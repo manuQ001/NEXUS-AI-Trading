@@ -1,3 +1,42 @@
+## NEXUS 3.9.0 — Smart Decision & Shadow Trading (solo osservazione)
+
+Nuovo **Shadow Lab** in MEME HUNTER e API locale `GET /api/meme-shadow`.
+Non vengono eseguiti ordini, neppure nel portafoglio virtuale principale.
+I segnali shadow sono un registro separato in SQLite:
+
+- Un segnale puo nascere soltanto da un vero record dello scanner con
+  prezzo valido, liquidita osservata >=10.000 USD, volume 24h >=20.000 USD
+  e, se l'eta della pool e nota, eta >=30 minuti.
+- Lo score e un criterio quantitativo locale e deterministico, non una
+  rete neurale o un LLM. Non dimostra la sicurezza del token.
+- Massimo 3 segnali per scan, 20 pendenti simultanei, cooldown 30 minuti
+  per token. Nessun acquisto virtuale o reale.
+- Dopo 5 minuti il motore cerca il primo *prezzo REST effettivamente letto*
+  nella finestra tra minuto 5 e minuto 10. Se presente, restituisce
+  variazione lorda e variazione netta TEORICA con costi modellati al 3%
+  per lato. Se mancano i dati, segna `INSUFFICIENT_DATA`, non inventa
+  un exit o un profitto.
+- Prezzi REST immutati possono essere nuovi dati realmente ricevuti.
+  Per questo l'archivio `meme_quote_reads` conserva letture con
+  timestamp, separandole da `meme_quote_changes` (usato dai grafici
+  soltanto per effettivi cambi di valore).
+- Il monitor REST 3.8.1 privilegia i token con segnali pendenti, con
+  il medesimo tetto di 3 controlli ogni ~10 secondi. Non installa nuove
+  sottoscrizioni WebSocket a pagamento.
+- Report: segnali pendenti, osservati, privi di dati, e quota di casi
+  con variazione netta teorica positiva tra i record recenti osservati.
+
+**Limiti:** lo shadow score non verifica wallet dev, smart money, rug,
+permessi mint, LP lock o vendibilita su blockchain. La variazione osservata
+non e un trade eseguibile; i risultati risentono della selezione e della
+disponibilita delle quote. Non rappresentano un backtest corretto per
+esecuzione o un rendimento reale.
+
+**Sicurezza:** storico e saldo portafoglio MEME invariati, Risk Lock
+persistente al 10%, nessun reset, nessuna chiave wallet, nessun ordine
+reale o chiamata a provider a pagamento. Tutto funziona soltanto quando
+NEXUS gira sul PC locale.
+
 ## NEXUS 3.8.1 — Active Market Pulse Hotfix
 
 Nella 3.8.0 lo storico delle quote si aggiornava principalmente ogni

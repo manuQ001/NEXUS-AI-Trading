@@ -155,6 +155,15 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
                 self.out({'ok':False,'status':'NON_VERIFICATO','meme_execution':'BLOCKED',
                           'error':'RPC Solana non disponibile o non valido: '+type(exc).__name__},503)
+        elif path=='/api/meme-shadow':
+            from meme_shadow import report as shadow_report
+            with LOCK:
+                c=connect()
+                try:
+                    result=shadow_report(c)
+                    c.commit()
+                finally:c.close()
+            self.out(result)
         elif path=='/api/meme-market-pulse':
             from meme_prices import snapshot as market_snapshot
             with LOCK:
@@ -504,6 +513,8 @@ def meme_auto_loop(stop, interval_seconds=10):
                     # Separate quote monitor runs even when no PAPER position is
                     # open. It never changes cash, orders or risk state.
                     monitor_result=refresh_watchlist(c)
+                    from meme_shadow import evaluate as evaluate_shadow
+                    shadow_result=evaluate_shadow(c)
                     c.commit()
                     new_events=[dict(row) for row in c.execute(
                         'SELECT id FROM meme_auto_journal WHERE id>? ORDER BY id LIMIT 60',
