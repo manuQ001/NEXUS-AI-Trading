@@ -31,6 +31,34 @@ class TestRealAIShadow(unittest.TestCase):
     def tearDown(self):
         self.c.close()
         self.tmp.cleanup()
+    def test_v45_scanner_diagnostics_explain_observed_market_without_orders(self):
+        from v4_ai_shadow import scanner_diagnostics
+        from v4_agents import report as paper_report
+        before=paper_report(self.c,now=1021)
+        d=scanner_diagnostics(self.c,now=1021)
+        self.assertEqual(d['mode'],'V45_SCANNER_DIAGNOSTICS')
+        self.assertEqual(d['source'],'PERSISTED_DEX_SCREENER_REST_ONLY')
+        self.assertEqual(d['fresh_tokens'],1)
+        self.assertEqual(d['evaluated_tokens'],1)
+        self.assertEqual(d['reasons']['PYTHON_BUY_SIGNAL'],1)
+        self.assertEqual(d['candidates'][0]['price_changes'],3)
+        self.assertEqual(paper_report(self.c,now=1021)['trade_count'],
+                         before['trade_count'])
+        self.assertEqual(d['ai_cooldown_remaining_seconds'],0)
+
+    def test_v45_diagnostics_exclude_stale_and_distinguish_low_liquidity(self):
+        from v4_ai_shadow import scanner_diagnostics
+        low='So11111111111111111111111111111111111111112'
+        for t,p in [(1000,.01),(1010,.0104),(1020,.0108)]:
+            observe(self.c,low,{'address':low,'symbol':'LOW',
+                'price_usd':p,'liquidity_usd':1000,
+                'volume_24h_usd':1000},now=t)
+        d=scanner_diagnostics(self.c,now=1021)
+        self.assertEqual(d['reasons']['LOW_LIQUIDITY_OR_VOLUME'],1)
+        stale=scanner_diagnostics(self.c,now=2000)
+        self.assertEqual(stale['fresh_tokens'],0)
+        self.assertEqual(stale['candidates'],[])
+
     def test_ai_candidate_prefers_python_buy_over_higher_liquidity_wait(self):
         from v4_ai_shadow import candidate
         other='So11111111111111111111111111111111111111112'
