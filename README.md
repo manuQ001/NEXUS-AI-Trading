@@ -1,3 +1,11 @@
+## NEXUS 3.0.0 — MEME multi-agent desk
+
+Il motore MEME PAPER consulta un comitato di agenti alla scansione: SEARCH, RISK, STRATEGIST, HEAD OF DESK, SNIPER e EXIT. La dashboard mostra separatamente la natura degli agenti: **RULE_AGENTS** (regole deterministiche, non intelligenza artificiale generativa) oppure **LLM_AGENT_REVIEW** (un modello IA realmente consultato).
+
+Senza chiave API, il desk continua in modalita a regole e lo dichiara. Per abilitare opzionalmente l'analisi generativa in una sessione PowerShell impostare **prima dell'avvio** le variabili d'ambiente `NEXUS_MEME_AI_MODEL` e `NEXUS_MEME_AI_API_KEY` con un modello disponibile al proprio account OpenAI. Non mettere la chiave nel codice, nel browser o in un file da condividere. Questo usa chiamate API a pagamento e non e incluso nell'abbonamento ChatGPT; impostare un limite di spesa dal provider. Il limite locale di 10 chiamate per processo NON e un limite economico e si azzera riavviando il server.
+
+Durante una scansione sono inviati al modello soltanto gli attributi numerici disponibili dei primi tre candidati, simbolo e indirizzo. Un unico consulto presenta quattro ruoli distinti: SEARCH, RISK, STRATEGIST e HEAD OF DESK; SNIPER ed EXIT restano eseguiti a regole. Un modello puo **votare contro** un candidato, ma non autorizzare ingressi che il motore di rischio non consentirebbe, impostare importi o inviare ordini reali. Se il consulto attivato fallisce, nessun nuovo ingresso viene aperto in quella scansione. I prezzi restano indicativi e la vendibilita NON verificata. Non esiste garanzia di profitto.
+
 # NEXUS AI Trading — Paper Trading
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
