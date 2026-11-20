@@ -1,3 +1,11 @@
+## NEXUS 3.3.0 — WebSocket discovery dei profili MEME (PAPER)
+
+Il processo mantiene una connessione TLS WebSocket con il feed ufficiale DEX Screener dei **profili token** (/token-profiles/latest/v1), senza API key. Dopo il primo snapshot di baseline, gli indirizzi Solana mai visti sono messi in una coda bounded e controllati tramite il REST ufficiale dei pair token. Soltanto i candidati con dati validi entrano nella valutazione multi-agent e nei controlli di rischio PAPER. Il motore resta completamente virtuale; lo stream non esegue trade di per se.
+
+Questa fonte **non** segnala tutti i mint Solana: indica profili pubblicati o aggiornati su DEX Screener e puo mostrare token vecchi appena aggiunti ai profili. Non fornisce prezzi tick-by-tick, trade on-chain, prove di sicurezza o vendibilita. Per conoscere ogni creazione token sul network occorre un provider Solana on-chain e decodifica degli eventi. Il primo messaggio WS stabilisce soltanto la baseline: non trasforma vecchi profili in "nuovi token".
+
+I candidati in ingresso dal feed passano al motore entro il successivo controllo automatico (circa 10 secondi quando accessibile), con enrichment REST e un massimo di 30 profili per batch. Se il feed non e connesso, il normale scanner REST resta disponibile ogni 60 secondi. Lo stato connesso, l'ultimo messaggio, la coda e l'ultimo errore sono disponibili su /api/meme-live, e la dashboard indica se il feed e effettivamente online. Nessun contatore o movimento di prezzo viene inventato.
+
 ## NEXUS 3.2.0 — live engine events, senza eventi fittizi
 
 Il MEME PAPER ora scansiona i candidati ogni 60 secondi (in precedenza 5 minuti), monitora i prezzi delle posizioni circa ogni 10 secondi (prima 15 secondi), e inoltra eventi del motore al browser con Server-Sent Events su /api/meme-events. Il browser usa aggiornamento periodico come riserva quando SSE non e disponibile.
