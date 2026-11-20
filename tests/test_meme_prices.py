@@ -1,0 +1,86 @@
+"""NEXUS 3.8: real observed REST quote samples, SSE journal and risk invariants."""
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from core import connect
+from meme_auto import init_auto,tick
+from meme_desk import record_scan
+from meme_prices import observe,changes_after,snapshot
+from meme_portfolio import portfolio
+from server import publish_paper_event,events_after
+
+A='So11111111111111111111111111111111111111112'
+B='DezXAZ8z7PnrnRJjz3wXBoRgixCaKGYcB2bM9aBfM3'
+Q={'address':A,'symbol':'TEST','price_usd':.01,
+   'liquidity_usd':20000,'volume_24h_usd':50000,'pool_age_hours':1.0}
+FX={'usd_eur':.9,'rate_date':'2026-11-20'}
+
+class TestMarketPulse(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory()
+        self.c=connect(Path(self.temp.name)/'market.sqlite3')
+        init_auto(self.c)
+    def tearDown(self):
+        self.c.close();self.temp.cleanup()
+    def test_only_real_price_changes_are_events(self):
+        first=observe(self.c,A,Q,now=100)
+        self.assertGreater(first,0)
+        self.assertIsNone(observe(self.c,A,Q,now=110))
+        newer=observe(self.c,A,dict(Q,price_usd=.011),now=120)
+        self.assertGreater(newer,first)
+        self.assertIsNone(observe(self.c,A,dict(Q,price_usd=.008),now=119))
+        observed=changes_after(self.c,first)
+        self.assertEqual(len(observed),1)
+        self.assertEqual(observed[0]['price_usd'],.011)
+        state=snapshot(self.c,now=125)
+        self.assertEqual(state['sample_count'],2)
+        self.assertEqual(len(state['quotes'][0]['observations']),2)
+        self.assertEqual(state['quotes'][0]['age_seconds'],5)
+        self.assertTrue(state['quotes'][0]['fresh'])
+        self.assertFalse(snapshot(self.c,now=200)['quotes'][0]['fresh'])
+        self.assertEqual(portfolio(self.c)['cash_eur'],45)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_eur_trades').fetchone()[0],0)
+    def test_invalid_source_address_quote_never_yields_sample(self):
+        self.assertIsNone(observe(self.c,'invalid',Q,now=100))
+        self.assertIsNone(observe(self.c,A,dict(Q,price_usd=0),now=100))
+        self.assertIsNone(observe(self.c,A,dict(Q,price_usd='NaN'),now=100))
+        self.assertIsNone(observe(self.c,A,Q,now=100,source='UNVERIFIED_TRADE'))
+        self.assertEqual(snapshot(self.c)['sample_count'],0)
+    def test_real_scanner_quote_updates_even_with_risk_lock(self):
+        self.c.execute("UPDATE wallets SET cash=37 WHERE strategy='meme'")
+        self.c.commit()
+        with patch('meme_auto.review_meme_agents',side_effect=AssertionError('paid API')):
+            tick(self.c,now=2000,scout=lambda:{'candidates':[dict(Q)]},
+                 quote=lambda _:Q,fx_rate=lambda c,now=None:FX)
+            tick(self.c,now=2061,scout=lambda:{'candidates':[dict(Q,price_usd=.0105)]},
+                 quote=lambda _:Q,fx_rate=lambda c,now=None:FX)
+        pulse=snapshot(self.c,now=2062)
+        self.assertTrue(pulse['risk']['blocked'])
+        self.assertTrue(pulse['risk']['latched'])
+        self.assertEqual(len(pulse['quotes']),1)
+        self.assertEqual(len(pulse['quotes'][0]['observations']),2)
+        self.assertEqual(len(portfolio(self.c)['positions']),0)
+    def test_cost_model_reports_gross_vs_net_friction(self):
+        cost=snapshot(self.c)['cost_model']
+        self.assertAlmostEqual(cost['minimum_gross_move_to_break_even_pct'],6.186,places=2)
+        self.assertGreater(cost['gross_move_for_net_target_12_pct'],18)
+        self.assertLess(cost['estimated_net_at_gross_stop_minus5_pct'],-10)
+    def test_sse_quote_notification_is_based_on_record(self):
+        obs=observe(self.c,A,Q,now=100)
+        self.assertEqual(changes_after(self.c,obs-1)[0]['id'],obs)
+        msg=publish_paper_event('PAPER_QUOTES',{
+            'count':1,'last_change_id':obs,'source':'DEX_SCREENER_REST_SERVER_OBSERVATIONS'},
+            timestamp=101)
+        self.assertEqual(events_after(msg['id']-1)[-1]['kind'],'PAPER_QUOTES')
+    def test_market_ui_is_labeled_source_and_reduced_motion(self):
+        source=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('id="nx-market-pulse"',source)
+        self.assertIn("fetch('/api/meme-market-pulse'",source)
+        self.assertIn('Quote DEX Screener REST',source)
+        self.assertIn('prefers-reduced-motion',source)
+        self.assertNotIn('Math.random()',source)
+
+if __name__=='__main__':unittest.main()
