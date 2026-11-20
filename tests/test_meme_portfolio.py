@@ -38,6 +38,11 @@ class TestMemePortfolioEUR(unittest.TestCase):
         self.assertEqual(portfolio(self.c)['positions'],[])
         self.assertAlmostEqual(portfolio(self.c)['cash_eur'],45+sell['pnl_eur'],places=6)
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM trades').fetchone()[0],0)
+    def test_buy_checks_wallet_initial_without_missing_sqlite_field(self):
+        result=trade(self.c,M,'BUY',Q,FX,now=10,stake_eur=4.5)
+        self.assertTrue(result['ok'])
+        self.assertEqual(portfolio(self.c)['cash_eur'],40.5)
+        self.assertEqual(portfolio(self.c)['positions'][0]['cost_eur'],4.5)
     def test_legacy_demo_is_preserved_but_not_counted(self):
         legacy_buy(self.c,A,'BUY',Q,now=3)
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_demo_positions').fetchone()[0],1)
