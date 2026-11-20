@@ -83,6 +83,25 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:
               print(f'zip={output}',file=out)
           PY
+      - name: Smoke-test the exact release ZIP before publishing
+        env:
+          ZIP_NAME: ${{ steps.build.outputs.zip }}
+        run: |
+          python - <<'PY'
+          import os, pathlib, subprocess, sys, tempfile
+          from updater import safe_package, FILES
+          name=pathlib.Path(os.environ['ZIP_NAME'])
+          with tempfile.TemporaryDirectory(prefix='nexus_release_check_') as td:
+              base=safe_package(name,pathlib.Path(td))
+              for file in FILES:
+                  if not (base/file).is_file():
+                      raise SystemExit('Missing file from release ZIP: '+file)
+              result=subprocess.run(
+                  [sys.executable,'-m','unittest','discover','-s','tests','-p','test_*.py'],
+                  cwd=base,timeout=50,check=False)
+              if result.returncode:
+                  raise SystemExit('Packaged release fails its own tests')
+          PY
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
