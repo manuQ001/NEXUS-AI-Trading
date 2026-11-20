@@ -1,3 +1,30 @@
+## NEXUS 4.1.0 — Agent Decision Intelligence
+
+La scheda **Terminale → AI PAPER 4.0** mostra ora **WAIT Intelligence**:
+ragioni registrate, ultime memecoin rifiutate, orario di decisione e
+frequenza dei motivi più recenti. Nel JSON locale
+`GET /api/v4-agents` sono presenti `recent_waits`,
+`wait_reason_counts`, `wait_decision_count` e `wait_history_limited`.
+
+Per ogni token realmente quotato e valutato che non supera i filtri, i
+quattro moduli a regole registrano `WAIT`, causa e campi di valutazione
+`analyst/risk/strategy/portfolio`. Se non c'e alcun prezzo REST
+recente, il sistema registra un WAIT esplicito senza inventare token.
+Per lo stesso mint e lo stesso motivo non viene registrato più di un
+WAIT ogni 60 secondi; se il motivo cambia, viene salvata una nuova
+decisione. Il database conserva al massimo le ultime 600 decisioni V4,
+per cui conteggi e frequenze sono limitati allo storico disponibile.
+Le ragioni si riferiscono esclusivamente alle valutazioni realmente
+eseguite, non a tutti i token esistenti.
+
+**Nessun filtro di ingresso e stato abbassato.** Il capitale virtuale
+iniziale resta €500, massimo tre posizioni, €25 di esposizione iniziale
+per nuova posizione e Risk Lock V4 separato. Il Risk Lock legacy
+resta attivo e invariato. Nessuna nuova richiesta REST esterna
+o interazione con wallet, blockchain o ordini veri. Le decisioni
+non sono prodotte da modelli LLM indipendenti e non costituiscono
+valutazioni definitive di sicurezza dei token.
+
 ## NEXUS 4.0.0 — Motore multi-agente PAPER sperimentale separato
 
 **NEXUS 4.0** introduce una seconda simulazione autonoma con capitale
