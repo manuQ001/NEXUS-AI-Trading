@@ -1,3 +1,11 @@
+## NEXUS 3.2.0 — live engine events, senza eventi fittizi
+
+Il MEME PAPER ora scansiona i candidati ogni 60 secondi (in precedenza 5 minuti), monitora i prezzi delle posizioni circa ogni 10 secondi (prima 15 secondi), e inoltra eventi del motore al browser con Server-Sent Events su /api/meme-events. Il browser usa aggiornamento periodico come riserva quando SSE non e disponibile.
+
+L'attivita visualizzata e basata su dati del programma: ogni ciclo confermato genera PAPER_TICK, le nuove righe del diario provocano PAPER_JOURNAL, e variazioni osservate di prezzo significative (almeno 0,2% dall'ultima quota) sono riportate come PRICE_OBSERVED. Questi eventi non corrispondono a nuovi trade, e nessun ordine viene simulato artificialmente per movimentare il terminale. Gli acquisti e le vendite PAPER mantengono le soglie esistenti e possono essere assenti anche durante lo scanner attivo.
+
+AVVERTENZA: aggiornamento della UI e flusso eventi SSE **non** significano prezzi Solana tick-by-tick. La fonte quote resta DEX Screener REST, con rate limit e possibilita di dati invariati, mancanti o non vendibili. La sicurezza on-chain non e garantita. La frequenza delle analisi LLM dipende dalla presenza di candidati e dal limite di 10 consulti per processo, non necessariamente ad ogni tick; la quota provider può costare denaro e il limite riparte dopo un riavvio.
+
 ## NEXUS 3.0.0 — MEME multi-agent desk
 
 Il motore MEME PAPER consulta un comitato di agenti alla scansione: SEARCH, RISK, STRATEGIST, HEAD OF DESK, SNIPER e EXIT. La dashboard mostra separatamente la natura degli agenti: **RULE_AGENTS** (regole deterministiche, non intelligenza artificiale generativa) oppure **LLM_AGENT_REVIEW** (un modello IA realmente consultato).
