@@ -246,6 +246,15 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx,force_scan=
                 count=c.execute('SELECT COUNT(*) FROM meme_eur_positions').fetchone()[0]
                 bought=0
                 candidates=eligible_candidates(c,rows,now)
+                guard=circuit_breaker(c,now)
+                if guard['blocked']:
+                    candidates=[]
+                    _log(c,now,None,'RISK_CIRCUIT',
+                         'Nuovi ingressi SOSPESI · '+guard['reason']+
+                         ' · drawdown '+str(guard.get('drawdown_pct','N/D'))+
+                         '% · soglia '+str(MAX_EQUITY_DRAWDOWN*100)+
+                         '% · uscite PAPER ancora attive')
+                    messages.append('RISCHIO_STOP_NUOVI_ACQUISTI')
                 # Do not spend paid model calls again on identical candidates
                 # before five minutes; cached verdicts do not bypass risk gates.
                 agent_row=c.execute('SELECT updated_at,report_json FROM meme_agent_latest WHERE id=1').fetchone()
@@ -290,6 +299,74 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx,force_scan=
                         if (not p or liquidity is None or liquidity<MIN_AUTO_LIQUIDITY
                                 or volume is None or volume<MIN_AUTO_VOLUME):
                             messages.append('CANDIDATO_QUOTE_NON_IDONEA')
+                            continue
+                        rejection=entry_rejection(candidate,q)
+                        if rejection:
+                            _log(c,now,mint,'AUTO_REJECT',
+                                 rejection+' · liquidita min (c,candidate,q)
+                        if stake is None:
+                            messages.append('CAPITALE_DISPONIBILE_O_RISERVA_INSUFFICIENTE')
+                            break
+                        result=trade(c,mint,'BUY',q,fx,now=now,stake_eur=stake)
+                        _log(c,now,mint,'AUTO_BUY','Entrata virtuale EUR '+str(result['cost_eur'])+
+                             ' · liquidita USD '+str(round(liquidity))+
+                             ' · volume 24h USD '+str(round(volume))+
+                             ' · vendibilita non verificata')
+                        bought+=1
+                        count+=1
+                        messages.append('AUTO_BUY '+mint[:8])
+                    except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
+                        messages.append('CANDIDATO_NON_DISPONIBILE '+type(exc).__name__)
+                _log(c,now,None,'AUTO_SCAN',
+                     'Analizzati '+str(len(rows))+' token; '+str(len(candidates))+
+                     ' idonei; '+str(bought)+' acquisti virtuali; '+
+                     str(count)+' posizioni in portafoglio')
+                if count>=MAX_POSITIONS:messages.append('LIMITE_POSIZIONI')
+                elif bought==0 and not any(x.startswith('CANDIDATO_') for x in messages):
+                    messages.append('NESSUN_CANDIDATO_IDONEO')
+            except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
+                messages.append('SCOUT_NON_DISPONIBILE '+type(exc).__name__)
+                _log(c,now,None,'AUTO_ERROR','Scout non disponibile: '+type(exc).__name__)
+    label=' · '.join(messages) if messages else 'MONITORAGGIO'
+    errors=[m for m in messages if 'NON_DISPONIBILE' in m or 'SOSPESO_SENZA' in m]
+    c.execute('UPDATE meme_auto_state SET last_tick=?,last_status=?,last_error=? WHERE id=1',
+              (now,label[:250],'; '.join(errors)[:250]))
+    c.commit()
+    return status(c)
++str(int(MIN_ENTRY_LIQUIDITY))+
+                                 ' e volume 24h min (c,candidate,q)
+                        if stake is None:
+                            messages.append('CAPITALE_DISPONIBILE_O_RISERVA_INSUFFICIENTE')
+                            break
+                        result=trade(c,mint,'BUY',q,fx,now=now,stake_eur=stake)
+                        _log(c,now,mint,'AUTO_BUY','Entrata virtuale EUR '+str(result['cost_eur'])+
+                             ' · liquidita USD '+str(round(liquidity))+
+                             ' · volume 24h USD '+str(round(volume))+
+                             ' · vendibilita non verificata')
+                        bought+=1
+                        count+=1
+                        messages.append('AUTO_BUY '+mint[:8])
+                    except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
+                        messages.append('CANDIDATO_NON_DISPONIBILE '+type(exc).__name__)
+                _log(c,now,None,'AUTO_SCAN',
+                     'Analizzati '+str(len(rows))+' token; '+str(len(candidates))+
+                     ' idonei; '+str(bought)+' acquisti virtuali; '+
+                     str(count)+' posizioni in portafoglio')
+                if count>=MAX_POSITIONS:messages.append('LIMITE_POSIZIONI')
+                elif bought==0 and not any(x.startswith('CANDIDATO_') for x in messages):
+                    messages.append('NESSUN_CANDIDATO_IDONEO')
+            except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
+                messages.append('SCOUT_NON_DISPONIBILE '+type(exc).__name__)
+                _log(c,now,None,'AUTO_ERROR','Scout non disponibile: '+type(exc).__name__)
+    label=' · '.join(messages) if messages else 'MONITORAGGIO'
+    errors=[m for m in messages if 'NON_DISPONIBILE' in m or 'SOSPESO_SENZA' in m]
+    c.execute('UPDATE meme_auto_state SET last_tick=?,last_status=?,last_error=? WHERE id=1',
+              (now,label[:250],'; '.join(errors)[:250]))
+    c.commit()
+    return status(c)
++str(int(MIN_ENTRY_VOLUME))+
+                                 ' · nessun acquisto')
+                            messages.append('FILTRO_QUALITA_'+rejection)
                             continue
                         stake=dynamic_stake(c,candidate,q)
                         if stake is None:
