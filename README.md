@@ -1,3 +1,49 @@
+## NEXUS 4.2.0 — OpenAI AI Shadow reale, senza ordini AI
+
+V4.2 usa **un solo modello OpenAI reale** (`gpt-6-luna`) tramite
+`POST https://api.openai.com/v1/responses`, output JSON Schema
+strutturato, quattro prospettive `analyst`, `risk`, `strategy`,
+`portfolio`, verdict di ricerca BUY/SELL/WAIT e rationale.
+Queste sono valutazioni **SHADOW**, non autorizzazioni a comprare
+o vendere. Il motore a regole V4 PAPER continua indipendente.
+La risposta dell'AI non passa MAI all'esecutore, non modifica saldo,
+posizioni, filtri, rischio, o Risk Lock legacy/V4.
+
+L'integrazione è spenta per impostazione predefinita e non esegue
+chiamate senza **opt-in esplicito e chiave API**. Per attivarla nel
+PowerShell che avvia il server:
+
+```powershell
+$env:NEXUS_V4_AI_SHADOW_ENABLED='1'
+$env:NEXUS_OPENAI_API_KEY='INSERISCI_LA_TUA_CHIAVE_DIRETTAMENTE_SUL_PC'
+py .\src\server.py
+```
+
+Non inserire credenziali su GitHub o nella chat. Quando non si intende
+usarla, lasciare `NEXUS_V4_AI_SHADOW_ENABLED` non impostata.
+
+**Guardrail dei costi e delle richieste:** massimo 20 tentativi ogni
+giorno UTC, massimo 150 ogni mese UTC, minimo 300 secondi fra i tentativi,
+al massimo 3 candidati presi in considerazione, minimo 3 osservazioni
+REST recenti, liquidity >= 20k USD, volume >= 50k USD, una valutazione
+per mint ogni ora. Ogni tentativo viene salvato in SQLite *prima* della
+richiesta HTTPS, anche se la chiamata fallisce; resiste ai riavvii del
+programma. Il testo inviato è limitato a 5 KB e la generazione
+a 450 output token. Non esistono strumenti (tool calls) o URL esterni
+controllabili dal modello. Il timeout è 15 s. La rete non viene chiamata
+all'interno del lock del database. Chiave API mai salvata nel DB.
+
+**Attenzione:** un limite al numero di chiamate NON garantisce un
+tetto di spesa in euro. Impostare budget e avvisi
+nell'account OpenAI Platform e controllare la fatturazione.
+ChatGPT Plus non include crediti API.
+
+Dashboard: `Terminale → AI PAPER 4.0 → AI SHADOW`, endpoint di
+sola lettura `GET /api/v4-ai-shadow`. I record distinguono
+RESERVED, COMPLETED, ERROR; solo il risultato JSON del provider
+può produrre COMPLETED. Le opinioni AI non sono verifiche di sicurezza,
+liquidità eseguibile o redditività della strategia.
+
 ## NEXUS 4.1.0 — Agent Decision Intelligence
 
 La scheda **Terminale → AI PAPER 4.0** mostra ora **WAIT Intelligence**:
