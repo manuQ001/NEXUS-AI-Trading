@@ -124,6 +124,17 @@ class TestMaintenance(unittest.TestCase):
         self.assertIn("marker.addEventListener('click',reveal)",html)
         self.assertIn("marker.addEventListener('keydown'",html)
 
+    def test_v44_performance_cards_and_engine_health(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        for key in ('nx-v4-realized-pnl','nx-v4-perf-closed',
+                    'nx-v4-win-rate','nx-v4-fees','nx-v4-heartbeat',
+                    'nx-v4-performance-foot'):
+            self.assertEqual(html.count('id="'+key+'"'),1,key)
+        self.assertIn('d.performance||{}',html)
+        self.assertIn('d.last_tick_age_seconds',html)
+        self.assertIn('nessun win rate calcolabile',html.lower())
+        self.assertIn('commissioni simulate',html.lower())
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())
