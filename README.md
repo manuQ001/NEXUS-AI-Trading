@@ -1,3 +1,39 @@
+## NEXUS 4.3.0 — AI Decision Intelligence · 5 / 15 / 30 minuti
+
+Il modello OpenAI rimane in **AI SHADOW SOLO OSSERVAZIONE**, senza
+autorità su ordini reali o PAPER, rischio, equity o Risk Lock.
+Un nuovo motore interno **senza chiamate API** salva la quotazione REST
+rilevata al termine di ogni valutazione AI COMPLETED (massimo 45 s prima
+del completamento). Non attribuisce ai risultati precedenti un prezzo
+ricostruito a posteriori: le review storiche mostrano **NO BASELINE**.
+
+Per ciascuna nuova valutazione AI, in tabella
+`v4_ai_outcome_checks`, vengono pianificate tre finestre: 5, 15 e
+30 minuti dal completamento della valutazione. L'esito deriva
+esclusivamente dalla **prima lettura REST realmente osservata**
+`meme_quote_reads` nell'intervallo [scadenza, scadenza + 120 s].
+Non si interpola, non si usa l'ultima quota precedente e non si
+confondono prezzi con ordini eseguibili. Se la rilevazione non arriva,
+si registra `MISSING_QUOTE`; se manca il riferimento iniziale,
+`NO_BASELINE`.
+
+La dashboard **AI PAPER 4.0 → AI SHADOW → AI Decision Intelligence**
+mostra i rendimenti percentuali *osservati* dopo 5/15/30 minuti, le
+assenze di dati, il conteggio descrittivo di WAIT seguiti da ribasso
+o rialzo, le ipotesi direzionali BUY/SELL e il confronto con il voto
+del motore Python **alla selezione del candidato**. Il confronto
+non costituisce una misurazione di profitto, validazione statistica,
+backtest senza bias o certificazione di capacità predittiva.
+Le valutazioni AI storiche anteriori alla 4.3 restano visibili ma
+non vengono riempite con prezzi osservati successivamente.
+
+Il worker calcola questi esiti anche se l'API non è configurata,
+usando soltanto osservazioni già salvate. Le chiamate OpenAI restano
+vincolate alle medesime quote giornaliere/mensili, senza nuove chiamate
+per il monitoraggio. DB e credenziali locali non sono inclusi nello ZIP.
+Le correzioni non modificano il motore di esecuzione e non sbloccano
+nessuno dei Risk Lock.
+
 ## NEXUS 4.2.1 — Diagnostica errori HTTP OpenAI senza segreti
 
 La scheda AI Shadow e l'endpoint `/api/v4-ai-shadow` distinguono
