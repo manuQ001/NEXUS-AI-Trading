@@ -118,6 +118,40 @@ class TestRealAIShadow(unittest.TestCase):
             out,usage=_make_request(item,'sk-secret1234567890')
         self.assertEqual(out['verdict'],'WAIT')
         self.assertEqual(usage['input'],100)
+    def test_incomplete_response_has_safe_specific_error_code(self):
+        from v4_ai_shadow import _safe_api_error
+        self.assertEqual(
+            _safe_api_error(ValueError('AI_INCOMPLETE_MAX_OUTPUT_TOKENS')),
+            'AI_INCOMPLETE_MAX_OUTPUT_TOKENS')
+        self.assertEqual(
+            _safe_api_error(ValueError('AI_INVALID_STRUCTURED_OUTPUT')),
+            'AI_INVALID_STRUCTURED_OUTPUT')
+        self.assertEqual(
+            _safe_api_error(ValueError('private_token_from_provider')),
+            'ValueError')
+
+    def test_incomplete_response_is_not_a_consensus_buy(self):
+        from v4_ai_shadow import _safe_api_error
+        item,_=reserve(self.c,now=1021)
+        result={'status':'incomplete',
+                'incomplete_details':{'reason':'max_output_tokens'},
+                'output':[]}
+        class FakeResponse:
+            headers={}
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+            def read(self,n):return json.dumps(result).encode()
+        class FakeOpener:
+            def open(self,req,timeout):return FakeResponse()
+        with patch('v4_ai_shadow.urllib.request.build_opener',return_value=FakeOpener()):
+            with self.assertRaisesRegex(ValueError,'AI_INCOMPLETE_MAX_OUTPUT_TOKENS') as err:
+                _make_request(item,'sk-secret1234567890')
+        finish(self.c,item,error=_safe_api_error(err.exception))
+        state=report(self.c)['reviews'][0]
+        self.assertEqual(state['outcome'],'ERROR')
+        self.assertEqual(state['issue'],'AI_INCOMPLETE_MAX_OUTPUT_TOKENS')
+        self.assertIsNone(state['verdict'])
+
     def test_http_errors_show_safe_status_and_never_raw_body(self):
         import io
         from urllib.error import HTTPError
