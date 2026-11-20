@@ -50,7 +50,7 @@ class TestMaintenance(unittest.TestCase):
                     self.nav_links.append(props['href'])
         html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
         p=Inspect();p.feed(html)
-        self.assertEqual(p.views,['live','prices','shadow','risk','desk','tools'])
+        self.assertEqual(p.views,['live','prices','shadow','risk','desk','v4','tools'])
         for name in ['nx-event-tape','nx-event-counter','nx-active-focus-label',
                      'nx-market-pulse','nx-shadow-lab','nx-risk-lab','nx-desk-control',
                      'nx-advanced','meme-auto-toggle']:
