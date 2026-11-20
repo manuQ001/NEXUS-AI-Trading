@@ -5,6 +5,8 @@ signatures, wallet keys, swaps, or trade API calls. Experimental signals.
 """
 import math
 import time
+import json
+from meme_agents import review as review_meme_agents
 from meme_portfolio import (initialize,trade,mark,portfolio,get_fx,indicative_quote,
                             MAX_POSITIONS, STAKE_EUR, SELL_COST)
 from meme_scout import scan,ADDRESS
@@ -63,11 +65,19 @@ def init_auto(c):
     c.execute('''CREATE TABLE IF NOT EXISTS meme_auto_journal(
         id INTEGER PRIMARY KEY AUTOINCREMENT,timestamp INTEGER NOT NULL,
         address TEXT, action TEXT NOT NULL,note TEXT NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS meme_agent_latest(
+        id INTEGER PRIMARY KEY CHECK(id=1),updated_at INTEGER NOT NULL,
+        report_json TEXT NOT NULL)''')
 
 def status(c):
     init_auto(c)
     s=c.execute('SELECT * FROM meme_auto_state WHERE id=1').fetchone()
-    return {'enabled':bool(s['enabled']),'last_scan':s['last_scan'],
+    agent_row=c.execute('SELECT * FROM meme_agent_latest WHERE id=1').fetchone()
+    agent_report=json.loads(agent_row['report_json']) if agent_row else {
+        'status':'NOT_STARTED','mode':'NOT_STARTED','agents':[]}
+    return {'agents_report':agent_report,
+            'agents_updated_at':agent_row['updated_at'] if agent_row else None,
+            'enabled':bool(s['enabled']),'last_scan':s['last_scan'],
             'last_tick':s['last_tick'],'status':s['last_status'],
             'error':s['last_error'],'stop_loss_pct':-6,'take_profit_pct':12,
             'trailing_activation_pct':8,'trailing_gap_points':4,
@@ -177,6 +187,20 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 count=c.execute('SELECT COUNT(*) FROM meme_eur_positions').fetchone()[0]
                 bought=0
                 candidates=eligible_candidates(c,rows,now)
+                assessment=review_meme_agents(candidates[:3])
+                c.execute('''INSERT INTO meme_agent_latest(id,updated_at,report_json)
+                    VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET
+                    updated_at=excluded.updated_at,report_json=excluded.report_json''',
+                    (now,json.dumps(assessment,ensure_ascii=False)))
+                _log(c,now,None,'AI_DESK',
+                     assessment['mode']+' · '+assessment['status']+' · '+
+                     str(len(assessment['approved_addresses']))+' candidati senza veto · '+
+                     assessment['note'])
+                for agent in assessment['agents']:
+                    _log(c,now,None,'AGENT_'+agent['name'].replace(' ','_'),
+                         agent['status']+' · '+agent['reason'])
+                candidates=[t for t in candidates if
+                            t['address'] in assessment['approved_addresses']]
                 if not rows:
                     messages.append('SCOUT_SENZA_TOKEN')
                 elif not candidates:
