@@ -31,6 +31,7 @@ def initialize(c):
         quantity REAL NOT NULL,price_usd REAL NOT NULL,
         fx_usd_eur REAL NOT NULL,cash_eur REAL NOT NULL,pnl_eur REAL,
         note TEXT NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS meme_signal_samples(\n        address TEXT NOT NULL,observed_at INTEGER NOT NULL,\n        price_usd REAL NOT NULL,PRIMARY KEY(address,observed_at))''')
     c.execute('''CREATE TABLE IF NOT EXISTS meme_fx_cache(
         id INTEGER PRIMARY KEY CHECK(id=1),usd_eur REAL NOT NULL,
         rate_date TEXT NOT NULL, fetched_at INTEGER NOT NULL)''')
@@ -121,6 +122,8 @@ def trade(c,address,action,quote,fx,now=None,stake_eur=None):
         quantity=stake/(price*rate*(1+BUY_COST))
         if not math.isfinite(quantity) or quantity<=0:raise ValueError('Quantità token non valida')
         with c:
+            c.execute('DELETE FROM meme_signal_samples WHERE address=?',(address,))
+            c.execute('INSERT OR REPLACE INTO meme_signal_samples(address,observed_at,price_usd) VALUES(?,?,?)',(address,now,price))
             c.execute("UPDATE wallets SET cash=cash-? WHERE strategy='meme'",(stake,))
             c.execute('INSERT INTO meme_eur_positions VALUES(?,?,?,?,?,?,?,?,?,?)',
                       (address,symbol,quantity,price,rate,stake,now,price,rate,now))
@@ -137,6 +140,7 @@ def trade(c,address,action,quote,fx,now=None,stake_eur=None):
     with c:
         c.execute("UPDATE wallets SET cash=cash+? WHERE strategy='meme'",(proceeds,))
         c.execute('DELETE FROM meme_eur_positions WHERE address=?',(address,))
+        c.execute('DELETE FROM meme_signal_samples WHERE address=?',(address,))
         c.execute('''INSERT INTO meme_eur_trades(timestamp,address,symbol,action,quantity,
                    price_usd,fx_usd_eur,cash_eur,pnl_eur,note) VALUES(?,?,?,?,?,?,?,?,?,?)''',
                   (now,address,current['symbol'],'SELL',current['quantity'],price,rate,proceeds,pnl,
@@ -153,6 +157,43 @@ def mark(c,address,quote,fx,now=None):
     c.execute('''UPDATE meme_eur_positions
                  SET last_price_usd=?,last_fx_usd_eur=?,last_checked_at=? WHERE address=?''',
               (price,rate,now,address))
+    # Record observed price changes, not every refresh; a REST poll is not a market tick.
+    old=c.execute('SELECT price_usd FROM meme_signal_samples WHERE address=? ORDER BY observed_at DESC LIMIT 1',(address,)).fetchone()
+    if old is None or abs(float(old['price_usd'])-price)>max(abs(price),abs(float(old['price_usd'])))*1e-12:
+        c.execute('INSERT OR REPLACE INTO meme_signal_samples(address,observed_at,price_usd) VALUES(?,?,?)',(address,now,price))
+        c.execute('''DELETE FROM meme_signal_samples WHERE address=? AND observed_at NOT IN
+                     (SELECT observed_at FROM meme_signal_samples WHERE address=? ORDER BY observed_at DESC LIMIT 8)''',(address,address))
+
+def market_outlook(samples,now,last_checked_at):
+    """Descriptive short-horizon heuristic, never a forecast probability or buy signal.
+    Source prices have no provider tick timestamp; use polling time for freshness only.
+    """
+    samples=[dict(x) for x in samples]
+    age=max(0,int(now)-int(last_checked_at))
+    if age>45:
+        return {'direction':'DATI_NON_RECENTI','explanation':'Ultima lettura del server oltre 45 secondi fa; nessun pronostico affidabile.',
+                'confidence':'NON_VALUTABILE','sample_count':len(samples),'change_pct':None}
+    if len(samples)<3:
+        return {'direction':'INCERTO','explanation':'Servono almeno tre prezzi osservati diversi per valutare la direzione a breve.',
+                'confidence':'INSUFFICIENTE','sample_count':len(samples),'change_pct':None}
+    prices=[float(x['price_usd']) for x in samples[-3:]]
+    if any(not math.isfinite(p) or p<=0 for p in prices):
+        return {'direction':'INCERTO','explanation':'Quotazioni mancanti o non valide.',
+                'confidence':'INSUFFICIENTE','sample_count':len(samples),'change_pct':None}
+    change=(prices[-1]/prices[0]-1)*100
+    first=(prices[1]/prices[0]-1)*100
+    second=(prices[2]/prices[1]-1)*100
+    if first>0 and second>0:
+        direction='RIALZISTA'
+        explanation='Le ultime due variazioni osservate sono positive. Il rialzo potrebbe proseguire, ma non è prevedibile con questi soli dati.'
+    elif first<0 and second<0:
+        direction='RIBASSISTA'
+        explanation='Le ultime due variazioni osservate sono negative. La pressione ribassista potrebbe continuare, senza garanzie.'
+    else:
+        direction='INCERTO'
+        explanation='Le ultime variazioni osservate non concordano: non emerge una direzione coerente.'
+    return {'direction':direction,'explanation':explanation,'confidence':'BASSA',
+            'sample_count':len(samples),'change_pct':round(change,3)}
 
 def portfolio(c,now=None):
     initialize(c)
@@ -169,6 +210,8 @@ def portfolio(c,now=None):
         p['estimated_net_value_eur']=round(net,8)
         p['estimated_pnl_eur']=round(net-p['cost_eur'],8)
         p['estimated_roi_pct']=round((net/p['cost_eur']-1)*100,3)
+        samples=c.execute('SELECT observed_at,price_usd FROM meme_signal_samples WHERE address=? ORDER BY observed_at DESC LIMIT 8',(p['address'],)).fetchall()
+        p['outlook']=market_outlook(list(reversed(samples)),now,p['last_checked_at'])
         invested+=net
     fx=c.execute('SELECT usd_eur,rate_date,fetched_at FROM meme_fx_cache WHERE id=1').fetchone()
     trades=[dict(t) for t in c.execute('SELECT * FROM meme_eur_trades ORDER BY id DESC LIMIT 50')]
