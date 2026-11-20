@@ -125,10 +125,60 @@ class TestV4Paper(unittest.TestCase):
         self.assertEqual(d1['trade_count'],1)
         self.assertEqual(d2['trade_count'],1)
         self.assertEqual(d1['cash_eur'],d2['cash_eur'])
+    def test_wait_entries_record_detailed_reasons_without_orders(self):
+        self.seed(A,liq=100)
+        self.seed(B,vol=100)
+        outcome=tick(self.c,now=1000)
+        self.assertEqual(outcome['new_trades'],0)
+        self.assertGreaterEqual(outcome['new_wait_records'],2)
+        d=report(self.c,now=1000)
+        self.assertGreaterEqual(d['wait_decision_count'],2)
+        self.assertTrue(all(x['action']=='WAIT' for x in d['recent_waits']))
+        self.assertTrue(any(x['count']>=2 for x in d['wait_reason_counts']))
+        self.assertIn('LOW_LIQUIDITY_OR_VOLUME',str(d['recent_waits']))
+        self.assertEqual(d['trade_count'],0)
+        self.assertEqual(portfolio(self.c)['cash_eur'],45)
+
+    def test_wait_duplicate_is_throttled_but_reason_change_is_logged(self):
+        self.seed(A,liq=100)
+        tick(self.c,now=1000)
+        first=report(self.c)['wait_decision_count']
+        tick(self.c,now=1010)
+        self.assertEqual(report(self.c)['wait_decision_count'],first)
+        # Same token, changed actual REST-observed liquidity -> changed reason.
+        observe(self.c,A,quote(A,.0108,liq=30000,vol=80000),now=1020)
+        tick(self.c,now=1020)
+        self.assertEqual(report(self.c)['wait_decision_count'],first+1)
+        self.assertIn('Momentum',report(self.c)['recent_waits'][0]['reason'])
+        tick(self.c,now=1021)
+        self.assertEqual(report(self.c)['wait_decision_count'],first+1)
+
+    def test_no_recent_quotes_logs_one_system_wait_per_minute(self):
+        tick(self.c,now=1000)
+        tick(self.c,now=1010)
+        d=report(self.c)
+        self.assertEqual(d['wait_decision_count'],1)
+        self.assertIsNone(d['recent_waits'][0]['address'])
+        self.assertIn('Nessuna quotazione REST',d['recent_waits'][0]['reason'])
+        tick(self.c,now=1061)
+        self.assertEqual(report(self.c)['wait_decision_count'],2)
+        self.assertEqual(report(self.c)['trade_count'],0)
+
+    def test_bounded_wait_log_remains_under_cap(self):
+        from v4_agents import _log_wait,_trim_decision_log,MAX_DECISION_ROWS
+        for i in range(MAX_DECISION_ROWS+20):
+            _log_wait(self.c,1000+i*61,A,'OBS','reason '+str(i),
+                      {'strategy':'WAIT','risk':'UNKNOWN'})
+        _trim_decision_log(self.c)
+        count=self.c.execute('SELECT COUNT(*) FROM v4_agent_decisions').fetchone()[0]
+        self.assertEqual(count,MAX_DECISION_ROWS)
+        self.assertEqual(report(self.c)['trade_count'],0)
+
     def test_dashboard_v4_panel_is_read_only(self):
         html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
         for term in ['nx-v4-panel','nx-v4-equity','nx-v4-drawdown',
-                     'nx-v4-positions','nx-v4-trades','nx-v4-toggle','data-nx-focus="v4"',
+                     'nx-v4-positions','nx-v4-trades','nx-v4-toggle',
+                     'nx-v4-wait-reasons','nx-v4-wait-list','data-nx-focus="v4"',
                      "fetch('/api/v4-agents'"]:
             self.assertIn(term,html)
         self.assertNotIn("fetch('/api/v4-agents',{method:'POST'",html)
