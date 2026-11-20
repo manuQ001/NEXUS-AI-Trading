@@ -16,7 +16,7 @@ TAKE_PROFIT=0.12
 TRAIL_ARM=0.08
 TRAIL_GAP=0.04
 MAX_HOLD_SECONDS=900
-SCAN_SECONDS=300
+SCAN_SECONDS=60
 COOLDOWN_SECONDS=3600
 MIN_AUTO_LIQUIDITY=500.0
 MIN_AUTO_VOLUME=500.0
@@ -81,7 +81,7 @@ def status(c):
             'last_tick':s['last_tick'],'status':s['last_status'],
             'error':s['last_error'],'stop_loss_pct':-6,'take_profit_pct':12,
             'trailing_activation_pct':8,'trailing_gap_points':4,
-            'max_hold_minutes':15,'monitor_seconds':15,'scan_seconds':SCAN_SECONDS,
+            'max_hold_minutes':15,'monitor_seconds':10,'scan_seconds':SCAN_SECONDS,
             'max_positions':MAX_POSITIONS,'max_entries_per_scan':MAX_ENTRIES_PER_SCAN,
             'sizing':'DYNAMIC_EUR','min_stake_eur':MIN_STAKE_EUR,'max_initial_fraction':MAX_INITIAL_FRACTION,'cash_reserve_fraction':CASH_RESERVE_FRACTION,
             'mode':'AUTONOMOUS_PAPER_ONLY',
@@ -159,6 +159,18 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 price=_number(q.get('price_usd'))
                 if price is None or price<=0:raise ValueError('Quotazione non valida')
                 mark(c,addr,q,fx,now=now)
+                # Publish meaningful actual quote observations, not artificial ticks.
+                # Throttle unchanged quotes; no claim of tradable fills.
+                previous_price=_number(pos.get('last_price_usd'))
+                prev_time=int(pos.get('last_checked_at') or 0)
+                if (previous_price is not None and previous_price>0 and
+                    price!=previous_price and now-prev_time>=10):
+                    pct=(price/previous_price-1)*100
+                    if abs(pct)>=0.2:
+                        _log(c,now,addr,'PRICE_OBSERVED',
+                             'Prezzo USD '+format(price,'.12g')+
+                             ' · variazione dal controllo precedente '+
+                             format(pct,'+.2f')+'% · quota REST indicativa')
                 roi=net_roi(pos,price,fx['usd_eur'])
                 old=c.execute('SELECT peak_net_roi FROM meme_auto_trail WHERE address=?',(addr,)).fetchone()
                 peak=max(roi,float(old['peak_net_roi'])) if old else roi
@@ -187,18 +199,31 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 count=c.execute('SELECT COUNT(*) FROM meme_eur_positions').fetchone()[0]
                 bought=0
                 candidates=eligible_candidates(c,rows,now)
-                assessment=review_meme_agents(candidates[:3])
-                c.execute('''INSERT INTO meme_agent_latest(id,updated_at,report_json)
-                    VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET
-                    updated_at=excluded.updated_at,report_json=excluded.report_json''',
-                    (now,json.dumps(assessment,ensure_ascii=False)))
-                _log(c,now,None,'AI_DESK',
-                     assessment['mode']+' · '+assessment['status']+' · '+
-                     str(len(assessment['approved_addresses']))+' candidati senza veto · '+
-                     assessment['note'])
-                for agent in assessment['agents']:
-                    _log(c,now,None,'AGENT_'+agent['name'].replace(' ','_'),
-                         agent['status']+' · '+agent['reason'])
+                # Do not spend paid model calls again on identical candidates
+                # before five minutes; cached verdicts do not bypass risk gates.
+                agent_row=c.execute('SELECT updated_at,report_json FROM meme_agent_latest WHERE id=1').fetchone()
+                addresses=[t['address'] for t in candidates[:3]]
+                cached=json.loads(agent_row['report_json']) if agent_row else None
+                reuse=(cached is not None and now-int(agent_row['updated_at'])<300 and
+                       cached.get('reviewed_addresses')==addresses)
+                if reuse:
+                    assessment=cached
+                    _log(c,now,None,'AGENT_CACHE',
+                         'Riutilizzata valutazione precedente per candidati invariati · '
+                         'nessun nuovo consulto API')
+                else:
+                    assessment=review_meme_agents(candidates[:3])
+                    c.execute('''INSERT INTO meme_agent_latest(id,updated_at,report_json)
+                        VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET
+                        updated_at=excluded.updated_at,report_json=excluded.report_json''',
+                        (now,json.dumps(assessment,ensure_ascii=False)))
+                    _log(c,now,None,'AI_DESK',
+                         assessment['mode']+' · '+assessment['status']+' · '+
+                         str(len(assessment['approved_addresses']))+' candidati senza veto · '+
+                         assessment['note'])
+                    for agent in assessment['agents']:
+                        _log(c,now,None,'AGENT_'+agent['name'].replace(' ','_'),
+                             agent['status']+' · '+agent['reason'])
                 candidates=[t for t in candidates if
                             t['address'] in assessment['approved_addresses']]
                 if not rows:
