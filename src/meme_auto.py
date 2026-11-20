@@ -218,6 +218,8 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx,force_scan=
                 price=_number(q.get('price_usd'))
                 if price is None or price<=0:raise ValueError('Quotazione non valida')
                 mark(c,addr,q,fx,now=now)
+                from meme_prices import observe as observe_market_price
+                observe_market_price(c,addr,q,now=now)
                 # Publish meaningful actual quote observations, not artificial ticks.
                 # Throttle unchanged quotes; no claim of tradable fills.
                 previous_price=_number(pos.get('last_price_usd'))
