@@ -281,12 +281,19 @@ def snapshot(c,now=None):
                      FROM meme_quote_changes WHERE address=? ORDER BY id DESC LIMIT ?""",
                      (d['address'],MAX_SERIES)).fetchall())]
         age=max(0,now-int(d['observed_at']))
+        # Deliver chart data alongside this already-working snapshot so the UI
+        # does not need a second HTTP request under shared-server lock pressure.
+        # Both series come exclusively from persisted REST reads.
+        sampled_1m=observed_candles(c,d['address'],interval_seconds=60,now=now,limit=60)
+        sampled_5m=observed_candles(c,d['address'],interval_seconds=300,now=now,limit=60)
         result.append({'address':d['address'],'symbol':d['symbol'],
             'source':d['source'],'price_usd':d['price_usd'],
             'liquidity_usd':d['liquidity_usd'],
             'volume_24h_usd':d['volume_24h_usd'],
             'observed_at':d['observed_at'],'age_seconds':age,
-            'fresh':age<=45,'observations':points})
+            'fresh':age<=45,'observations':points,
+            'sampled_candles_1m':sampled_1m['candles'],
+            'sampled_candles_5m':sampled_5m['candles']})
     round_trip_break_even=(1+BUY_COST)/(1-SELL_COST)-1
     gross_for_net_target=(1+0.12)*(1+BUY_COST)/(1-SELL_COST)-1
     net_at_gross_stop=(1-0.05)*(1-SELL_COST)/(1+BUY_COST)-1
