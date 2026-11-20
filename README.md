@@ -1,3 +1,24 @@
+## NEXUS 3.12.1 — Diagnostica "Nessuna quotazione disponibile"
+
+La sezione Prezzi ora distingue **AUTO_SUSPENDED**, **WAITING_FIRST_SCAN**,
+**NO_OBSERVED_QUOTES**, **STALE_QUOTES** e **OBSERVED_QUOTES**. Il messaggio
+della dashboard indica lo stato reale del monitor REST, l'ora dell'ultima
+scansione, quante quote sono state effettivamente ricevute nell'ultimo
+ciclo, eventuali errori e la loro causa disponibile. Il grafico non
+inventa candele: se lo scanner non ha ancora registrato prezzi, mostra
+chiaramente il motivo noto.
+
+Per diagnostica diretta, aprire sul PC dove gira il server:
+`http://127.0.0.1:8765/api/meme-market-pulse`. Cercare
+`quote_status`, `quote_explanation`, `auto_enabled`, `last_scan`,
+`monitor.last_success` e `monitor.errors`.
+
+Un Risk Lock che blocca nuovi BUY e diverso dalla sospensione completa
+di MEME AUTO: il primo non disabilita la sola osservazione, la seconda
+ferma anche il monitor REST. Questa release **non cambia** tali regole:
+non abilita AUTO, non sblocca BUY, non crea dati falsi, non installa nuovi
+provider, non modifica portafoglio o database di trading.
+
 ## NEXUS 3.12.0 — Market Chart Pro (OHLC da osservazioni REST)
 
 La scheda **Prezzi** nel Terminale NEXUS adesso mostra un grafico OHLC
