@@ -28,6 +28,18 @@ class TestMemeQuickHttp(unittest.TestCase):
     def tearDown(self):
         server.MEME_SCOUT_QUOTES.clear()
         self.temp.cleanup()
+    def test_sse_notifications_are_actual_and_resumable(self):
+        before=server.EVENT_SERIAL
+        item=server.publish_paper_event('PAPER_TICK',
+             {'last_tick':1234,'status':'MONITORAGGIO'},timestamp=1234)
+        self.assertGreater(item['id'],before)
+        pending=server.events_after(before)
+        self.assertTrue(any(x['id']==item['id'] and x['time']==1234
+                            and x['kind']=='PAPER_TICK' for x in pending))
+        self.assertFalse(server.events_after(item['id']))
+        with self.assertRaises(ValueError):
+            server.publish_paper_event('FAKE_BUY',{},timestamp=1234)
+
     def test_scan_then_quick_buy_uses_recent_server_quote_when_pair_refresh_fails(self):
         report={'ok':True,'candidates':[{'address':M,'price_usd':.02,
             'liquidity_usd':None,'volume_24h_usd':0,'symbol':'MEME'}]}
