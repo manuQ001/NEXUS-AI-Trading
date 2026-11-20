@@ -377,6 +377,21 @@ body{background:#0b1019}.shell{max-width:1180px}
 #nx-v4-equity-chart circle[role=button]:focus{stroke:#fff;stroke-width:3}
 @media(max-width:680px){.nx-v4-chart-header{align-items:flex-start}.nx-v4-chart-controls{order:3;width:100%;justify-content:space-between}.nx-v4-chart-controls button{flex:1;padding:9px}}
 
+
+/* V4 all-time performance & motor heartbeat */
+.nx-v4-heartbeat{border-radius:999px;border:1px solid #55657b;padding:7px 11px;color:#bfccdd;font-size:11px;font-weight:800;white-space:normal}
+.nx-v4-heartbeat[data-state=ok]{border-color:#327960;background:#123b31;color:#81e8c4}
+.nx-v4-heartbeat[data-state=stale]{border-color:#8e5960;background:#39232b;color:#ffb4b9}
+.nx-v4-heartbeat[data-state=paused]{border-color:#7f704d;background:#332c1a;color:#ffe1a4}
+.nx-v4-performance{margin:12px 0;border:1px solid #354b64;background:linear-gradient(150deg,#15243a,#101a2a);border-radius:14px;padding:16px}
+.nx-v4-performance-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.nx-v4-performance-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:13px}
+.nx-v4-performance-grid>div{background:#0e1929;border:1px solid #2d4057;border-radius:11px;padding:13px;min-width:0}
+.nx-v4-performance-grid small{display:block;color:#9eb3c9;font-size:10px;line-height:1.35;margin-bottom:6px}
+.nx-v4-performance-grid strong{display:block;color:#f0f7ff;font-size:clamp(18px,2vw,24px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.nx-v4-performance-foot{margin-top:11px;color:#a4b6c9;font-size:12px}
+@media(max-width:780px){.nx-v4-performance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> </div><div class="sub">TRADING PAPER · CONTROLLO DEL BOT</div></div><div class="flex"><span class="chip">● SOLO DENARO VIRTUALE</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav nx-nav-slim" aria-label="Navigazione principale">
 <a href="#meme-section">◉ Dashboard</a><a href="#performance-section">▥ Risultati</a>
@@ -430,6 +445,7 @@ body{background:#0b1019}.shell{max-width:1180px}
      <div class="nx-live-muted">500 € virtuali separati · Agenti a regole · Nessun ordine reale</div></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="nx-live-chip" id="nx-v4-mode">CARICAMENTO</span>
+      <span class="nx-v4-heartbeat" id="nx-v4-heartbeat" data-state="unknown" role="status">Stato motore da verificare</span>
       <button type="button" class="btn" id="nx-v4-toggle" title="Sospendi o riprendi solo il portafoglio PAPER 4.0">SOSPENDI V4 PAPER</button>
     </div>
    </div>
@@ -440,6 +456,16 @@ body{background:#0b1019}.shell{max-width:1180px}
     <div><small>POSIZIONI</small><strong id="nx-v4-positions-count">—</strong></div>
     <div><small>DRAWDOWN</small><strong id="nx-v4-drawdown">—</strong></div>
    </div>
+   <section class="nx-v4-performance" aria-label="Statistiche reali del trading simulato">
+    <div class="nx-v4-performance-heading"><div class="nx-live-title">RISULTATI DEL TRADING PAPER</div><span class="nx-live-muted">Tutte le operazioni chiuse · commissioni simulate</span></div>
+    <div class="nx-v4-performance-grid">
+     <div><small>PROFITTO REALIZZATO</small><strong id="nx-v4-realized-pnl">—</strong></div>
+     <div><small>OPERAZIONI CHIUSE</small><strong id="nx-v4-perf-closed">—</strong></div>
+     <div><small>WIN RATE</small><strong id="nx-v4-win-rate">—</strong></div>
+     <div><small>COMMISSIONI SIMULATE</small><strong id="nx-v4-fees">—</strong></div>
+    </div>
+    <div class="nx-v4-performance-foot" id="nx-v4-performance-foot">In attesa dello storico delle operazioni.</div>
+   </section>
    <section class="nx-v4-chart-wrap" aria-label="Andamento del portafoglio virtuale">
     <div class="nx-v4-chart-header">
      <div><div class="nx-live-title">ANDAMENTO DEL PORTAFOGLIO</div>
@@ -1481,6 +1507,27 @@ async function nxLoadV4(){
   $('nx-v4-mode').textContent=d.risk_latched?'RISK LOCK V4 ATTIVO':
      !d.enabled?'V4 SOSPESO':'AGENT PAPER · '+String(d.last_decision||'ATTENDO QUOTE');
   $('nx-v4-toggle').textContent=d.enabled?'SOSPENDI V4 PAPER':'RIPRENDI V4 PAPER';
+  const age=d.last_tick_age_seconds==null?null:Number(d.last_tick_age_seconds);
+  const heartbeat=$('nx-v4-heartbeat');
+  const healthy=Boolean(d.enabled)&&Number.isFinite(age)&&age<=60;
+  heartbeat.dataset.state=!d.enabled?'paused':healthy?'ok':'stale';
+  heartbeat.textContent=!d.enabled?'Motore sospeso':healthy?'Motore attivo · ultimo ciclo '+age+'s fa':
+    'Motore da verificare · '+(age==null?'nessun ciclo registrato':'ultimo ciclo '+age+'s fa');
+  const perf=d.performance||{};
+  const realized=Number(perf.realized_net_pnl_eur);
+  const perfNet=$('nx-v4-realized-pnl');
+  perfNet.textContent=Number.isFinite(realized)?(realized>0?'+':'')+euro(realized):'—';
+  perfNet.classList.toggle('nx-positive',Number.isFinite(realized)&&realized>0);
+  perfNet.classList.toggle('nx-negative',Number.isFinite(realized)&&realized<0);
+  const closed=Number(perf.closed);
+  $('nx-v4-perf-closed').textContent=Number.isFinite(closed)?String(closed):'—';
+  const wr=perf.win_rate_pct==null?null:Number(perf.win_rate_pct);
+  $('nx-v4-win-rate').textContent=Number.isFinite(wr)?wr.toFixed(1)+'%':'—';
+  const fees=perf.modeled_fees_eur==null?null:Number(perf.modeled_fees_eur);
+  $('nx-v4-fees').textContent=Number.isFinite(fees)?euro(fees):'—';
+  $('nx-v4-performance-foot').textContent=Number.isFinite(closed)&&closed>0?
+    String(perf.wins||0)+' vinte · '+String(perf.losses||0)+' perse · '+String(perf.flat||0)+' pareggi · costi già inclusi nel P/L realizzato':
+    'Non ci sono ancora operazioni chiuse. Nessun win rate calcolabile.';
   $('nx-v4-equity').textContent=euro(d.equity_eur);
   const base=Number(d.initial_eur),equity=Number(d.equity_eur);
   const pnlValid=Number.isFinite(base)&&base>0&&Number.isFinite(equity);
