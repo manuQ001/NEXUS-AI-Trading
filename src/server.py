@@ -173,6 +173,15 @@ class Handler(BaseHTTPRequestHandler):
                     c.commit()
                 finally:c.close()
             self.out(data)
+        elif path=='/api/v4-equity-history':
+            from v4_agents import equity_history
+            with LOCK:
+                c=connect()
+                try:
+                    data=equity_history(c)
+                    c.commit()
+                finally:c.close()
+            self.out(data)
         elif path=='/api/v4-agents':
             from v4_agents import report as v4_report
             with LOCK:
