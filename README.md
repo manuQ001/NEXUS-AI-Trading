@@ -1,3 +1,9 @@
+## NEXUS 4.4 (proposta, non rilasciata) — Consenso AI opzionale per ingressi PAPER
+
+La variabile locale `NEXUS_V4_AI_PAPER_GATE=1` richiede un verdict BUY realmente COMPLETED, dello stesso mint, registrato da non più di 300 secondi, con osservazioni REST temporalmente coerenti, **oltre** al BUY del motore Python. WAIT, SELL, opinioni scadute, mancanti o non completate bloccano solo i nuovi BUY PAPER e registrano il motivo. Per impostazione predefinita la funzione è disabilitata: il comportamento 4.3 rimane invariato.
+
+L'AI non può creare ordini autonomamente, modificare i criteri Python, bloccare le uscite di protezione, superare limiti di posizione o sbloccare il Risk Lock. La modalità reale resta non supportata. Con le quote AI limitate e un giudizio per mint ogni ora, i nuovi ingressi possono restare rari. Nessuna garanzia di redditività. Questa è una modifica di sviluppo su branch, non una release installabile.
+
 ## NEXUS 4.3.0 — AI Decision Intelligence · 5 / 15 / 30 minuti
 
 Il modello OpenAI rimane in **AI SHADOW SOLO OSSERVAZIONE**, senza
