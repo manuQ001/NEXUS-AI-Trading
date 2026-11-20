@@ -164,6 +164,13 @@ class Handler(BaseHTTPRequestHandler):
                     c.commit()
                 finally:c.close()
             self.out(result)
+        elif path=='/api/meme-decision-timeline':
+            from meme_timeline import timeline
+            with LOCK:
+                c=connect()
+                try:result=timeline(c)
+                finally:c.close()
+            self.out(result)
         elif path=='/api/meme-shadow':
             from meme_shadow import report as shadow_report
             with LOCK:
