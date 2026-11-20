@@ -65,6 +65,12 @@ def init_auto(c):
         last_status TEXT NOT NULL DEFAULT 'NON_AVVIATO',
         last_error TEXT NOT NULL DEFAULT '')''')
     c.execute("INSERT OR IGNORE INTO meme_auto_state(id,enabled) VALUES(1,1)")
+    # Sticky risk lock: a temporary price bounce must not silently resume BUYs.
+    columns={row[1] for row in c.execute('PRAGMA table_info(meme_auto_state)')}
+    if 'risk_latched' not in columns:
+        c.execute('ALTER TABLE meme_auto_state ADD COLUMN risk_latched INTEGER NOT NULL DEFAULT 0')
+    if 'risk_latched_at' not in columns:
+        c.execute('ALTER TABLE meme_auto_state ADD COLUMN risk_latched_at INTEGER NOT NULL DEFAULT 0')
     c.execute('''CREATE TABLE IF NOT EXISTS meme_auto_trail(
         address TEXT PRIMARY KEY,peak_net_roi REAL NOT NULL,updated_at INTEGER NOT NULL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS meme_auto_journal(
@@ -81,6 +87,12 @@ def status(c):
     agent_report=json.loads(agent_row['report_json']) if agent_row else {
         'status':'NOT_STARTED','mode':'NOT_STARTED','agents':[]}
     guard=circuit_breaker(c)
+    state=c.execute('SELECT risk_latched,risk_latched_at FROM meme_auto_state WHERE id=1').fetchone()
+    if state and state['risk_latched']:
+        guard=dict(guard,blocked=True,reason='BLOCCO_PERSISTENTE',
+                   latched=True,latched_at=state['risk_latched_at'])
+    else:
+        guard=dict(guard,latched=False,latched_at=None)
     return {'agents_report':agent_report,'risk_circuit':guard,
             'agents_updated_at':agent_row['updated_at'] if agent_row else None,
             'enabled':bool(s['enabled']),'last_scan':s['last_scan'],
@@ -246,7 +258,20 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx,force_scan=
                 count=c.execute('SELECT COUNT(*) FROM meme_eur_positions').fetchone()[0]
                 bought=0
                 candidates=eligible_candidates(c,rows,now)
+                from meme_desk import record_scan
                 guard=circuit_breaker(c,now)
+                state_risk=c.execute(
+                    'SELECT risk_latched,risk_latched_at FROM meme_auto_state WHERE id=1'
+                ).fetchone()
+                if guard['blocked'] and not state_risk['risk_latched']:
+                    c.execute('UPDATE meme_auto_state SET risk_latched=1,risk_latched_at=? WHERE id=1',(now,))
+                    _log(c,now,None,'RISK_LATCH',
+                         'Limite perdite raggiunto: stop ingressi PAPER persistente')
+                if state_risk['risk_latched']:
+                    guard=dict(guard,blocked=True,reason='BLOCCO_PERSISTENTE',
+                               latched=True,latched_at=state_risk['risk_latched_at'])
+                record_scan(c,rows,now=now,guard_blocked=guard['blocked'],
+                            source='STREAM' if force_scan else 'REST')
                 if guard['blocked']:
                     from meme_intelligence import observe_blocked
                     observed=observe_blocked(c,rows,now=now)
