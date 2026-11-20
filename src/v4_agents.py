@@ -119,7 +119,8 @@ def _log_wait(c,now,address,symbol,reason,agents):
     Never turn a WAIT into a BUY and never interpret insufficient data as safe.
     """
     existing=c.execute("""SELECT timestamp,reason,action FROM v4_agent_decisions
-        WHERE address=? ORDER BY id DESC LIMIT 1""",(address,)).fetchone()
+        WHERE (address=? OR (address IS NULL AND ? IS NULL))
+        ORDER BY id DESC LIMIT 1""",(address,address)).fetchone()
     if (existing and existing['action']=='WAIT'
             and existing['reason']==reason
             and now-int(existing['timestamp'])<WAIT_LOG_COOLDOWN_SECONDS):
