@@ -20,6 +20,9 @@ MAX_QUOTE_AGE=45
 MAX_HOLD_SECONDS=900
 MAX_ENTRY_PER_CYCLE=1
 COOLDOWN_SECONDS=3600
+WAIT_LOG_COOLDOWN_SECONDS=60
+MAX_DECISION_ROWS=600
+MAX_WAIT_EVALUATIONS=20
 
 def initialize(c):
     c.execute("""CREATE TABLE IF NOT EXISTS v4_paper_state(
@@ -110,6 +113,26 @@ def _log(c,now,address,symbol,action,reason,agents):
         (now,address,symbol,action,str(reason)[:220],
          json.dumps(agents,ensure_ascii=False,sort_keys=True)))
 
+def _log_wait(c,now,address,symbol,reason,agents):
+    """Record one reason per mint at most once a minute, unless reason changes.
+
+    Never turn a WAIT into a BUY and never interpret insufficient data as safe.
+    """
+    existing=c.execute("""SELECT timestamp,reason,action FROM v4_agent_decisions
+        WHERE (address=? OR (address IS NULL AND ? IS NULL))
+        ORDER BY id DESC LIMIT 1""",(address,address)).fetchone()
+    if (existing and existing['action']=='WAIT'
+            and existing['reason']==reason
+            and now-int(existing['timestamp'])<WAIT_LOG_COOLDOWN_SECONDS):
+        return False
+    _log(c,now,address,symbol,'WAIT',reason,agents)
+    return True
+
+def _trim_decision_log(c):
+    c.execute("""DELETE FROM v4_agent_decisions WHERE id NOT IN
+        (SELECT id FROM v4_agent_decisions ORDER BY id DESC LIMIT ?)""",
+        (MAX_DECISION_ROWS,))
+
 def tick(c,now=None):
     """One autonomous PAPER cycle. Runs only on observed quotes, no mock fills."""
     initialize(c)
@@ -170,8 +193,9 @@ def tick(c,now=None):
     blocked=bool(state['risk_latched']) or latched
     positions=c.execute('SELECT COUNT(*) FROM v4_paper_positions').fetchone()[0]
     decision='RISK_LOCK' if blocked else 'NO_ELIGIBLE_SIGNAL'
+    wait_recorded=0
     if not blocked and positions<MAX_POSITIONS:
-        for quote in latest:
+        for quote in latest[:MAX_WAIT_EVALUATIONS]:
             addr=quote['address']
             if c.execute('SELECT 1 FROM v4_paper_positions WHERE address=?',(addr,)).fetchone():
                 continue
@@ -183,6 +207,10 @@ def tick(c,now=None):
             stake=round(min(INITIAL_EUR*MAX_ALLOCATION,float(state['cash_eur'])),2)
             agents['portfolio']='MAX_5PCT_3_POSITIONS' if stake>=1 else 'LOW_CASH'
             if vote!='BUY' or stake<1:
+                if stake<1 and vote=='BUY':
+                    reason='Capitale virtuale insufficiente per un nuovo ingresso'
+                if _log_wait(c,now,addr,quote['symbol'],reason,agents):
+                    wait_recorded+=1
                 continue
             # Opt-in was explicit in project planning; legacy account untouched.
             qty=stake*(1-BUY_COST)/float(quote['price_usd'])
@@ -202,9 +230,17 @@ def tick(c,now=None):
             decision='BUY_PAPER'
             break
     if blocked:decision='RISK_LOCK'
+    if not latest and not blocked:
+        # Local observation status only: no assumed token, quote or fake trade.
+        if _log_wait(c,now,None,'SISTEMA',
+                     'Nessuna quotazione REST recente: nessun ingresso valutabile',
+                     {'analyst':'NO_FRESH_QUOTES','risk':'UNKNOWN',
+                      'strategy':'WAIT','portfolio':'NO_ACTION'}):
+            wait_recorded+=1
+    _trim_decision_log(c)
     c.execute('UPDATE v4_paper_state SET last_tick=?,last_decision=? WHERE id=1',
               (now,decision))
-    return {'status':decision,'new_trades':completed}
+    return {'status':decision,'new_trades':completed,'new_wait_records':wait_recorded}
 
 def report(c,now=None):
     initialize(c)
@@ -215,7 +251,13 @@ def report(c,now=None):
     trades=[dict(t) for t in c.execute(
         'SELECT * FROM v4_paper_trades ORDER BY id DESC LIMIT 20')]
     decisions=[dict(d) for d in c.execute(
-        'SELECT * FROM v4_agent_decisions ORDER BY id DESC LIMIT 15')]
+        'SELECT * FROM v4_agent_decisions ORDER BY id DESC LIMIT 30')]
+    recent_waits=[dict(d) for d in c.execute("""SELECT * FROM v4_agent_decisions
+        WHERE action='WAIT' ORDER BY id DESC LIMIT 12""")]
+    wait_reasons=[dict(d) for d in c.execute("""SELECT reason,COUNT(*) AS count
+        FROM (SELECT reason FROM v4_agent_decisions
+              WHERE action='WAIT' ORDER BY id DESC LIMIT 150)
+        GROUP BY reason ORDER BY count DESC,reason LIMIT 8""")]
     equity=_equity(c,state)
     for p in positions:
         p['quote_age_seconds']=max(0,now-int(p['last_quote_at']))
@@ -232,6 +274,10 @@ def report(c,now=None):
             'last_tick':state['last_tick'],'last_decision':state['last_decision'],
             'max_positions':MAX_POSITIONS,'max_trade_pct':MAX_ALLOCATION*100,
             'positions':positions,'trades':trades,'decisions':decisions,
+            'recent_waits':recent_waits,'wait_reason_counts':wait_reasons,
+            'wait_decision_count':c.execute(
+                "SELECT COUNT(*) FROM v4_agent_decisions WHERE action='WAIT'").fetchone()[0],
+            'wait_history_limited':True,
             'closed_count':c.execute("SELECT COUNT(*) FROM v4_paper_trades WHERE side='SELL_PAPER'").fetchone()[0],
             'trade_count':c.execute('SELECT COUNT(*) FROM v4_paper_trades').fetchone()[0],
             'security_verified':False,'real_trades_enabled':False,
