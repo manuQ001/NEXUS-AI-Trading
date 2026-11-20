@@ -96,10 +96,9 @@ def capture(c,rows,now=None,source='SCANNER'):
         pending+=1
     c.execute("DELETE FROM meme_shadow_signals WHERE created_at<? AND status!='PENDING'",
               (now-KEEP_SECONDS,))
-    c.execute("""DELETE FROM meme_shadow_signals WHERE id NOT IN
-        (SELECT id FROM meme_shadow_signals WHERE status='PENDING'
-         UNION SELECT id FROM meme_shadow_signals WHERE status!='PENDING'
-         ORDER BY id DESC LIMIT ?)""",(MAX_HISTORY,))
+    c.execute("""DELETE FROM meme_shadow_signals WHERE status!='PENDING'
+        AND id NOT IN (SELECT id FROM meme_shadow_signals
+        WHERE status!='PENDING' ORDER BY id DESC LIMIT ?)""",(MAX_HISTORY,))
     return added
 
 def evaluate(c,now=None):
@@ -118,7 +117,7 @@ def evaluate(c,now=None):
     for row in pending:
         target=int(row['target_at'])
         observation=c.execute("""SELECT observed_at,price_usd
-            FROM meme_quote_changes WHERE address=?
+            FROM meme_quote_reads WHERE address=?
               AND observed_at>=? AND observed_at<=?
             ORDER BY observed_at,id LIMIT 1""",
             (row['address'],target,target+GRACE_SECONDS)).fetchone()
