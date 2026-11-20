@@ -24,7 +24,7 @@ EVENT_SERIAL=0
 
 def publish_paper_event(kind,payload,timestamp=None):
     global EVENT_SERIAL
-    if kind not in ('PAPER_TICK','PAPER_JOURNAL'):raise ValueError('Unknown event')
+    if kind not in ('PAPER_TICK','PAPER_JOURNAL','PAPER_PROFILE'):raise ValueError('Unknown event')
     with EVENT_CONDITION:
         EVENT_SERIAL+=1
         item={'id':EVENT_SERIAL,'kind':kind,
@@ -155,6 +155,9 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
                 self.out({'ok':False,'status':'NON_VERIFICATO','meme_execution':'BLOCKED',
                           'error':'RPC Solana non disponibile o non valido: '+type(exc).__name__},503)
+        elif path=='/api/meme-live':
+            from meme_live import INBOX
+            self.out(INBOX.state())
         elif path=='/api/meme-auto':
             from meme_auto import status
             with LOCK:
@@ -435,6 +438,8 @@ def market_monitor_loop(stop, interval_seconds=30):
 def meme_auto_loop(stop, interval_seconds=10):
     """Experimental MEME PAPER engine, independent of dashboard and BTC/ETH."""
     from meme_auto import tick
+    from meme_live import INBOX
+    from meme_scout import scan_profiles
     with LOCK:
         db=connect()
         try:previous_event_id=db.execute(
@@ -448,7 +453,14 @@ def meme_auto_loop(stop, interval_seconds=10):
             with LOCK:
                 c=connect()
                 try:
-                    state=tick(c)
+                    live_profiles=INBOX.pop()
+                    if live_profiles:
+                        # Enrich one bounded batch via the documented REST quote API.
+                        # Failure does not bypass deterministic filters.
+                        state=tick(c,scout=lambda:scan_profiles(live_profiles),
+                                   force_scan=True)
+                    else:
+                        state=tick(c)
                     new_events=[dict(row) for row in c.execute(
                         'SELECT id FROM meme_auto_journal WHERE id>? ORDER BY id LIMIT 60',
                         (previous_event_id,))]
@@ -456,6 +468,9 @@ def meme_auto_loop(stop, interval_seconds=10):
                 finally:c.close()
             publish_paper_event('PAPER_TICK',{'last_tick':state['last_tick'],
                 'status':state['status'],'last_scan':state['last_scan']})
+            if live_profiles:
+                publish_paper_event('PAPER_PROFILE',{'received':len(live_profiles),
+                    'source':'DEX Screener token profile WebSocket'})
             if new_events:
                 publish_paper_event('PAPER_JOURNAL',{'last_journal_id':previous_event_id,
                     'count':len(new_events)})
@@ -486,11 +501,14 @@ def main():
     stop=threading.Event()
     threading.Thread(target=maintenance_loop,args=(stop,),daemon=True).start()
     threading.Thread(target=market_monitor_loop,args=(stop,),daemon=True).start()
+    from meme_live import listen
+    threading.Thread(target=listen,args=(stop,),daemon=True,
+                     name='NEXUS-MEME-Profile-Stream').start()
     threading.Thread(target=meme_auto_loop,args=(stop,),daemon=True).start()
     print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
     print('Dashboard: http://127.0.0.1:8765')
     print('Monitoraggio BTC/ETH ogni 30 s mentre il programma resta acceso, anche senza browser.')
-    print('MEME AUTO PAPER: compravendite SIMULATE autonome: monitor ogni 10 s circa, scan ogni 60 s; nessuna transazione reale.')
+    print('MEME AUTO PAPER: monitor ~10 s, scansione REST ogni 60 s, discovery profili via WebSocket quando disponibile; nessun ordine reale.')
     print('Premi CTRL+C per chiudere. Nessuna operazione reale.')
     if '--no-browser' not in sys.argv:
         threading.Timer(0.8,lambda:webbrowser.open('http://127.0.0.1:8765')).start()
