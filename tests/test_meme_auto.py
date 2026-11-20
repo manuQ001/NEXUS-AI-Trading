@@ -65,6 +65,26 @@ class TestMemeAuto(unittest.TestCase):
         tick(self.c,now=2000,scout=lambda:1/0,quote=lambda a:1/0,
              fx_rate=lambda c,now=None:1/0)
         self.assertEqual(portfolio(self.c)['positions'],[])
+    def test_live_scan_cadence_is_one_minute(self):
+        from meme_auto import SCAN_SECONDS
+        self.assertEqual(SCAN_SECONDS,60)
+        calls=[]
+        def scout():
+            calls.append(1)
+            return {'candidates':[]}
+        tick(self.c,now=1000,scout=scout,quote=lambda _:Q,fx_rate=fx)
+        tick(self.c,now=1050,scout=scout,quote=lambda _:Q,fx_rate=fx)
+        tick(self.c,now=1060,scout=scout,quote=lambda _:Q,fx_rate=fx)
+        self.assertEqual(len(calls),2)
+
+    def test_real_quote_change_emits_observed_event(self):
+        trade(self.c,M,'BUY',Q,FX,now=100)
+        first=tick(self.c,now=120,scout=lambda:{'candidates':[]},
+                   quote=lambda _:dict(Q,price_usd=0.0105),fx_rate=fx)
+        self.assertTrue(any(x['action']=='PRICE_OBSERVED' for x in first['journal']))
+        self.assertTrue(any('0.0105' in x['note'] for x in first['journal']
+                            if x['action']=='PRICE_OBSERVED'))
+
     def test_discovery_cadence(self):
         calls=[]
         def scout():
