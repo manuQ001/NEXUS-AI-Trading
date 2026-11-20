@@ -1,3 +1,19 @@
+## NEXUS 4.2.1 — Diagnostica errori HTTP OpenAI senza segreti
+
+La scheda AI Shadow e l'endpoint `/api/v4-ai-shadow` distinguono
+ora gli errori del provider attraverso codice HTTP (per esempio
+`HTTP_401`, `HTTP_400`, `HTTP_429_insufficient_quota`).
+Se il provider restituisce un codice simbolico, questo viene esposto
+solo quando corrisponde a caratteri alfanumerici/underscore e a una
+lunghezza massima. Non vengono memorizzati né pubblicati messaggi
+HTTP grezzi, header, API key o risposte complete. L'errore generico
+`HTTPError` non era sufficiente per una diagnosi precisa.
+
+L'errore gia registrato in V4.2.0 resta `HTTPError`; il codice
+dettagliato comparira solo dopo una NUOVA chiamata AI realmente
+eseguita. Il motore, i limiti di costo/chiamata e i Risk Lock sono
+invariati. Non si eseguono ordini di acquisto o vendita reali.
+
 ## NEXUS 4.2.0 — OpenAI AI Shadow reale, senza ordini AI
 
 V4.2 usa **un solo modello OpenAI reale** (`gpt-6-luna`) tramite
