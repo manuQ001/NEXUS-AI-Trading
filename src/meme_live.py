@@ -135,9 +135,9 @@ def _receive(sock):
     if not fin or opcode!=1:raise ValueError('Unsupported fragmented or binary WS data')
     return payload
 
-def _connect(timeout=12):
-    url=urlparse(STREAM_URL)
-    if url.scheme!='wss' or url.hostname!='api.dexscreener.com':
+def _connect(timeout=12,target=STREAM_URL):
+    url=urlparse(target)
+    if url.scheme!='wss' or url.hostname not in ('api.dexscreener.com','pumpportal.fun') or url.port is not None or url.username or url.password:
         raise ValueError('Unexpected WebSocket destination')
     raw=socket.create_connection((url.hostname,443),timeout=timeout)
     try:
