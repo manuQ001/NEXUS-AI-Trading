@@ -117,6 +117,12 @@ def monitor_initialize(c):
         errors INTEGER NOT NULL DEFAULT 0,
         last_error TEXT NOT NULL DEFAULT '')""")
     c.execute("INSERT OR IGNORE INTO meme_quote_monitor(id) VALUES(1)")
+    # Persistent cursor prevents the same first three pending signals from
+    # monopolizing the limited REST polling slots after every cycle.
+    columns={row[1] for row in c.execute('PRAGMA table_info(meme_quote_monitor)')}
+    if 'rotation_cursor' not in columns:
+        c.execute('ALTER TABLE meme_quote_monitor ADD COLUMN rotation_cursor INTEGER NOT NULL DEFAULT 0')
+
 
 def refresh_watchlist(c,now=None,quote=None):
     """Poll at most 3 recently observed tokens, even with no open PAPER positions.
@@ -149,9 +155,24 @@ def refresh_watchlist(c,now=None,quote=None):
         WHERE observed_at>=? AND liquidity_usd>=10000 AND volume_24h_usd>=20000
         ORDER BY liquidity_usd DESC,volume_24h_usd DESC,address LIMIT 20""",
         (now-WATCH_RECENT_SECONDS,)).fetchall()
-    addresses=list(dict.fromkeys(
-        addr for addr in pending+[r['address'] for r in rows]
-        if addr not in positions))[:WATCH_MAX_TOKENS]
+    # Round-robin across ALL active pending signals, not only the first 3.
+    # Advance by actual selection size and persist across restarts. This
+    # cannot increase provider requests beyond WATCH_MAX_TOKENS per cycle.
+    pending_unique=list(dict.fromkeys(x for x in pending if x not in positions))
+    cursor=int(c.execute(
+        'SELECT rotation_cursor FROM meme_quote_monitor WHERE id=1').fetchone()[0])
+    addresses=[]
+    next_cursor=cursor
+    if pending_unique:
+        start=cursor%len(pending_unique)
+        rotated=pending_unique[start:]+pending_unique[:start]
+        addresses=rotated[:WATCH_MAX_TOKENS]
+        next_cursor=(start+len(addresses))%len(pending_unique)
+    for row in rows:
+        address=row['address']
+        if len(addresses)>=WATCH_MAX_TOKENS:break
+        if address not in positions and address not in addresses:
+            addresses.append(address)
     checked=0
     errors=0
     last_error=''
@@ -169,8 +190,8 @@ def refresh_watchlist(c,now=None,quote=None):
             last_error=type(exc).__name__
     c.execute("""UPDATE meme_quote_monitor
         SET last_attempt=?,last_success=CASE WHEN ?>0 THEN ? ELSE last_success END,
-        checked=?,errors=?,last_error=? WHERE id=1""",
-        (now,checked,now,checked,errors,last_error))
+        checked=?,errors=?,last_error=?,rotation_cursor=? WHERE id=1""",
+        (now,checked,now,checked,errors,last_error,next_cursor))
     return {'status':'OBSERVED' if checked else 'NO_VALID_QUOTES',
             'checked':checked,'errors':errors}
 
@@ -218,7 +239,8 @@ def snapshot(c,now=None):
                 'last_success':monitor_row['last_success'],
                 'checked':monitor_row['checked'],
                 'errors':monitor_row['errors'],
-                'last_error':monitor_row['last_error']},
+                'last_error':monitor_row['last_error'],
+                'rotation_cursor':monitor_row['rotation_cursor']},
             'cost_model':{'buy_pct':BUY_COST*100,'sell_pct':SELL_COST*100,
                'minimum_gross_move_to_break_even_pct':round(round_trip_break_even*100,3),
                'gross_move_for_net_target_12_pct':round(gross_for_net_target*100,3),

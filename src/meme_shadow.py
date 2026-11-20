@@ -153,10 +153,36 @@ def report(c,now=None):
     observed=[x for x in rows if x['status']=='OBSERVED']
     # Descriptive conditional statistics ONLY; no suggestion of executable P/L.
     positive=sum((x['modeled_net_change_pct'] or 0)>0 for x in observed)
+    # Aggregate ALL retained settled signals, not only the 45 displayed cards,
+    # and never include pending/missing outcomes in a success-rate denominator.
+    settled=c.execute("""SELECT status,score,liquidity_usd,
+        modeled_net_change_pct FROM meme_shadow_signals
+        WHERE status IN ('OBSERVED','INSUFFICIENT_DATA')""").fetchall()
+    valid=[r for r in settled if r['status']=='OBSERVED' and r['modeled_net_change_pct'] is not None]
+    missing=sum(r['status']=='INSUFFICIENT_DATA' for r in settled)
+    scored=[]
+    for label,lo,hi in [('50-69',50,70),('70-84',70,85),('85-100',85,101)]:
+        subset=[r for r in valid if lo<=int(r['score'])<hi]
+        values=[float(r['modeled_net_change_pct']) for r in subset]
+        scored.append({'score_band':label,'observed':len(values),
+                       'positive_after_modeled_fees':sum(v>0 for v in values),
+                       'positive_ratio_pct':round(100*sum(v>0 for v in values)/len(values),2)
+                           if values else None,
+                       'mean_modeled_net_change_pct':round(sum(values)/len(values),3)
+                           if values else None})
+    settled_total=len(settled)
+    coverage={'evaluated_total':settled_total,'with_future_quote':len(valid),
+              'missing_future_quote':missing,
+              'quote_coverage_pct':round(100*len(valid)/settled_total,2)
+                  if settled_total else None,
+              'missing_quote_pct':round(100*missing/settled_total,2)
+                  if settled_total else None,
+              'by_score_band':scored}
     return {'mode':'SHADOW_OBSERVATION_ONLY','horizon_seconds':HORIZON_SECONDS,
             'grace_seconds':GRACE_SECONDS,
             'pending':totals.get('PENDING',0),'observed':totals.get('OBSERVED',0),
             'insufficient_data':totals.get('INSUFFICIENT_DATA',0),
+            'coverage':coverage,
             'recent_observed_count':len(observed),
             'recent_positive_after_modeled_fees':positive,
             'recent_positive_ratio_pct':round(100*positive/len(observed),2) if observed else None,
