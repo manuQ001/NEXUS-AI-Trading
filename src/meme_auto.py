@@ -16,7 +16,7 @@ TAKE_PROFIT=0.12
 TRAIL_ARM=0.08
 TRAIL_GAP=0.04
 MAX_HOLD_SECONDS=900
-SCAN_SECONDS=300
+SCAN_SECONDS=60
 COOLDOWN_SECONDS=3600
 MIN_AUTO_LIQUIDITY=500.0
 MIN_AUTO_VOLUME=500.0
@@ -81,7 +81,7 @@ def status(c):
             'last_tick':s['last_tick'],'status':s['last_status'],
             'error':s['last_error'],'stop_loss_pct':-6,'take_profit_pct':12,
             'trailing_activation_pct':8,'trailing_gap_points':4,
-            'max_hold_minutes':15,'monitor_seconds':15,'scan_seconds':SCAN_SECONDS,
+            'max_hold_minutes':15,'monitor_seconds':10,'scan_seconds':SCAN_SECONDS,
             'max_positions':MAX_POSITIONS,'max_entries_per_scan':MAX_ENTRIES_PER_SCAN,
             'sizing':'DYNAMIC_EUR','min_stake_eur':MIN_STAKE_EUR,'max_initial_fraction':MAX_INITIAL_FRACTION,'cash_reserve_fraction':CASH_RESERVE_FRACTION,
             'mode':'AUTONOMOUS_PAPER_ONLY',
@@ -159,6 +159,18 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 price=_number(q.get('price_usd'))
                 if price is None or price<=0:raise ValueError('Quotazione non valida')
                 mark(c,addr,q,fx,now=now)
+                # Publish meaningful actual quote observations, not artificial ticks.
+                # Throttle unchanged quotes; no claim of tradable fills.
+                previous_price=_number(pos.get('last_price_usd'))
+                prev_time=int(pos.get('last_checked_at') or 0)
+                if (previous_price is not None and previous_price>0 and
+                    price!=previous_price and now-prev_time>=10):
+                    pct=(price/previous_price-1)*100
+                    if abs(pct)>=0.2:
+                        _log(c,now,addr,'PRICE_OBSERVED',
+                             'Prezzo USD '+format(price,'.12g')+
+                             ' · variazione dal controllo precedente '+
+                             format(pct,'+.2f')+'% · quota REST indicativa')
                 roi=net_roi(pos,price,fx['usd_eur'])
                 old=c.execute('SELECT peak_net_roi FROM meme_auto_trail WHERE address=?',(addr,)).fetchone()
                 peak=max(roi,float(old['peak_net_roi'])) if old else roi
