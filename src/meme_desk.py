@@ -83,7 +83,9 @@ def record_scan(c,rows,now=None,guard_blocked=False,source='SCANNER'):
             _positive(row.get('price_usd')),
             _nonnegative(row.get('pool_age_hours')),decision,reason))
     from meme_shadow import capture as capture_shadow
+    from meme_risk_intelligence import record_candidates as record_risk_evidence
     capture_shadow(c,rows,now=now,source=source)
+    record_risk_evidence(c,rows,now=now)
     c.execute('DELETE FROM meme_scan_decisions WHERE observed_at<?',(now-KEEP_SECONDS,))
     c.execute("""DELETE FROM meme_scan_decisions WHERE id NOT IN
         (SELECT id FROM meme_scan_decisions ORDER BY id DESC LIMIT ?)""",(MAX_ROWS,))
