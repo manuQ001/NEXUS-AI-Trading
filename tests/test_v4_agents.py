@@ -30,6 +30,42 @@ class TestV4Paper(unittest.TestCase):
     def seed(self,a,at=1000,liq=30000,vol=80000):
         for t,p in [(at-20,.0100),(at-10,.0105),(at,.0108)]:
             observe(self.c,a,quote(a,p,liq,vol),now=t)
+    def test_equity_history_records_only_real_engine_snapshots(self):
+        from v4_agents import equity_history
+        empty=equity_history(self.c)
+        self.assertEqual(empty['points'],[])
+        self.assertEqual(empty['trades'],[])
+        self.seed(A)
+        tick(self.c,now=1000)
+        first=equity_history(self.c)
+        self.assertEqual(len(first['points']),1)
+        self.assertEqual(first['points'][0]['timestamp'],1000)
+        self.assertEqual(first['points'][0]['open_positions'],1)
+        self.assertTrue(any(t['side']=='BUY_PAPER' for t in first['trades']))
+        tick(self.c,now=1001)  # unchanged: no artificial tick in chart
+        self.assertEqual(len(equity_history(self.c)['points']),1)
+        observe(self.c,A,quote(A,.0138),now=1010)
+        tick(self.c,now=1010)
+        history=equity_history(self.c)
+        self.assertEqual(len(history['points']),2)
+        self.assertEqual(history['points'][-1]['timestamp'],1010)
+        self.assertEqual(history['points'][-1]['open_positions'],0)
+        self.assertTrue(any(t['side']=='SELL_PAPER' for t in history['trades']))
+        self.assertGreater(history['points'][-1]['equity_eur'],500)
+
+    def test_equity_history_does_not_backfill_prior_trade_records(self):
+        from v4_agents import equity_history
+        self.c.execute("""INSERT INTO v4_paper_trades(timestamp,address,symbol,side,
+            reason,price_usd,amount_eur,pnl_eur,model_fee_pct)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (900,A,'OLD','SELL_PAPER','OLD_RECORD',.01,25,1.0,3.0))
+        self.assertEqual(equity_history(self.c)['points'],[])
+        self.seed(B,at=1000,liq=100)  # no eligible buy
+        tick(self.c,now=1000)
+        history=equity_history(self.c)
+        self.assertTrue(all(t['timestamp']>=1000 for t in history['trades']))
+        self.assertEqual(len(history['points']),1)
+
     def test_v4_initial_wallet_is_isolated_from_legacy_wallet_and_risk(self):
         self.c.execute("UPDATE wallets SET cash=37 WHERE strategy='meme'")
         self.c.execute("UPDATE meme_auto_state SET risk_latched=1 WHERE id=1")
