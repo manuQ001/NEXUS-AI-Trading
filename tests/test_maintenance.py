@@ -4,7 +4,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from maintenance import check_updates,VERSION
 from updater import sha256,safe_package
 class TestMaintenance(unittest.TestCase):
-    def test_version(self):self.assertEqual(VERSION,'3.12.0')
+    def test_version(self):self.assertEqual(VERSION,'3.12.1')
     def test_manifest_unconfigured(self):
         from unittest.mock import patch
         with patch('maintenance.get_config', return_value={}):
