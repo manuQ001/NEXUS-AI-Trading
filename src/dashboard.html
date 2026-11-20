@@ -98,10 +98,10 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
  <div class="meme-quick-stat"><div class="sub">Equity stimata ultimo prezzo</div><b id="meme-demo-equity">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Posizioni aperte</div><b id="meme-demo-open">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Importo per operazione</div><b>Automatico · 1,50–4,50 €</b></div></div>
- <div class="sub meme-demo-note">Unico portafoglio MEME da 45 € iniziali, già incluso nel patrimonio NEXUS. Prezzi indicativi DEX Screener richiesti dal server circa ogni 15s con AUTO attivo; un dato vecchio viene evidenziato. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume insufficienti impediscono gli ingressi automatici; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
+ <div class="sub meme-demo-note">Unico portafoglio MEME da 45 € iniziali, già incluso nel patrimonio NEXUS. Prezzi indicativi DEX Screener richiesti dal server circa ogni 15s con AUTO attivo; un dato vecchio viene evidenziato. Pronostici descrittivi a bassa affidabilità basati sulle ultime variazioni osservate, non previsioni né segnali per ordini reali. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume insufficienti impediscono gli ingressi automatici; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
  <div class="sub" id="meme-fx-note" style="margin-top:9px">Cambio di riferimento USD/EUR in caricamento</div>
  <div class="flex" style="margin:13px 0 8px;flex-wrap:wrap"><b>Posizioni MEME aperte</b><button class="btn" id="meme-demo-refresh" type="button">↻ Aggiorna</button></div>
- <div class="scroll meme-demo-table"><table class="dataTable"><thead><tr><th>Token</th><th>Ingresso</th><th>Prezzo osservato</th><th>Variazione</th><th>P/L stimato</th><th>Ultimo dato</th><th>Operazione</th></tr></thead><tbody id="meme-demo-positions"><tr><td colspan="7" class="muted">Nessun test caricato</td></tr></tbody></table></div>
+ <div class="scroll meme-demo-table"><table class="dataTable"><thead><tr><th>Token</th><th>Ingresso</th><th>Prezzo osservato</th><th>Variazione</th><th>P/L stimato</th><th>Pronostico breve</th><th>Ultimo dato</th><th>Operazione</th></tr></thead><tbody id="meme-demo-positions"><tr><td colspan="8" class="muted">Nessun test caricato</td></tr></tbody></table></div>
  <div class="sub" id="meme-demo-message" role="status" style="margin:10px 0">Portafoglio MEME in caricamento…</div>
  <details><summary style="cursor:pointer;color:var(--blue)">Storico operazioni MEME</summary><div class="scroll" id="meme-demo-history"><span class="sub">Storico in caricamento</span></div></details>
  </section><section class="panel" id="meme-hunter">
@@ -351,10 +351,15 @@ function renderMemeDemo(d){
       '<td><b class="'+(Number(p.price_change_pct)>=0?'green':'red')+'">'+esc(signed(p.price_change_pct))+'%</b></td>'+
       '<td><b class="'+(positive?'green':'red')+'">'+eurMeme(p.estimated_pnl_eur)+'</b>'+
         '<div class="sub">'+esc(signed(p.estimated_roi_pct))+'% netto stimato</div></td>'+
+      '<td><strong class="'+(p.outlook?.direction==='RIALZISTA'?'green':p.outlook?.direction==='RIBASSISTA'?'red':'')+'">'+
+        esc(p.outlook?.direction||'IN VALUTAZIONE')+'</strong>'+
+        '<div class="sub">'+esc(p.outlook?.explanation||'Attendo variazioni del prezzo')+'</div>'+
+        '<div class="sub">Variazione osservata: '+(p.outlook?.change_pct==null?'N/D':esc(signed(p.outlook.change_pct))+'%')+
+        ' · Affidabilità: '+esc(p.outlook?.confidence||'NON VALUTABILE')+'</div></td>'+
       '<td><span class="'+(fresh?'green':'red')+'">'+(fresh?'RECENTE':'NON AGGIORNATO')+'</span>'+
         '<div class="sub">'+esc(when(p.last_checked_at))+' · '+esc(p.mark_age_seconds)+'s fa</div></td>'+
       '<td><button class="btn meme-demo-sell" data-mint="'+esc(p.address)+'" type="button">Chiudi test</button></td></tr>';
-  }).join('')||'<tr><td colspan="7" class="muted">Nessuna posizione MEME aperta</td></tr>';
+  }).join('')||'<tr><td colspan="8" class="muted">Nessuna posizione MEME aperta</td></tr>';
   $('meme-demo-history').innerHTML=(d.trades||[]).map(t=>
     '<div class="event">'+esc(when(t.timestamp))+' · '+esc(t.symbol)+' · '+esc(t.action)+
     (t.pnl_eur==null?'':' · <b class="'+(t.pnl_eur<0?'red':'green')+'">'+eurMeme(t.pnl_eur)+'</b>')+
