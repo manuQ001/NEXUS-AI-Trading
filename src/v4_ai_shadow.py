@@ -20,7 +20,7 @@ MAX_PER_DAY=20
 MAX_PER_MONTH=150
 MIN_INTERVAL_SECONDS=300
 MAX_INPUT_BYTES=5000
-MAX_OUTPUT_TOKENS=450
+MAX_OUTPUT_TOKENS=900
 MAX_API_BYTES=50000
 MAX_CANDIDATES=3
 
@@ -80,7 +80,10 @@ def candidate(c,now):
             continue
         ranked.append((float(q['liquidity_usd']),q,h,vote,reason,roles))
     if not ranked:return None
-    ranked.sort(key=lambda t:t[0],reverse=True)
+    # Prefer candidates that Python would actually BUY before spending API
+    # budget on observations that cannot lead to a PAPER entry. This only
+    # changes research priority; it never changes Python eligibility or risk.
+    ranked.sort(key=lambda t:(t[3]=='BUY',t[0]),reverse=True)
     for _,q,h,vote,reason,roles in ranked[:MAX_CANDIDATES]:
         prev=c.execute("""SELECT timestamp,observed_at FROM v4_ai_shadow_audit
             WHERE address=? ORDER BY id DESC LIMIT 1""",(q['address'],)).fetchone()
@@ -181,13 +184,23 @@ def _make_request(item,key,timeout=15):
         data=response.read(MAX_API_BYTES+1)
     if len(data)>MAX_API_BYTES:raise ValueError('Oversized AI response')
     result=json.loads(data)
-    if result.get('status')!='completed':raise ValueError('AI response incomplete')
+    if result.get('status')!='completed':
+        detail=result.get('incomplete_details') or {}
+        if (result.get('status')=='incomplete' and isinstance(detail,dict)
+                and detail.get('reason')=='max_output_tokens'):
+            raise ValueError('AI_INCOMPLETE_MAX_OUTPUT_TOKENS')
+        raise ValueError('AI_RESPONSE_NOT_COMPLETED')
     chunks=[]
     for entry in result.get('output',[]):
         for part in entry.get('content',[]):
             if part.get('type')=='output_text':
                 chunks.append(part.get('text',''))
-    verdict=_validate(''.join(chunks))
+    if not chunks or not ''.join(chunks).strip():
+        raise ValueError('AI_EMPTY_OUTPUT')
+    try:
+        verdict=_validate(''.join(chunks))
+    except (ValueError,TypeError,json.JSONDecodeError):
+        raise ValueError('AI_INVALID_STRUCTURED_OUTPUT') from None
     usage=result.get('usage') or {}
     return verdict,{'input':int(usage.get('input_tokens') or 0),
                     'output':int(usage.get('output_tokens') or 0)}
@@ -210,6 +223,14 @@ def _safe_api_error(exc):
         except (ValueError,TypeError,AttributeError,OSError,UnicodeDecodeError):
             pass
         return code[:90]
+    # Fixed allowlist: never persist arbitrary ValueError text, which might
+    # accidentally contain provider response data or secrets.
+    if isinstance(exc,ValueError) and str(exc) in (
+            'AI_INCOMPLETE_MAX_OUTPUT_TOKENS',
+            'AI_RESPONSE_NOT_COMPLETED',
+            'AI_EMPTY_OUTPUT',
+            'AI_INVALID_STRUCTURED_OUTPUT'):
+        return str(exc)
     return type(exc).__name__[:48]
 
 def finish(c,request,verdict=None,usage=None,error=None):
@@ -232,6 +253,64 @@ def finish(c,request,verdict=None,usage=None,error=None):
         c.execute("""UPDATE v4_ai_shadow_audit SET outcome='ERROR',
             issue=? WHERE id=? AND outcome='RESERVED'""",
             (str(error or 'UNKNOWN')[:90],request['audit_id']))
+
+def scanner_diagnostics(c,now=None):
+    """Read-only, bounded explanation of existing server-observed scanner data.
+
+    Never inserts observations, makes network calls or changes trade decisions.
+    The history count measures actual price changes, not repeated REST reads.
+    """
+    from v4_agents import (_latest,_history,agents_decide,_number,
+                           MIN_LIQUIDITY_USD,MIN_VOLUME_24H_USD,MAX_QUOTE_AGE)
+    from meme_prices import initialize as initialize_prices
+    initialize_prices(c)
+    now=int(time.time()) if now is None else int(now)
+    total=int(c.execute('SELECT COUNT(*) FROM meme_quote_latest').fetchone()[0])
+    latest=_latest(c,now)
+    fresh=len(latest)
+    reasons={'MISSING_MARKET_DATA':0,'LOW_LIQUIDITY_OR_VOLUME':0,
+             'INSUFFICIENT_PRICE_CHANGES':0,'VOLATILITY_SPIKE':0,
+             'MOMENTUM_NOT_CONFIRMED':0,'PYTHON_BUY_SIGNAL':0}
+    rows=[]
+    for q in latest:
+        h=_history(c,q['address'],now)
+        price=_number(q.get('price_usd'))
+        liq=_number(q.get('liquidity_usd'))
+        vol=_number(q.get('volume_24h_usd'))
+        verdict,reason,_=agents_decide(q,h)
+        if not price or not liq or not vol:
+            category='MISSING_MARKET_DATA'
+        elif liq<MIN_LIQUIDITY_USD or vol<MIN_VOLUME_24H_USD:
+            category='LOW_LIQUIDITY_OR_VOLUME'
+        elif len([v for v in h if _number(v.get('price_usd'))])<3:
+            category='INSUFFICIENT_PRICE_CHANGES'
+        elif 'Escursione superiore' in reason:
+            category='VOLATILITY_SPIKE'
+        elif verdict=='BUY':
+            category='PYTHON_BUY_SIGNAL'
+        else:
+            category='MOMENTUM_NOT_CONFIRMED'
+        reasons[category]+=1
+        rows.append({'symbol':str(q['symbol'])[:24],
+                     'address':q['address'],'age_seconds':max(0,now-int(q['observed_at'])),
+                     'price_changes':len(h),
+                     'liquidity_usd':liq,'volume_24h_usd':vol,
+                     'python_verdict':verdict,'category':category})
+    audit=c.execute("""SELECT MAX(timestamp) AS last_attempt,
+        COUNT(*) AS total FROM v4_ai_shadow_audit""").fetchone()
+    elapsed=None if not audit['last_attempt'] else max(0,now-int(audit['last_attempt']))
+    next_attempt=max(0,MIN_INTERVAL_SECONDS-elapsed) if elapsed is not None else 0
+    return {'mode':'V45_SCANNER_DIAGNOSTICS','as_of':now,
+            'source':'PERSISTED_DEX_SCREENER_REST_ONLY',
+            'tracked_tokens':total,'fresh_tokens':fresh,
+            'quote_freshness_seconds':MAX_QUOTE_AGE,
+            'evaluated_tokens':len(rows),'reasons':reasons,
+            'candidates':rows[:10],
+            'ai_cooldown_remaining_seconds':next_attempt,
+            'note':('Fotografia dei dati REST disponibili, non certificazione di sicurezza. '
+                    'Le letture ripetute a prezzo invariato non creano variazioni; '
+                    'nessuna richiesta di mercato o AI aggiuntiva.')}
+
 
 def report(c):
     initialize(c)

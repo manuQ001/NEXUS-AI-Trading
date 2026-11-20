@@ -1,3 +1,21 @@
+## NEXUS 4.4 — Consenso AI PAPER (sviluppo)
+
+Il flusso rimane **Python BUY candidato → GPT in sola valutazione → eventuale BUY PAPER**. Il modello non effettua transazioni, non modifica i limiti di rischio, non gestisce SELL e non garantisce redditività. Con `NEXUS_V4_AI_PAPER_GATE=1`, una review `BUY` COMPLETED per lo stesso token, sufficientemente recente (max 300 secondi), e basata su osservazioni coerenti è necessaria per autorizzare un nuovo ingresso PAPER. Mancanza di dati, errore API, WAIT e SELL AI significano nessun nuovo BUY.
+
+Il servizio AI Shadow può essere avviato **solo con consenso esplicito e chiave API configurata localmente**: `NEXUS_V4_AI_SHADOW_ENABLED=1`. La chiave è letta da `NEXUS_OPENAI_API_KEY`, non deve essere inserita in file versionati o comunicata in chat. Abilitare il gate senza Shadow attivo blocca i nuovi ingressi; gli exit protettivi PAPER restano operativi. I limiti di tentativi (20/giorno, 150/mese, almeno 300 secondi) **non costituiscono un limite di spesa**: imporre un tetto anche nel pannello di fatturazione OpenAI.
+
+Le analisi AI danno priorità ai token che già superano i filtri Python, per evitare di consumare la quota su token non idonei. Il consenso non assicura che i due motori arrivino a un accordo entro la finestra temporale. La nuova scheda dashboard indica stato attivo/disattivo, approvazioni e veti **solo nel diario recente, limitato a 600 decisioni**. Non misura un vantaggio statistico dell'AI sul solo Python.
+
+La 4.4 non è ancora rilasciata. Conservare la copia 4.3 e provare gli aggiornamenti in una cartella separata con database PAPER dedicato; eseguire la suite locale prima di attivare i servizi.
+
+---
+
+## NEXUS 4.4 (proposta, non rilasciata) — Consenso AI opzionale per ingressi PAPER
+
+La variabile locale `NEXUS_V4_AI_PAPER_GATE=1` richiede un verdict BUY realmente COMPLETED, dello stesso mint, registrato da non più di 300 secondi, con osservazioni REST temporalmente coerenti, **oltre** al BUY del motore Python. WAIT, SELL, opinioni scadute, mancanti o non completate bloccano solo i nuovi BUY PAPER e registrano il motivo. Per impostazione predefinita la funzione è disabilitata: il comportamento 4.3 rimane invariato.
+
+L'AI non può creare ordini autonomamente, modificare i criteri Python, bloccare le uscite di protezione, superare limiti di posizione o sbloccare il Risk Lock. La modalità reale resta non supportata. Con le quote AI limitate e un giudizio per mint ogni ora, i nuovi ingressi possono restare rari. Nessuna garanzia di redditività. Questa è una modifica di sviluppo su branch, non una release installabile.
+
 ## NEXUS 4.3.0 — AI Decision Intelligence · 5 / 15 / 30 minuti
 
 Il modello OpenAI rimane in **AI SHADOW SOLO OSSERVAZIONE**, senza

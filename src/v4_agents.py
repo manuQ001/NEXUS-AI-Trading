@@ -23,6 +23,8 @@ COOLDOWN_SECONDS=3600
 WAIT_LOG_COOLDOWN_SECONDS=60
 MAX_DECISION_ROWS=600
 MAX_WAIT_EVALUATIONS=20
+EQUITY_HISTORY_MIN_SECONDS=60
+EQUITY_HISTORY_MAX_ROWS=4000
 
 def initialize(c):
     c.execute("""CREATE TABLE IF NOT EXISTS v4_paper_state(
@@ -46,6 +48,12 @@ def initialize(c):
         symbol TEXT NOT NULL,side TEXT NOT NULL,reason TEXT NOT NULL,
         price_usd REAL NOT NULL,amount_eur REAL NOT NULL,
         pnl_eur REAL,model_fee_pct REAL NOT NULL)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS v4_equity_history(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER NOT NULL,
+        equity_eur REAL NOT NULL,
+        cash_eur REAL NOT NULL,
+        open_positions INTEGER NOT NULL)""")
     c.execute("""CREATE TABLE IF NOT EXISTS v4_agent_decisions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp INTEGER NOT NULL,address TEXT,symbol TEXT,
@@ -106,6 +114,56 @@ def _equity(c,state):
         if price:equity+=float(p['synthetic_qty'])*price*(1-SELL_COST)
     return round(equity,6)
 
+def _record_equity(c, now, *, force=False):
+    """Store actual engine-account marks, not interpolated or fake market ticks.
+
+    The initial stored point is a CURRENT state, not backfilled history.
+    Positions are valued using the last observed REST price (may be stale).
+    """
+    state=c.execute('SELECT * FROM v4_paper_state WHERE id=1').fetchone()
+    if state is None:
+        return
+    equity=_equity(c,state)
+    cash=float(state['cash_eur'])
+    count=c.execute('SELECT COUNT(*) FROM v4_paper_positions').fetchone()[0]
+    last=c.execute("""SELECT timestamp,equity_eur,cash_eur,open_positions
+        FROM v4_equity_history ORDER BY id DESC LIMIT 1""").fetchone()
+    if last and now<=int(last['timestamp']):
+        return
+    changed=not last or (abs(equity-float(last['equity_eur']))>=0.005 or
+        abs(cash-float(last['cash_eur']))>=0.005 or count!=int(last['open_positions']))
+    if not (force or changed or not last or now-int(last['timestamp'])>=EQUITY_HISTORY_MIN_SECONDS):
+        return
+    c.execute("""INSERT INTO v4_equity_history(
+        timestamp,equity_eur,cash_eur,open_positions) VALUES(?,?,?,?)""",
+        (now,equity,cash,count))
+    c.execute("""DELETE FROM v4_equity_history WHERE id NOT IN
+        (SELECT id FROM v4_equity_history ORDER BY id DESC LIMIT ?)""",
+        (EQUITY_HISTORY_MAX_ROWS,))
+
+
+def equity_history(c,limit=720):
+    """Observed account history and matching paper journal events for the graph."""
+    initialize(c)
+    limit=max(2,min(int(limit),1440))
+    rows=[dict(r) for r in c.execute("""SELECT timestamp,equity_eur,cash_eur,open_positions
+        FROM (SELECT id,timestamp,equity_eur,cash_eur,open_positions
+              FROM v4_equity_history ORDER BY id DESC LIMIT ?)
+        ORDER BY id ASC""",(limit,))]
+    if not rows:
+        return {'mode':'V4_OBSERVED_EQUITY_HISTORY','points':[],'trades':[],
+                'warning':'Nessun campione storico. Inizia dal primo ciclo V4 dopo questo aggiornamento.'}
+    since=rows[0]['timestamp']
+    trades=[dict(t) for t in c.execute("""SELECT id,timestamp,symbol,side,pnl_eur
+        FROM v4_paper_trades WHERE timestamp>=?
+        AND side IN ('BUY_PAPER','SELL_PAPER') ORDER BY id DESC LIMIT 300""",(since,))][::-1]
+    return {'mode':'V4_OBSERVED_EQUITY_HISTORY','points':rows,'trades':trades,
+            'warning':('Storico disponibile solo dal primo campione registrato; '
+             'nessun backfill inventato. Equity PAPER calcolata con prezzi REST '
+             'osservati, anche se l’ultima quotazione puo essere vecchia. '
+             'Valori non eseguibili sul mercato.')}
+
+
 def _log(c,now,address,symbol,action,reason,agents):
     import json
     c.execute("""INSERT INTO v4_agent_decisions(
@@ -140,6 +198,7 @@ def tick(c,now=None):
     state=c.execute('SELECT * FROM v4_paper_state WHERE id=1').fetchone()
     if not state['enabled']:
         c.execute("UPDATE v4_paper_state SET last_tick=?,last_decision='SUSPENDED' WHERE id=1",(now,))
+        _record_equity(c,now)
         return {'status':'SUSPENDED','new_trades':0}
     latest=_latest(c,now)
     by_address={r['address']:r for r in latest}
@@ -212,6 +271,15 @@ def tick(c,now=None):
                 if _log_wait(c,now,addr,quote['symbol'],reason,agents):
                     wait_recorded+=1
                 continue
+            # Optional AI consensus is a veto only. Python must already vote BUY.
+            # Exits, risk latches and deterministic eligibility remain independent.
+            from v4_ai_paper_gate import approve_entry
+            ai_ok,ai_reason=approve_entry(c,addr,quote['observed_at'],now)
+            agents['ai_consensus']=ai_reason
+            if not ai_ok:
+                if _log_wait(c,now,addr,quote['symbol'],ai_reason,agents):
+                    wait_recorded+=1
+                continue
             # Opt-in was explicit in project planning; legacy account untouched.
             qty=stake*(1-BUY_COST)/float(quote['price_usd'])
             c.execute("""INSERT INTO v4_paper_positions(
@@ -240,6 +308,7 @@ def tick(c,now=None):
     _trim_decision_log(c)
     c.execute('UPDATE v4_paper_state SET last_tick=?,last_decision=? WHERE id=1',
               (now,decision))
+    _record_equity(c,now,force=bool(completed))
     return {'status':decision,'new_trades':completed,'new_wait_records':wait_recorded}
 
 def report(c,now=None):
@@ -264,14 +333,53 @@ def report(c,now=None):
         p['stale_quote']=p['quote_age_seconds']>MAX_QUOTE_AGE
         p['modeled_net_pnl_eur']=round(
             p['synthetic_qty']*p['last_price_usd']*(1-SELL_COST)-p['stake_eur'],4)
-    sells=[t for t in trades if t['side']=='SELL_PAPER']
+    # All-time ledger aggregates, not just the 20 recent trades shown on screen.
+    # pnl_eur of SELL_PAPER is already net of both modeled fees.
+    stats=c.execute("""SELECT
+        COUNT(*) AS closed,
+        COALESCE(SUM(CASE WHEN pnl_eur>0 THEN 1 ELSE 0 END),0) AS wins,
+        COALESCE(SUM(CASE WHEN pnl_eur<0 THEN 1 ELSE 0 END),0) AS losses,
+        COALESCE(SUM(CASE WHEN pnl_eur=0 THEN 1 ELSE 0 END),0) AS flat,
+        COALESCE(SUM(pnl_eur),0) AS realized_net_pnl
+        FROM v4_paper_trades WHERE side='SELL_PAPER'""").fetchone()
+    fees=c.execute("""SELECT COALESCE(SUM(
+        CASE WHEN side='BUY_PAPER' THEN amount_eur*?
+             WHEN side='SELL_PAPER' THEN amount_eur*?/(1-?)
+             ELSE 0 END),0)
+        FROM v4_paper_trades""",(BUY_COST,SELL_COST,SELL_COST)).fetchone()[0]
+    closed=int(stats['closed'])
+    from v4_ai_paper_gate import enabled as ai_gate_enabled
+    from v4_ai_shadow import config_status as ai_config_status
+    ai_config=ai_config_status()
+    # The decision journal is bounded, so report its exact scope. No claim
+    # that these counts measure strategy outperformance or lifetime totals.
+    ai_vetoes=c.execute("""SELECT COUNT(*) FROM v4_agent_decisions
+        WHERE action='WAIT' AND substr(reason,1,3)='AI_'""").fetchone()[0]
+    ai_approved=c.execute("""SELECT COUNT(*) FROM v4_agent_decisions
+        WHERE action='BUY_PAPER' AND agents_json LIKE '%AI_BUY_CONFIRMED%'""").fetchone()[0]
+    last_tick=int(state['last_tick'])
+    tick_age=max(0,now-last_tick) if last_tick else None
     return {'mode':'ISOLATED_MULTIAGENT_PAPER','engine':'DETERMINISTIC_AGENTS_NOT_LLM',
             'enabled':bool(state['enabled']),'cash_eur':round(state['cash_eur'],4),
             'initial_eur':INITIAL_EUR,'equity_eur':equity,
             'peak_equity_eur':state['peak_equity_eur'],
             'drawdown_pct':round((1-equity/max(.01,state['peak_equity_eur']))*100,3),
             'risk_latched':bool(state['risk_latched']),
-            'last_tick':state['last_tick'],'last_decision':state['last_decision'],
+            'last_tick':state['last_tick'],'last_tick_age_seconds':tick_age,
+            'last_decision':state['last_decision'],
+            'ai_consensus':{
+                'gate_enabled':ai_gate_enabled(),
+                'shadow_enabled':bool(ai_config['enabled']),
+                'shadow_active':bool(ai_config['active']),
+                'approved_entries_in_recent_log':int(ai_approved),
+                'vetoed_candidates_in_recent_log':int(ai_vetoes),
+                'log_window_max_rows':MAX_DECISION_ROWS,
+                'note':'AI e un veto opzionale solo per nuovi BUY PAPER; nessun controllo su SELL, risk lock o ordini reali.'},
+            'performance':{'closed':closed,'wins':int(stats['wins']),
+              'losses':int(stats['losses']),'flat':int(stats['flat']),
+              'win_rate_pct':round(100*int(stats['wins'])/closed,2) if closed else None,
+              'realized_net_pnl_eur':round(float(stats['realized_net_pnl']),4),
+              'modeled_fees_eur':round(float(fees),4)},
             'max_positions':MAX_POSITIONS,'max_trade_pct':MAX_ALLOCATION*100,
             'positions':positions,'trades':trades,'decisions':decisions,
             'recent_waits':recent_waits,'wait_reason_counts':wait_reasons,

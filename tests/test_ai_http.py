@@ -61,6 +61,33 @@ class TestAiHttp(unittest.TestCase):
         self.assertEqual(record.call_args.args[1]['reference_close'],100.)
         database.commit.assert_called_once()
         self.assertEqual(h.out.call_args.args[0]['advice']['research_journal']['reason'],'SAVED')
+    def test_local_preview_port_keeps_same_origin_protection(self):
+        h=handler(headers={'X-NEXUS-Research-Click':'1',
+                           'Origin':'http://127.0.0.1:8766',
+                           'Sec-Fetch-Site':'same-origin'})
+        database=MagicMock()
+        data={'candles':{'BTC':[{'time':1800000000,'close':100.}]},
+              'indicators':{'BTC':{}},'positions':[],
+              'status':{'BTC':'OK'},'wallets':[]}
+        with patch.object(server,'LOCAL_ORIGINS',
+                          ('http://127.0.0.1:8766','http://localhost:8766')), \
+             patch('server.connect',return_value=database), \
+             patch('server.snapshot',return_value=data), \
+             patch('server.daily_loss',return_value=0), \
+             patch('server.review',return_value={'symbol':'BTC'}) as review, \
+             patch('server.local_ai_advice',return_value={'available':False}), \
+             patch('server.record_ai_research',return_value={'saved':True}), \
+             patch.dict('os.environ',{},clear=True):
+            h.do_POST()
+        review.assert_called_once()
+        h2=handler(headers={'X-NEXUS-Research-Click':'1',
+                            'Origin':'http://127.0.0.1:8765',
+                            'Sec-Fetch-Site':'same-origin'})
+        with patch.object(server,'LOCAL_ORIGINS',
+                          ('http://127.0.0.1:8766','http://localhost:8766')):
+            h2.do_POST()
+        self.assertEqual(h2.out.call_args.args[1],403)
+
     def test_unknown_endpoint_post_refused(self):
         h=handler(path='/api/refresh',headers={'X-NEXUS-Research-Click':'1'})
         h.do_POST()

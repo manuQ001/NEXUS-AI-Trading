@@ -30,6 +30,78 @@ class TestV4Paper(unittest.TestCase):
     def seed(self,a,at=1000,liq=30000,vol=80000):
         for t,p in [(at-20,.0100),(at-10,.0105),(at,.0108)]:
             observe(self.c,a,quote(a,p,liq,vol),now=t)
+    def test_consensus_disabled_by_default_and_status_never_contains_key(self):
+        from unittest.mock import patch
+        with patch.dict('os.environ',{
+            'NEXUS_V4_AI_PAPER_GATE':'0',
+            'NEXUS_V4_AI_SHADOW_ENABLED':'0',
+            'NEXUS_OPENAI_API_KEY':'key-private-do-not-display'
+        }):
+            d=report(self.c,now=1000)
+        gate=d['ai_consensus']
+        self.assertFalse(gate['gate_enabled'])
+        self.assertFalse(gate['shadow_enabled'])
+        self.assertEqual(gate['approved_entries_in_recent_log'],0)
+        self.assertEqual(gate['vetoed_candidates_in_recent_log'],0)
+        self.assertNotIn('key-private-do-not-display',str(d))
+
+    def test_consensus_required_blocks_unreviewed_buy_and_never_blocks_existing_sell(self):
+        from unittest.mock import patch
+        self.seed(A)
+        with patch.dict('os.environ',{'NEXUS_V4_AI_PAPER_GATE':'1'}):
+            state=tick(self.c,now=1000)
+            d=report(self.c,now=1000)
+        self.assertEqual(state['new_trades'],0)
+        self.assertEqual(d['trade_count'],0)
+        self.assertTrue(d['ai_consensus']['gate_enabled'])
+        self.assertGreaterEqual(d['ai_consensus']['vetoed_candidates_in_recent_log'],1)
+        # Disable only the gate to open a PAPER position; re-enable it
+        # before verifying that protective exits still work.
+        with patch.dict('os.environ',{'NEXUS_V4_AI_PAPER_GATE':'0'}):
+            tick(self.c,now=1001)
+        self.assertEqual(len(report(self.c,now=1001)['positions']),1)
+        observe(self.c,A,quote(A,.0138),now=1010)
+        with patch.dict('os.environ',{'NEXUS_V4_AI_PAPER_GATE':'1'}):
+            tick(self.c,now=1010)
+        self.assertEqual(report(self.c,now=1010)['closed_count'],1)
+        self.assertEqual(report(self.c,now=1010)['positions'],[])
+
+    def test_equity_history_records_only_real_engine_snapshots(self):
+        from v4_agents import equity_history
+        empty=equity_history(self.c)
+        self.assertEqual(empty['points'],[])
+        self.assertEqual(empty['trades'],[])
+        self.seed(A)
+        tick(self.c,now=1000)
+        first=equity_history(self.c)
+        self.assertEqual(len(first['points']),1)
+        self.assertEqual(first['points'][0]['timestamp'],1000)
+        self.assertEqual(first['points'][0]['open_positions'],1)
+        self.assertTrue(any(t['side']=='BUY_PAPER' for t in first['trades']))
+        tick(self.c,now=1001)  # unchanged: no artificial tick in chart
+        self.assertEqual(len(equity_history(self.c)['points']),1)
+        observe(self.c,A,quote(A,.0138),now=1010)
+        tick(self.c,now=1010)
+        history=equity_history(self.c)
+        self.assertEqual(len(history['points']),2)
+        self.assertEqual(history['points'][-1]['timestamp'],1010)
+        self.assertEqual(history['points'][-1]['open_positions'],0)
+        self.assertTrue(any(t['side']=='SELL_PAPER' for t in history['trades']))
+        self.assertGreater(history['points'][-1]['equity_eur'],500)
+
+    def test_equity_history_does_not_backfill_prior_trade_records(self):
+        from v4_agents import equity_history
+        self.c.execute("""INSERT INTO v4_paper_trades(timestamp,address,symbol,side,
+            reason,price_usd,amount_eur,pnl_eur,model_fee_pct)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (900,A,'OLD','SELL_PAPER','OLD_RECORD',.01,25,1.0,3.0))
+        self.assertEqual(equity_history(self.c)['points'],[])
+        self.seed(B,at=1000,liq=100)  # no eligible buy
+        tick(self.c,now=1000)
+        history=equity_history(self.c)
+        self.assertTrue(all(t['timestamp']>=1000 for t in history['trades']))
+        self.assertEqual(len(history['points']),1)
+
     def test_v4_initial_wallet_is_isolated_from_legacy_wallet_and_risk(self):
         self.c.execute("UPDATE wallets SET cash=37 WHERE strategy='meme'")
         self.c.execute("UPDATE meme_auto_state SET risk_latched=1 WHERE id=1")
@@ -53,6 +125,45 @@ class TestV4Paper(unittest.TestCase):
         result=tick(self.c,now=1000)
         self.assertEqual(result['new_trades'],0)
         self.assertEqual(report(self.c)['trade_count'],0)
+    def test_performance_counts_all_closed_trades_and_modeled_fees(self):
+        self.seed(A)
+        tick(self.c,now=1000)
+        opened=report(self.c,now=1000)
+        self.assertIsNone(opened['performance']['win_rate_pct'])
+        self.assertEqual(opened['performance']['closed'],0)
+        self.assertAlmostEqual(opened['performance']['modeled_fees_eur'],.75,places=4)
+        observe(self.c,A,quote(A,.0138),now=1010)
+        tick(self.c,now=1010)
+        result=report(self.c,now=1011)
+        perf=result['performance']
+        self.assertEqual(perf['closed'],1)
+        self.assertEqual(perf['wins'],1)
+        self.assertEqual(perf['losses'],0)
+        self.assertEqual(perf['win_rate_pct'],100.0)
+        self.assertAlmostEqual(perf['realized_net_pnl_eur'],
+                               result['trades'][0]['pnl_eur'],places=4)
+        gross_sale=result['trades'][0]['amount_eur']/(1-.03)
+        self.assertAlmostEqual(perf['modeled_fees_eur'],
+                               round(.75+gross_sale*.03,4),places=4)
+        self.assertGreater(result['last_tick_age_seconds'],0)
+
+    def test_performance_includes_more_than_latest_twenty_trades(self):
+        # Verify lifetime aggregation does not rely on the 20-item API view.
+        for n in range(25):
+            self.c.execute("""INSERT INTO v4_paper_trades(
+                timestamp,address,symbol,side,reason,price_usd,
+                amount_eur,pnl_eur,model_fee_pct)
+                VALUES(?,?,?,?,?,?,?,?,?)""",
+                (1000+n,A,'TEST','SELL_PAPER','FIXTURE',.01,10.0,
+                 1.0 if n<10 else -1.0,3.0))
+        perf=report(self.c,now=1100)['performance']
+        self.assertEqual(perf['closed'],25)
+        self.assertEqual(perf['wins'],10)
+        self.assertEqual(perf['losses'],15)
+        self.assertEqual(perf['win_rate_pct'],40.0)
+        self.assertEqual(perf['realized_net_pnl_eur'],-5.0)
+        self.assertEqual(report(self.c,now=1100)['trade_count'],25)
+
     def test_buy_and_auto_sell_are_modeled_with_both_3pct_costs(self):
         self.seed(A)
         tick(self.c,now=1000)

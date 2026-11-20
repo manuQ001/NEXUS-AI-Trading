@@ -68,6 +68,83 @@ class TestMaintenance(unittest.TestCase):
         self.assertNotIn('Math.random()',html)
         self.assertNotIn('fakeTrade',html)
 
+    def test_v44_mobile_dashboard_focus_and_legacy_preserved(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('id="nx-terminal" data-focus="v4"',html)
+        self.assertIn("nxSetFocus('v4');",html)
+        self.assertIn('id="nx-v4-insights"',html)
+        self.assertIn('SALDO TOTALE VIRTUALE',html)
+        self.assertIn('ULTIME OPERAZIONI',html)
+        self.assertIn('data-nx-focus="tools"',html)
+        self.assertIn('id="nx-v4-toggle"',html)
+        self.assertIn('id="meme-auto-toggle"',html)
+        self.assertNotIn('PAPER ONLY • €150',html)
+
+    def test_v44_trade_animations_only_on_new_server_records(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('let nxV4Seen=false;',html)
+        self.assertIn('let nxV4HighestTradeId=0;',html)
+        self.assertIn('function nxV4TrackEvents(d)',html)
+        self.assertIn('if(nxV4Seen){',html)
+        self.assertIn('Number(t.id)>nxV4HighestTradeId',html)
+        self.assertIn("changes.opened.has(String(p.address||''))",html)
+        self.assertIn('Number(tr.id)===changes.latestId',html)
+        self.assertIn('prefers-reduced-motion:reduce',html)
+        self.assertIn("document.getElementById('nx-v4-event-status')",html)
+        self.assertNotIn('Math.random()',html)
+
+    def test_v44_portfolio_profit_uses_actual_initial_capital(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('id="nx-v4-pnl"',html)
+        self.assertIn('id="nx-v4-pnl-pct"',html)
+        self.assertIn('id="nx-v4-refreshed"',html)
+        self.assertIn('Number(d.initial_eur)',html)
+        self.assertIn('equity-base',html)
+        self.assertIn('pnlValid',html)
+        self.assertIn('Dato non disponibile',html)
+
+    def test_v44_equity_chart_has_read_only_real_data_source(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('id="nx-v4-equity-chart"',html)
+        self.assertIn("fetch('/api/v4-equity-history'",html)
+        self.assertIn('function nxRenderV4Chart(data)',html)
+        self.assertIn('No curve when there is only one real observation.',html)
+        self.assertIn("if(best>120)continue;",html)
+        self.assertIn("if(!pts.length)",html)
+        self.assertNotIn('Math.random()',html)
+
+    def test_v44_chart_period_filters_and_accessible_trade_markers(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        for period in ('3600','21600','all'):
+            self.assertIn('data-v4-range="'+period+'"',html)
+        self.assertIn("let nxV4ChartRange='all';",html)
+        self.assertIn("Number(p.timestamp)>=latest-seconds",html)
+        self.assertIn('id="nx-v4-chart-selection"',html)
+        self.assertIn("marker.setAttribute('tabindex','0')",html)
+        self.assertIn("marker.addEventListener('click',reveal)",html)
+        self.assertIn("marker.addEventListener('keydown'",html)
+
+    def test_v44_performance_cards_and_engine_health(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        for key in ('nx-v4-realized-pnl','nx-v4-perf-closed',
+                    'nx-v4-win-rate','nx-v4-fees','nx-v4-heartbeat',
+                    'nx-v4-performance-foot'):
+            self.assertEqual(html.count('id="'+key+'"'),1,key)
+        self.assertIn('d.performance||{}',html)
+        self.assertIn('d.last_tick_age_seconds',html)
+        self.assertIn('nessun win rate calcolabile',html.lower())
+        self.assertIn('commissioni simulate',html.lower())
+
+    def test_v44_consensus_card_reads_backend_only(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        for item in ('nx-v4-consensus-status','nx-v4-consensus-shadow',
+                     'nx-v4-consensus-approved','nx-v4-consensus-vetoed'):
+            self.assertEqual(html.count('id="'+item+'"'),1,item)
+        self.assertIn('const ai=d.ai_consensus||{};',html)
+        self.assertIn("Boolean(ai.gate_enabled)",html)
+        self.assertIn('solo dalla configurazione del server',html)
+        self.assertNotIn('NEXUS_OPENAI_API_KEY=',html)
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())

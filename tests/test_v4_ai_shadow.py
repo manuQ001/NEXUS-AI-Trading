@@ -31,6 +31,45 @@ class TestRealAIShadow(unittest.TestCase):
     def tearDown(self):
         self.c.close()
         self.tmp.cleanup()
+    def test_v45_scanner_diagnostics_explain_observed_market_without_orders(self):
+        from v4_ai_shadow import scanner_diagnostics
+        from v4_agents import report as paper_report
+        before=paper_report(self.c,now=1021)
+        d=scanner_diagnostics(self.c,now=1021)
+        self.assertEqual(d['mode'],'V45_SCANNER_DIAGNOSTICS')
+        self.assertEqual(d['source'],'PERSISTED_DEX_SCREENER_REST_ONLY')
+        self.assertEqual(d['fresh_tokens'],1)
+        self.assertEqual(d['evaluated_tokens'],1)
+        self.assertEqual(d['reasons']['PYTHON_BUY_SIGNAL'],1)
+        self.assertEqual(d['candidates'][0]['price_changes'],3)
+        self.assertEqual(paper_report(self.c,now=1021)['trade_count'],
+                         before['trade_count'])
+        self.assertEqual(d['ai_cooldown_remaining_seconds'],0)
+
+    def test_v45_diagnostics_exclude_stale_and_distinguish_low_liquidity(self):
+        from v4_ai_shadow import scanner_diagnostics
+        low='So11111111111111111111111111111111111111112'
+        for t,p in [(1000,.01),(1010,.0104),(1020,.0108)]:
+            observe(self.c,low,{'address':low,'symbol':'LOW',
+                'price_usd':p,'liquidity_usd':1000,
+                'volume_24h_usd':1000},now=t)
+        d=scanner_diagnostics(self.c,now=1021)
+        self.assertEqual(d['reasons']['LOW_LIQUIDITY_OR_VOLUME'],1)
+        stale=scanner_diagnostics(self.c,now=2000)
+        self.assertEqual(stale['fresh_tokens'],0)
+        self.assertEqual(stale['candidates'],[])
+
+    def test_ai_candidate_prefers_python_buy_over_higher_liquidity_wait(self):
+        from v4_ai_shadow import candidate
+        other='So11111111111111111111111111111111111111112'
+        for t,p in [(1000,.01),(1010,.01001),(1020,.01002)]:
+            observe(self.c,other,{'address':other,'symbol':'WAIT_HIGH_LIQ',
+                'price_usd':p,'liquidity_usd':200000,
+                'volume_24h_usd':250000},now=t)
+        item=candidate(self.c,1021)
+        self.assertEqual(item['address'],MINT)
+        self.assertEqual(item['rules_verdict'],'BUY')
+
     def test_off_by_default_and_no_key_leaks(self):
         d=config_status({})
         self.assertFalse(d['active'])
@@ -107,6 +146,40 @@ class TestRealAIShadow(unittest.TestCase):
             out,usage=_make_request(item,'sk-secret1234567890')
         self.assertEqual(out['verdict'],'WAIT')
         self.assertEqual(usage['input'],100)
+    def test_incomplete_response_has_safe_specific_error_code(self):
+        from v4_ai_shadow import _safe_api_error
+        self.assertEqual(
+            _safe_api_error(ValueError('AI_INCOMPLETE_MAX_OUTPUT_TOKENS')),
+            'AI_INCOMPLETE_MAX_OUTPUT_TOKENS')
+        self.assertEqual(
+            _safe_api_error(ValueError('AI_INVALID_STRUCTURED_OUTPUT')),
+            'AI_INVALID_STRUCTURED_OUTPUT')
+        self.assertEqual(
+            _safe_api_error(ValueError('private_token_from_provider')),
+            'ValueError')
+
+    def test_incomplete_response_is_not_a_consensus_buy(self):
+        from v4_ai_shadow import _safe_api_error
+        item,_=reserve(self.c,now=1021)
+        result={'status':'incomplete',
+                'incomplete_details':{'reason':'max_output_tokens'},
+                'output':[]}
+        class FakeResponse:
+            headers={}
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+            def read(self,n):return json.dumps(result).encode()
+        class FakeOpener:
+            def open(self,req,timeout):return FakeResponse()
+        with patch('v4_ai_shadow.urllib.request.build_opener',return_value=FakeOpener()):
+            with self.assertRaisesRegex(ValueError,'AI_INCOMPLETE_MAX_OUTPUT_TOKENS') as err:
+                _make_request(item,'sk-secret1234567890')
+        finish(self.c,item,error=_safe_api_error(err.exception))
+        state=report(self.c)['reviews'][0]
+        self.assertEqual(state['outcome'],'ERROR')
+        self.assertEqual(state['issue'],'AI_INCOMPLETE_MAX_OUTPUT_TOKENS')
+        self.assertIsNone(state['verdict'])
+
     def test_http_errors_show_safe_status_and_never_raw_body(self):
         import io
         from urllib.error import HTTPError
