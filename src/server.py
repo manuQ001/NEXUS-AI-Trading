@@ -164,6 +164,15 @@ class Handler(BaseHTTPRequestHandler):
                     c.commit()
                 finally:c.close()
             self.out(result)
+        elif path=='/api/v4-ai-shadow':
+            from v4_ai_shadow import report as ai_report
+            with LOCK:
+                c=connect()
+                try:
+                    data=ai_report(c)
+                    c.commit()
+                finally:c.close()
+            self.out(data)
         elif path=='/api/v4-agents':
             from v4_agents import report as v4_report
             with LOCK:
@@ -643,6 +652,9 @@ def main():
                      kwargs={'publish':publish_paper_event},daemon=True,
                      name='NEXUS-Solana-Mint-Stream').start()
     threading.Thread(target=meme_auto_loop,args=(stop,),daemon=True).start()
+    from v4_ai_shadow import background_cycle
+    threading.Thread(target=background_cycle,args=(connect,LOCK,stop),
+                     daemon=True,name='NEXUS-V4-Real-AI-Shadow').start()
     print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
     print('Dashboard: http://127.0.0.1:8765')
     print('Monitoraggio BTC/ETH ogni 30 s mentre il programma resta acceso, anche senza browser.')
