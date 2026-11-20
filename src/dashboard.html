@@ -1,4 +1,4 @@
-<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NEXUS AI 3.10.0 • Autonomous Terminal</title>
+<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NEXUS AI 3.11.0 • Autonomous Terminal</title>
 <style>
 :root{color-scheme:dark;--bg:#080d17;--panel:#121b2a;--line:#27354a;--text:#e5efff;--muted:#94a7c1;--green:#40d6a5;--red:#f57586;--blue:#60c6f7}*{box-sizing:border-box}body{background:var(--bg);color:var(--text);margin:0;font:14px/1.5 system-ui,Segoe UI,Arial,sans-serif}.shell{max-width:1320px;padding:22px 18px;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.logo{font-size:23px;font-weight:850;letter-spacing:1px}.logo span{color:var(--blue)}.sub,.muted{color:var(--muted)}.sub{font-size:12px}.chip{border:1px solid #246047;background:#17372f;color:#72efc0;padding:7px 11px;border-radius:100px;font-size:11px;font-weight:800}.notice{padding:13px;border:1px solid #755b2e;border-radius:10px;background:#2c2318;margin:17px 0;color:#ffe2a3}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;min-width:0}.metric .name{font-size:12px;color:var(--muted)}.metric .val{font-size:clamp(21px,2.5vw,30px);font-weight:800;margin:2px 0}.green{color:var(--green)}.red{color:var(--red)}.rows{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:12px;margin-top:12px}.title{font-weight:800;font-size:15px;margin-bottom:12px}.flex{display:flex;align-items:center;justify-content:space-between;gap:10px}.btn{background:#244057;border:1px solid #3b6179;border-radius:8px;color:#fff;padding:9px 12px;cursor:pointer;font:inherit;font-weight:700}.btn:hover{background:#315b78}.btn:disabled{opacity:.6;cursor:wait}.tab{background:#1c2939;border:1px solid #314357;border-radius:8px;color:#a7bbd1;padding:7px 12px;cursor:pointer}.tab.selected{background:#193e3b;color:#75e5bf}.agents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.agent{background:#0d1522;border:1px solid #283648;border-radius:8px;padding:10px}.agent .n{font-weight:800;font-size:12px}.agent .d{color:var(--muted);font-size:11px;margin-top:3px}.status{font-size:10px;color:#ffca7c}.small{font-size:12px}.dataTable{border-collapse:collapse;width:100%;font-size:12px}.dataTable th,.dataTable td{text-align:left;border-bottom:1px solid #283447;padding:9px 6px}.dataTable th{color:var(--muted);font-weight:600}.scroll{overflow:auto;max-height:330px}.event{border-bottom:1px solid #223145;padding:9px 0;font-size:12px}.event strong{color:var(--blue)}.event .when{color:var(--muted);font-size:10px}.tag{display:inline-block;font-size:10px;border:1px solid #425267;padding:2px 6px;border-radius:5px}.chart{width:100%;height:265px;display:block}.foot{margin:20px 0;color:var(--muted);font-size:12px}.error{color:#ffb2bb;word-break:break-word}.marketline{font-weight:650}#feedback{font-size:11px;color:var(--muted)}@media(max-width:850px){.rows{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:450px){.shell{padding:14px 10px}.agents{grid-template-columns:1fr}.panel{padding:12px}}
 
@@ -152,8 +152,66 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
 .nx-risk-evidence-card{padding:11px;border:1px solid #38545c;border-radius:10px;background:rgba(12,24,32,.75)}
 .nx-risk-evidence-card small{display:block;color:#a3c6c4}
 .nx-risk-evidence-card b{color:#c1f3e5}
+/* 3.11 Focused Live Terminal — visual motions only on actual server events */
+:root{--bg:#080b14;--panel:#111929;--line:#2b3852;--text:#eef2ff;--muted:#95a3be;--blue:#9b82fa;--green:#65e4bd;--red:#ff758d}
+body{background:radial-gradient(ellipse at 52% -15%,#242044 0,transparent 52%),#080b14}
+.shell{max-width:1480px}.top{border-bottom-color:#36425b}.logo span{color:#c5adff}
+.panel{background:#111929;border-color:#2d3b52}.chip{background:#192c30;color:#8ee9c3;border-color:#275a58}
+.btn{background:#252445;border-color:#484f78}.desk-nav{background:#101725;border-color:#34415a;box-shadow:0 12px 32px #0004}
+.nx-nav-slim{display:flex;align-items:center;gap:6px;position:sticky;top:0;z-index:30;backdrop-filter:blur(16px);padding:8px}
+.nx-nav-slim>a{padding:10px 16px!important;flex:0 0 auto}
+.nx-nav-slim a[aria-current=page]{background:#302c59;border-color:#7d71db;color:#f4ecff;box-shadow:none}
+.nx-more-nav{margin-left:auto;position:relative}
+.nx-more-nav>summary{list-style:none;cursor:pointer;border:1px solid #33415a;border-radius:9px;padding:10px 14px;font-weight:750;font-size:12px;color:#c7d1e7}
+.nx-more-nav>summary::-webkit-details-marker{display:none}
+.nx-more-links{position:absolute;top:calc(100% + 10px);right:0;z-index:50;width:205px;border:1px solid #415073;border-radius:13px;background:#111a2d;padding:8px;box-shadow:0 20px 40px #000a}
+.nx-more-links a{display:block!important;border:0!important;padding:10px!important;margin:0!important}
+.nx-more-links a:hover{background:#292f4d}
+.nx-head{background:linear-gradient(125deg,#1c2641,#111629 65%);border:1px solid #374667;border-radius:15px}
+.nx-title{color:#ccb8ff}.nx-standfirst{color:#99b9ce}.nx-big{color:#89e4bf}
+.nx-strip{margin-top:9px;border:1px solid #34415b;border-radius:12px;background:#111a2b;gap:0}
+.nx-strip>div{border-right-color:#2b3a52;padding:11px 15px}
+.nx-focus-nav{display:flex;gap:7px;overflow:auto;scrollbar-width:none;padding:13px 2px 6px}
+.nx-focus-nav::-webkit-scrollbar{display:none}
+.nx-focus-button{background:#121b2e;border:1px solid #30405b;color:#9eabc6;font:700 12px/1.2 Segoe UI,Arial,sans-serif;cursor:pointer;border-radius:12px;white-space:nowrap;padding:13px 18px;transition:background .16s,border-color .16s,color .16s,transform .16s}
+.nx-focus-button:hover{background:#252b46;color:#f1eaff}
+.nx-focus-button[aria-pressed=true]{background:#332d59;border-color:#9d86f7;color:#faf4ff;box-shadow:inset 0 0 0 1px #715a9a}
+.nx-focus-button:focus-visible{outline:2px solid #b5a3ff;outline-offset:3px}
+.nx-live-console{background:linear-gradient(150deg,#141b2f,#0c1423);border-color:#36486c;padding:17px;box-shadow:0 18px 55px #0003}
+.nx-live-title{color:#d5caff;letter-spacing:.065em}.nx-live-chip{border-color:#3b4962;color:#afbdd2}.nx-live-beam{background:#253c55}
+.nx-grid{grid-template-columns:minmax(205px,.85fr) minmax(330px,1.65fr) minmax(230px,1fr)}
+.nx-card{background:#111a2c;border:1px solid #2f415e;border-radius:13px}
+.nx-heading{color:#cfbaff;border-color:#293650}.nx-row{border-color:#2c3950}
+.nx-ring{box-shadow:none;background:#1e293d;border-color:#5a6794;color:#bdcaff}
+.nx-number{background:#152239;border-color:#314361}.nx-position{background:#15223a;border-color:#344763}
+.nx-agent{border-color:#2b3a51}.nx-agent b{color:#c6d6ff}.nx-feed .nx-event{border-color:#2d3d56}
+.nx-risk-lab,.nx-shadow,.nx-market-pulse{background:#111d30;border-color:#3b4a67}
+.nx-risk-evidence-card,.nx-shadow-item,.nx-pricecard{background:#152339;border-color:#344863}
+.nx-market-stat,.nx-shadow-stat{background:#142036;border-color:#30415c}
+.nx-market-stat strong,.nx-shadow-stat b{color:#e2d2ff}.nx-pricecard path{stroke:#8eafff}
+.nx-activity-console{border:1px solid #344562;border-radius:11px;background:#0d1727;padding:13px;margin:12px 0}
+.nx-event-tape{display:flex;gap:8px;overflow-x:auto;min-height:56px;align-items:center;padding:7px 1px}
+.nx-event-pill{border:1px solid #3a526a;background:#182740;border-radius:10px;padding:9px 12px;white-space:nowrap;min-width:155px;font:11px Consolas,monospace;color:#c7d9f2}
+.nx-event-pill small{display:block;font-size:10px;color:#92a8c1;margin-top:3px}
+.nx-event-pill.nx-event-new{animation:nxEventArrive .42s ease-out both;border-color:#8a85e7;box-shadow:0 0 0 1px #524e87}
+@keyframes nxEventArrive{from{opacity:.2;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+#nx-terminal[data-focus=live] #nx-market-pulse,#nx-terminal[data-focus=live] #nx-shadow-lab,#nx-terminal[data-focus=live] #nx-risk-lab{display:none}
+#nx-terminal[data-focus=prices] #nx-shadow-lab,#nx-terminal[data-focus=prices] #nx-risk-lab,#nx-terminal[data-focus=prices] .nx-activity-console,#nx-terminal[data-focus=prices] .nx-live-grid,#nx-terminal[data-focus=prices] .nx-grid,#nx-terminal[data-focus=prices] #nx-desk-control,#nx-terminal[data-focus=prices] #nx-strategy-intelligence{display:none}
+#nx-terminal[data-focus=shadow] #nx-market-pulse,#nx-terminal[data-focus=shadow] #nx-risk-lab,#nx-terminal[data-focus=shadow] .nx-activity-console,#nx-terminal[data-focus=shadow] .nx-live-grid,#nx-terminal[data-focus=shadow] .nx-grid,#nx-terminal[data-focus=shadow] #nx-desk-control,#nx-terminal[data-focus=shadow] #nx-strategy-intelligence{display:none}
+#nx-terminal[data-focus=risk] #nx-market-pulse,#nx-terminal[data-focus=risk] #nx-shadow-lab,#nx-terminal[data-focus=risk] .nx-activity-console,#nx-terminal[data-focus=risk] .nx-live-grid,#nx-terminal[data-focus=risk] .nx-grid,#nx-terminal[data-focus=risk] #nx-desk-control,#nx-terminal[data-focus=risk] #nx-strategy-intelligence{display:none}
+#nx-terminal[data-focus=desk] #nx-live-console,#nx-terminal[data-focus=desk] .nx-grid{display:none}
+#nx-terminal[data-focus=tools] #nx-live-console,#nx-terminal[data-focus=tools] .nx-grid,#nx-terminal[data-focus=tools] #nx-desk-control,#nx-terminal[data-focus=tools] #nx-strategy-intelligence{display:none}
+#nx-terminal:not([data-focus=tools]) + #nx-advanced{display:none}
+#nx-terminal[data-focus=tools] + #nx-advanced{display:block}
+#nx-terminal[data-focus=live] #nx-desk-control,#nx-terminal[data-focus=live] #nx-strategy-intelligence{display:none}
+@media(max-width:720px){.nx-nav-slim>a{padding:9px 8px!important;font-size:11px}.nx-more-links{width:min(220px,85vw)}.nx-focus-button{padding:11px 13px}.nx-live-console{padding:12px}.nx-grid{grid-template-columns:1fr}.nx-head{padding:13px}.nx-strip>div{min-width:130px}}
+@media(prefers-reduced-motion:reduce){.nx-focus-button{transition:none}.nx-event-pill.nx-event-new{animation:none}}
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> <small style="font-weight:400;color:#d28caf">3.1</small></div><div class="sub">AUTONOMOUS TRADING DESK • LOCAL EDITION</div></div><div class="flex"><span class="chip">● PAPER ONLY • €150</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
-<nav class="desk-nav" aria-label="Vai alla sezione"><a href="#overview">◎ Panoramica</a><a href="#market">◈ Mercato</a><a href="#agents-section">◆ Agenti</a><a href="#meme-section">◉ Meme Hunter</a><a href="#performance-section">▥ Performance</a><a href="#history-section">▤ Storico</a><a href="#lab-section">⚙ Laboratorio</a></nav>
+<nav class="desk-nav nx-nav-slim" aria-label="Navigazione principale">
+<a href="#meme-section">◉ Terminale</a><a href="#market">◈ Mercato</a><a href="#performance-section">▥ Performance</a>
+<details class="nx-more-nav"><summary>Altre sezioni ⌄</summary><div class="nx-more-links">
+<a href="#overview">Panoramica</a><a href="#agents-section">Agenti</a><a href="#history-section">Storico</a>
+<a href="#lab-section">Laboratorio</a><a href="#execution-section">Esecuzione</a></div></details></nav>
 <section class="workspace-view" data-view="overview" id="workspace-overview">
 <div class="notice">⚠ <strong>Solo simulazione.</strong> Nessun wallet, nessuna leva, nessun ordine reale. Le memecoin vengono comprate e vendute soltanto nel portafoglio PAPER da 45 €; <strong>ordini reali bloccati</strong>. I controlli on-chain non garantiscono la vendibilità. Gli agenti usano regole; un modello AI locale facoltativo può fornire commenti, senza decidere o eseguire operazioni.</div>
 <div class="section-divider" id="overview"><span class="section-index">01</span><div><h2 class="section-heading">Panoramica</h2><div class="section-caption">Stato del capitale virtuale e dei controlli in tempo reale</div></div></div><section class="metrics"><div class="panel metric"><div class="name">Patrimonio virtuale</div><div class="val" id="equity">€150,00</div><div class="sub">Core + Meme Hunter</div></div><div class="panel metric"><div class="name">Profitto / perdita</div><div class="val" id="pnl">€0,00</div><div class="sub">Include costi stimati</div></div><div class="panel metric"><div class="name">Operazioni chiuse</div><div class="val" id="closed">0</div><div class="sub">Solo eseguite in paper</div></div><div class="panel metric"><div class="name">Posizioni aperte</div><div class="val" id="open">0</div><div class="sub">Massimo una, solo Core</div></div></section>
@@ -173,7 +231,7 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
 <section class="workspace-view" data-view="meme-section" id="workspace-meme-section" hidden>
 <div class="section-divider" id="meme-section"><span class="section-index">06</span><div><h2 class="section-heading">MEME HUNTER · Solana</h2><div class="section-caption">Terminale autonomo MEME · solo compravendite virtuali</div></div></div>
 
-<div class="nx" id="nx-terminal">
+<div class="nx" id="nx-terminal" data-focus="live">
  <header class="nx-head">
   <div><div class="nx-standfirst">● AUTONOMOUS MULTI-AGENT SYSTEM · SOLANA</div><div class="nx-title">◉ NEXUS BOT TERMINAL <span class="nx-tag">PAPER</span></div>
    <div class="nx-run"><span class="nx-dot" id="nx-led"></span><span id="nx-run">ATTENDO MOTORE</span> · <span id="nx-last">ultimo ciclo —</span></div></div>
@@ -187,6 +245,13 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
   <div><span class="nx-small">Quote MEME</span><strong>REST · ~10s</strong></div>
   <div><span class="nx-small">Scanner profili</span><strong id="nx-profile-stream">WS IN CONNESSIONE</strong></div>
  </div>
+ <nav class="nx-focus-nav" aria-label="Sezioni del terminale NEXUS">
+ <button type="button" class="nx-focus-button" data-nx-focus="live" aria-pressed="true">◉ Live Desk</button>
+ <button type="button" class="nx-focus-button" data-nx-focus="prices" aria-pressed="false">⌁ Prezzi</button>
+ <button type="button" class="nx-focus-button" data-nx-focus="shadow" aria-pressed="false">◇ Shadow</button>
+ <button type="button" class="nx-focus-button" data-nx-focus="risk" aria-pressed="false">⬡ Risk</button>
+ <button type="button" class="nx-focus-button" data-nx-focus="desk" aria-pressed="false">◆ Agenti</button>
+ <button type="button" class="nx-focus-button" data-nx-focus="tools" aria-pressed="false">⚙ Strumenti</button></nav>
  <section class="nx-live-console" id="nx-live-console">
    <div class="nx-live-head">
     <span class="nx-live-title">◉ LIVE COMMAND CENTER</span>
@@ -240,6 +305,11 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
     <div class="nx-market-pricecards" id="nx-market-cards"><div class="nx-live-muted">In attesa di quotazioni osservate dal server...</div></div>
     <div class="nx-market-pnlwarning">Quote DEX Screener REST ricontrollate ogni ~10s fino a 3 token idonei, campionate dal server (non tick on-chain o prezzi eseguibili). I grafici non interpolano valori mancanti. Lo stop per drawdown resta attivo.</div>
    </section>
+   <section class="nx-activity-console" aria-label="Ultimi eventi live realmente ricevuti">
+    <div class="nx-live-head"><span class="nx-live-title">EVENT STREAM · NESSUN EVENTO SIMULATO</span>
+     <span class="nx-live-chip" id="nx-event-counter">0 eventi in questa sessione</span></div>
+    <div id="nx-event-tape" class="nx-event-tape" role="log" aria-live="off">
+     <span class="nx-live-muted">In ascolto di eventi reali dal server locale...</span></div></section>
    <div class="nx-live-grid">
     <div class="nx-live-panel">
      <h4>NUOVI MINT · EVENTI PROVIDER</h4>
@@ -836,6 +906,40 @@ async function refreshMemeLive(){
  finally{memeLiveBusy=false;}
 }
 // SSE pushes committed backend events. Polling is a fallback, not fake market ticks.
+/* Focus tabs keep existing DOM and live renderers intact. */
+const nxFocusControls=[...document.querySelectorAll('[data-nx-focus]')];
+function nxSetFocus(view){
+ const focus=['live','prices','shadow','risk','desk','tools'].includes(view)?view:'live';
+ const terminal=document.getElementById('nx-terminal');
+ if(!terminal)return;
+ terminal.dataset.focus=focus;
+ nxFocusControls.forEach(button=>button.setAttribute('aria-pressed',
+   String(button.dataset.nxFocus===focus)));
+ if(focus==='tools')document.getElementById('nx-advanced').open=true;
+}
+nxFocusControls.forEach(button=>button.addEventListener('click',()=>nxSetFocus(button.dataset.nxFocus)));
+let nxObservedSessionEvents=0;
+function nxRecordObservedEvent(packet){
+ if(!packet||!['PAPER_MINT','PAPER_PROFILE','PAPER_QUOTES','PAPER_JOURNAL'].includes(packet.kind))return;
+ const tape=document.getElementById('nx-event-tape');
+ if(!tape)return;
+ const names={PAPER_MINT:'NUOVO MINT',PAPER_PROFILE:'PROFILO OSSERVATO',
+   PAPER_QUOTES:'QUOTE REST VARIATE',PAPER_JOURNAL:'DECISIONE PAPER'};
+ const details={PAPER_MINT:'PumpPortal · token non verificato',
+   PAPER_PROFILE:'DEX Screener · profilo WS',PAPER_QUOTES:'DEX Screener · quote REST',
+   PAPER_JOURNAL:'Motore locale · journal'};
+ if(nxObservedSessionEvents===0)tape.replaceChildren();
+ nxObservedSessionEvents++;
+ const pill=document.createElement('div');pill.className='nx-event-pill nx-event-new';
+ const title=document.createElement('strong');title.textContent=names[packet.kind];
+ const source=document.createElement('small');source.textContent=details[packet.kind];
+ const time=document.createElement('small');time.textContent='Ricevuto '+new Date().toLocaleTimeString('it-IT');
+ pill.append(title,source,time);tape.prepend(pill);
+ while(tape.children.length>8)tape.lastElementChild.remove();
+ document.getElementById('nx-event-counter').textContent=
+   String(nxObservedSessionEvents)+' eventi in questa sessione';
+}
+
 let nexusEventsOnline=false;
 if(typeof EventSource!=='undefined'){
   const source=new EventSource('/api/meme-events');
@@ -846,7 +950,12 @@ if(typeof EventSource!=='undefined'){
     if(indicator)indicator.title='Connessione SSE attiva; quote MEME REST ~10 s';
   });
   source.addEventListener('paper',(e)=>{
-    try{const packet=JSON.parse(e.data);if(['PAPER_MINT','PAPER_JOURNAL','PAPER_PROFILE','PAPER_QUOTES'].includes(packet.kind))nxFlashRealPacket();}catch(_){}
+    try{
+      const packet=JSON.parse(e.data);
+      if(['PAPER_MINT','PAPER_JOURNAL','PAPER_PROFILE','PAPER_QUOTES'].includes(packet.kind)){
+        nxFlashRealPacket();nxRecordObservedEvent(packet);
+      }
+    }catch(_){}
     if(document.visibilityState==='visible')refreshMemeLive();
   });
   source.onerror=()=>{
