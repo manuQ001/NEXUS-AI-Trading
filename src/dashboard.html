@@ -366,6 +366,17 @@ body{background:#0b1019}.shell{max-width:1180px}
 #nx-v4-chart-notice{font-size:11px;margin-top:8px;line-height:1.5}
 @media(max-width:680px){.nx-v4-chart-wrap{padding:12px 8px}.nx-v4-equity-chart{height:190px}}
 
+
+/* Accessible, readable portfolio graph controls */
+.nx-v4-chart-controls{display:flex;gap:4px;padding:4px;border:1px solid #344861;border-radius:11px;background:#0a1625}
+.nx-v4-chart-controls button{padding:8px 12px;border:0;border-radius:8px;background:transparent;color:#9fb0c9;font:700 12px system-ui;cursor:pointer;min-height:36px}
+.nx-v4-chart-controls button[aria-pressed=true]{background:#254a62;color:#ebfaff;box-shadow:inset 0 0 0 1px #3e718f}
+.nx-v4-chart-controls button:focus-visible{outline:2px solid #8ddcff;outline-offset:1px}
+.nx-v4-chart-selection{min-height:28px;padding-top:7px;color:#b0d8ec;font-size:12px}
+#nx-v4-equity-chart circle[role=button]{cursor:pointer;outline:none}
+#nx-v4-equity-chart circle[role=button]:focus{stroke:#fff;stroke-width:3}
+@media(max-width:680px){.nx-v4-chart-header{align-items:flex-start}.nx-v4-chart-controls{order:3;width:100%;justify-content:space-between}.nx-v4-chart-controls button{flex:1;padding:9px}}
+
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> </div><div class="sub">TRADING PAPER · CONTROLLO DEL BOT</div></div><div class="flex"><span class="chip">● SOLO DENARO VIRTUALE</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav nx-nav-slim" aria-label="Navigazione principale">
 <a href="#meme-section">◉ Dashboard</a><a href="#performance-section">▥ Risultati</a>
@@ -433,10 +444,12 @@ body{background:#0b1019}.shell{max-width:1180px}
     <div class="nx-v4-chart-header">
      <div><div class="nx-live-title">ANDAMENTO DEL PORTAFOGLIO</div>
       <div class="nx-live-muted">Equity registrata dal motore · nessun dato inventato</div></div>
+     <div class="nx-v4-chart-controls" role="group" aria-label="Intervallo grafico"><button type="button" data-v4-range="3600" aria-pressed="false">1 ora</button><button type="button" data-v4-range="21600" aria-pressed="false">6 ore</button><button type="button" data-v4-range="all" aria-pressed="true">Tutto</button></div>
      <div class="nx-v4-chart-legend"><span class="nx-v4-buy-dot">● BUY</span><span class="nx-v4-sell-dot">● SELL</span></div>
     </div>
     <svg id="nx-v4-equity-chart" class="nx-v4-equity-chart" viewBox="0 0 760 220" role="img" aria-label="Grafico temporale del saldo virtuale" preserveAspectRatio="none"></svg>
     <div class="nx-v4-chart-footer"><span id="nx-v4-chart-range">Storico in caricamento</span><span id="nx-v4-chart-count">—</span></div>
+    <div class="nx-v4-chart-selection" id="nx-v4-chart-selection" role="status" aria-live="polite">Tocca un punto BUY/SELL per visualizzarne il dettaglio.</div>
     <div class="nx-live-muted" id="nx-v4-chart-notice">Lo storico parte dal primo campione salvato.</div>
    </section>
    <div class="nx-v4-split">
@@ -1551,6 +1564,13 @@ async function nxLoadV4(){
 // SVG drawn only from persisted, timestamped account observations.
 // Do not interpolate missing data or substitute artificial equity points.
 let nxV4HistoryInFlight=false;
+let nxV4ChartData=null;
+let nxV4ChartRange='all';
+document.querySelectorAll('[data-v4-range]').forEach(btn=>btn.addEventListener('click',()=>{
+ nxV4ChartRange=btn.dataset.v4Range;
+ document.querySelectorAll('[data-v4-range]').forEach(item=>item.setAttribute('aria-pressed',String(item===btn)));
+ if(nxV4ChartData)nxRenderV4Chart(nxV4ChartData);
+}));
 async function nxLoadV4History(){
  if(nxV4HistoryInFlight)return;
  nxV4HistoryInFlight=true;
@@ -1559,6 +1579,7 @@ async function nxLoadV4History(){
   if(!r.ok)throw Error('Storico V4 non disponibile (HTTP '+r.status+')');
   const d=await r.json();
   if(d.mode!=='V4_OBSERVED_EQUITY_HISTORY')throw Error('Formato storico sconosciuto');
+  nxV4ChartData=d;
   nxRenderV4Chart(d);
  }catch(e){
   document.getElementById('nx-v4-chart-notice').textContent='Grafico non disponibile: '+e.message;
@@ -1567,15 +1588,19 @@ async function nxLoadV4History(){
 function nxRenderV4Chart(data){
  const svg=document.getElementById('nx-v4-equity-chart');
  if(!svg)return;
- const pts=(Array.isArray(data.points)?data.points:[]).filter(p=>
+ const valid=(Array.isArray(data.points)?data.points:[]).filter(p=>
   Number.isFinite(Number(p.timestamp))&&Number.isFinite(Number(p.equity_eur))&&
-  Number(p.timestamp)>0&&Number(p.equity_eur)>=0);
+  Number(p.timestamp)>0&&Number(p.equity_eur)>=0).sort((a,b)=>Number(a.timestamp)-Number(b.timestamp));
+ const latest=valid.length?Number(valid[valid.length-1].timestamp):0;
+ const seconds=nxV4ChartRange==='all'?null:Number(nxV4ChartRange);
+ // Relative to the newest observation, not the user's device clock.
+ const pts=seconds===null?valid:valid.filter(p=>Number(p.timestamp)>=latest-seconds);
  svg.replaceChildren();
  const range=document.getElementById('nx-v4-chart-range');
  const count=document.getElementById('nx-v4-chart-count');
  const note=document.getElementById('nx-v4-chart-notice');
  note.textContent=data.warning||'Campioni registrati dal motore PAPER.';
- count.textContent=pts.length+' campioni registrati';
+ count.textContent=pts.length+' campioni nel periodo';
  if(!pts.length){range.textContent='In attesa del primo campione del motore';return}
  const ns='http://www.w3.org/2000/svg',W=760,H=220,L=64,R=20,T=18,B=37;
  const times=pts.map(p=>Number(p.timestamp));
@@ -1628,6 +1653,13 @@ function nxRenderV4Chart(data){
   hint.textContent=(buy?'BUY PAPER':'SELL PAPER')+' · '+String(trade.symbol||'Token')+
    ' · '+timeFmt(t)+(trade.pnl_eur==null?'':' · '+euro(Number(trade.pnl_eur)));
   marker.appendChild(hint);
+  // Accessible detail: tap, click or keyboard selection on a genuine trade marker.
+  marker.setAttribute('tabindex','0');
+  marker.setAttribute('role','button');
+  marker.setAttribute('aria-label',hint.textContent);
+  const reveal=()=>{document.getElementById('nx-v4-chart-selection').textContent=hint.textContent;};
+  marker.addEventListener('click',reveal);
+  marker.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();reveal();}});
  }
  range.textContent='Dal '+timeFmt(minT)+' al '+timeFmt(maxT);
 }
