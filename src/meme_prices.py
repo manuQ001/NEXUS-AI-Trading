@@ -39,6 +39,14 @@ def initialize(c):
         source TEXT NOT NULL)""")
     c.execute("""CREATE INDEX IF NOT EXISTS idx_quote_changes_address
         ON meme_quote_changes(address,id)""")
+    # Every server REST observation, including unchanged prices, has its own
+    # time. This is separate from the price-change chart series.
+    c.execute("""CREATE TABLE IF NOT EXISTS meme_quote_reads(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address TEXT NOT NULL,observed_at INTEGER NOT NULL,
+        price_usd REAL NOT NULL,source TEXT NOT NULL)""")
+    c.execute("""CREATE INDEX IF NOT EXISTS idx_quote_reads_address_time
+        ON meme_quote_reads(address,observed_at)""")
 
 def observe(c,address,quote,now=None,source='DEX_SCREENER_REST'):
     """Only record genuine, validated provider quotes. No synthetic interpolation.
@@ -64,6 +72,8 @@ def observe(c,address,quote,now=None,source='DEX_SCREENER_REST'):
     # Ignore delayed observations rather than rolling history and freshness back.
     if previous is not None and now<int(previous['observed_at']):
         return None
+    c.execute("""INSERT INTO meme_quote_reads(address,observed_at,price_usd,source)
+        VALUES(?,?,?,?)""",(address,now,price,source))
     changed=previous is None or price!=float(previous['price_usd'])
     change_id=int(previous['change_id']) if previous else 0
     if changed:
@@ -81,6 +91,9 @@ def observe(c,address,quote,now=None,source='DEX_SCREENER_REST'):
         (address,symbol,source,price,now,liquidity,volume,change_id))
     # Keep bounded in SQLite even after days of unattended operation.
     c.execute('DELETE FROM meme_quote_changes WHERE observed_at<?',(now-RETENTION_SECONDS,))
+    c.execute('DELETE FROM meme_quote_reads WHERE observed_at<?',(now-RETENTION_SECONDS,))
+    c.execute("""DELETE FROM meme_quote_reads WHERE id NOT IN
+        (SELECT id FROM meme_quote_reads ORDER BY id DESC LIMIT 6000)""")
     c.execute('DELETE FROM meme_quote_latest WHERE observed_at<?',(now-RETENTION_SECONDS,))
     c.execute("""DELETE FROM meme_quote_changes WHERE id NOT IN
         (SELECT id FROM meme_quote_changes ORDER BY id DESC LIMIT ?)""",
@@ -124,11 +137,21 @@ def refresh_watchlist(c,now=None,quote=None):
     # Watch only recently discovered tokens with sufficiently useful public
     # market quality, prioritizing liquid candidates over feed noise.
     positions={r['address'] for r in c.execute('SELECT address FROM meme_eur_positions')}
+    from meme_shadow import initialize as init_shadow
+    init_shadow(c)
+    pending=[r['address'] for r in c.execute("""SELECT DISTINCT s.address
+        FROM meme_shadow_signals s
+        JOIN meme_quote_latest q ON q.address=s.address
+        WHERE s.status='PENDING' AND s.target_at+? >= ?
+          AND q.liquidity_usd>=10000 AND q.volume_24h_usd>=20000
+        ORDER BY s.target_at,s.id LIMIT 15""",(300,now))]
     rows=c.execute("""SELECT address FROM meme_quote_latest
         WHERE observed_at>=? AND liquidity_usd>=10000 AND volume_24h_usd>=20000
         ORDER BY liquidity_usd DESC,volume_24h_usd DESC,address LIMIT 20""",
         (now-WATCH_RECENT_SECONDS,)).fetchall()
-    addresses=[row['address'] for row in rows if row['address'] not in positions][:WATCH_MAX_TOKENS]
+    addresses=list(dict.fromkeys(
+        addr for addr in pending+[r['address'] for r in rows]
+        if addr not in positions))[:WATCH_MAX_TOKENS]
     checked=0
     errors=0
     last_error=''
