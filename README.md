@@ -2,7 +2,9 @@
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
 
-## Release 2.8.3 — MEME Scalper con vista live automatica (solo simulazione)
+## Release 2.8.4 — correzione acquisti MEME e test di regressione
+
+Corretto il caricamento del capitale iniziale nel controllo dei limiti degli acquisti MEME virtuali: prima il codice interrogava il solo saldo cash e poi leggeva il campo initial mancante, provocando IndexError e impedendo l'aggiornamento dopo il fallimento dei test. Nuovo test automatico per verificare acquisti dinamici fino al 10% del capitale virtuale iniziale. Include le funzioni scalping e dashboard live della 2.8.3. Non modifica il file SQLite esistente.\n\n## Release 2.8.3 — MEME Scalper con vista live automatica (solo simulazione)
 
 Nuove uscite MEME PAPER: stop loss a -6% netto stimato, take profit a +12% netto stimato, trailing stop attivo dopo +8% di rendimento netto massimo con distanza di 4 punti percentuali, e limite temporale di 15 minuti. Il picco del trailing è memorizzato in SQLite per sopravvivere ai riavvii; la vendita virtuale richiede sempre una nuova quotazione valida e non viene inventata quando manca il feed. Lo storico delle posizioni e il database esistenti restano intatti.
 
