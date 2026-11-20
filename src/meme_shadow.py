@@ -155,7 +155,7 @@ def report(c,now=None):
     positive=sum((x['modeled_net_change_pct'] or 0)>0 for x in observed)
     # Aggregate ALL retained settled signals, not only the 45 displayed cards,
     # and never include pending/missing outcomes in a success-rate denominator.
-    settled=c.execute("""SELECT status,score,liquidity_usd,pool_age_hours,
+    settled=c.execute("""SELECT status,score,liquidity_usd,
         modeled_net_change_pct FROM meme_shadow_signals
         WHERE status IN ('OBSERVED','INSUFFICIENT_DATA')""").fetchall()
     valid=[r for r in settled if r['status']=='OBSERVED' and r['modeled_net_change_pct'] is not None]
