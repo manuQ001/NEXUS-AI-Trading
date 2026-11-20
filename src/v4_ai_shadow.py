@@ -20,7 +20,7 @@ MAX_PER_DAY=20
 MAX_PER_MONTH=150
 MIN_INTERVAL_SECONDS=300
 MAX_INPUT_BYTES=5000
-MAX_OUTPUT_TOKENS=450
+MAX_OUTPUT_TOKENS=900
 MAX_API_BYTES=50000
 MAX_CANDIDATES=3
 
@@ -184,13 +184,23 @@ def _make_request(item,key,timeout=15):
         data=response.read(MAX_API_BYTES+1)
     if len(data)>MAX_API_BYTES:raise ValueError('Oversized AI response')
     result=json.loads(data)
-    if result.get('status')!='completed':raise ValueError('AI response incomplete')
+    if result.get('status')!='completed':
+        detail=result.get('incomplete_details') or {}
+        if (result.get('status')=='incomplete' and isinstance(detail,dict)
+                and detail.get('reason')=='max_output_tokens'):
+            raise ValueError('AI_INCOMPLETE_MAX_OUTPUT_TOKENS')
+        raise ValueError('AI_RESPONSE_NOT_COMPLETED')
     chunks=[]
     for entry in result.get('output',[]):
         for part in entry.get('content',[]):
             if part.get('type')=='output_text':
                 chunks.append(part.get('text',''))
-    verdict=_validate(''.join(chunks))
+    if not chunks or not ''.join(chunks).strip():
+        raise ValueError('AI_EMPTY_OUTPUT')
+    try:
+        verdict=_validate(''.join(chunks))
+    except (ValueError,TypeError,json.JSONDecodeError):
+        raise ValueError('AI_INVALID_STRUCTURED_OUTPUT') from None
     usage=result.get('usage') or {}
     return verdict,{'input':int(usage.get('input_tokens') or 0),
                     'output':int(usage.get('output_tokens') or 0)}
@@ -213,6 +223,14 @@ def _safe_api_error(exc):
         except (ValueError,TypeError,AttributeError,OSError,UnicodeDecodeError):
             pass
         return code[:90]
+    # Fixed allowlist: never persist arbitrary ValueError text, which might
+    # accidentally contain provider response data or secrets.
+    if isinstance(exc,ValueError) and str(exc) in (
+            'AI_INCOMPLETE_MAX_OUTPUT_TOKENS',
+            'AI_RESPONSE_NOT_COMPLETED',
+            'AI_EMPTY_OUTPUT',
+            'AI_INVALID_STRUCTURED_OUTPUT'):
+        return str(exc)
     return type(exc).__name__[:48]
 
 def finish(c,request,verdict=None,usage=None,error=None):
