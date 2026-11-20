@@ -105,6 +105,12 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
   <div class="meme-quick-stat"><div class="sub">Ultima scansione</div><b id="meme-terminal-scanned">—</b></div>
   <div class="meme-quick-stat"><div class="sub">Fonte quotazioni</div><b>DEX Screener REST</b></div>
  </div>
+ <div style="margin-top:14px;padding:13px;border:1px solid var(--line);border-radius:10px">
+   <div class="flex" style="flex-wrap:wrap;gap:8px"><strong>◆ MEME MULTI-AGENT DESK</strong>
+   <span id="meme-agents-mode" class="tag">AGENTI NON AVVIATI</span></div>
+   <div class="sub" id="meme-agents-note">SEARCH, RISK, STRATEGIST, HEAD OF DESK, SNIPER ed EXIT; analisi LLM disponibile solo se configurata.</div>
+   <div id="meme-agents-grid" class="agents" style="margin-top:12px"><div class="sub">Attendo la prima scansione</div></div>
+ </div>
  <div class="rows" style="margin-top:14px">
   <div><strong>Posizioni e pronostici osservati</strong><div class="sub">Il pronostico non è un segnale affidabile di acquisto o vendita.</div>
    <div id="meme-terminal-cards" style="display:grid;gap:9px;margin-top:10px"><div class="sub">Nessuna posizione caricata</div></div>
@@ -320,6 +326,16 @@ async function backtest(asset){const btns=[$('run-backtest'),$('run-eth')];btns.
  $('meme-auto-label').textContent=d.enabled?'MEME AUTO PAPER · ATTIVO':'MEME AUTO PAPER · SOSPESO';
  $('meme-auto-status').textContent='Ultimo ciclo: '+(d.last_tick?new Date(d.last_tick*1000).toLocaleTimeString('it-IT'):'non ancora eseguito')+
    ' · '+d.status+(d.error?' · Errore: '+d.error:'');
+ const ag=d.agents_report||{};
+ $('meme-agents-mode').textContent=ag.mode==='LLM_AGENT_REVIEW'?
+    'MODELLO IA · '+(ag.status||'NON DISPONIBILE'):
+    (ag.mode==='RULE_AGENTS'?'AGENTI A REGOLE · NESSUN LLM':'IN ATTESA DI SCANSIONE');
+ $('meme-agents-note').textContent=ag.note||'Nessun risultato ancora disponibile';
+ $('meme-agents-grid').innerHTML=(ag.agents||[]).map(a=>
+    '<div class="agent"><div class="flex"><b class="n">'+esc(a.name)+'</b>'+
+    '<span class="status">'+esc(a.status)+'</span></div>'+
+    '<div class="d">'+esc(a.reason)+'</div></div>'
+ ).join('')||'<div class="sub">Gli agenti non hanno ancora analizzato candidati</div>';
  $('meme-terminal-pulse').textContent=!d.enabled?'AUTO SOSPESO':(d.last_tick&&Date.now()/1000-d.last_tick<60?'AUTO ATTIVO':'CICLO IN RITARDO');
  $('meme-terminal-scanned').textContent=d.last_scan?new Date(d.last_scan*1000).toLocaleTimeString('it-IT'):'—';
  $('meme-terminal-feed').innerHTML=(d.journal||[]).map(e=>
