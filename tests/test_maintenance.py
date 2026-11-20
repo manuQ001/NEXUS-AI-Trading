@@ -103,6 +103,16 @@ class TestMaintenance(unittest.TestCase):
         self.assertIn('pnlValid',html)
         self.assertIn('Dato non disponibile',html)
 
+    def test_v44_equity_chart_has_read_only_real_data_source(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('id="nx-v4-equity-chart"',html)
+        self.assertIn("fetch('/api/v4-equity-history'",html)
+        self.assertIn('function nxRenderV4Chart(data)',html)
+        self.assertIn('No curve when there is only one real observation.',html)
+        self.assertIn("if(best>120)continue;",html)
+        self.assertIn("if(!pts.length)",html)
+        self.assertNotIn('Math.random()',html)
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())
