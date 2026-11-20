@@ -26,7 +26,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def _finite(x):
     try:
         n=float(x)
-        return round(n,5) if math.isfinite(n) and n>=0 else None
+        return n if math.isfinite(n) and n>=0 else None
     except (ValueError,TypeError,OverflowError):
         return None
 
