@@ -68,6 +68,18 @@ class TestMaintenance(unittest.TestCase):
         self.assertNotIn('Math.random()',html)
         self.assertNotIn('fakeTrade',html)
 
+    def test_v44_mobile_dashboard_focus_and_legacy_preserved(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        self.assertIn('id="nx-terminal" data-focus="v4"',html)
+        self.assertIn("nxSetFocus('v4');",html)
+        self.assertIn('id="nx-v4-insights"',html)
+        self.assertIn('SALDO TOTALE VIRTUALE',html)
+        self.assertIn('ULTIME OPERAZIONI',html)
+        self.assertIn('data-nx-focus="tools"',html)
+        self.assertIn('id="nx-v4-toggle"',html)
+        self.assertIn('id="meme-auto-toggle"',html)
+        self.assertNotIn('PAPER ONLY • €150',html)
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())
