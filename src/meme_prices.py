@@ -104,6 +104,7 @@ def snapshot(c,now=None):
     initialize(c)
     now=int(time.time()) if now is None else int(now)
     from meme_auto import status
+    from meme_demo import BUY_COST,SELL_COST
     auto=status(c)
     risk=auto.get('risk_circuit',{})
     result=[]
@@ -122,7 +123,14 @@ def snapshot(c,now=None):
             'volume_24h_usd':d['volume_24h_usd'],
             'observed_at':d['observed_at'],'age_seconds':age,
             'fresh':age<=45,'observations':points})
+    round_trip_break_even=(1+BUY_COST)/(1-SELL_COST)-1
+    gross_for_net_target=(1+0.12)*(1+BUY_COST)/(1-SELL_COST)-1
+    net_at_gross_stop=(1-0.05)*(1-SELL_COST)/(1+BUY_COST)-1
     return {'mode':'OBSERVED_REST_PRICES','quotes':result,
+            'cost_model':{'buy_pct':BUY_COST*100,'sell_pct':SELL_COST*100,
+               'minimum_gross_move_to_break_even_pct':round(round_trip_break_even*100,3),
+               'gross_move_for_net_target_12_pct':round(gross_for_net_target*100,3),
+               'estimated_net_at_gross_stop_minus5_pct':round(net_at_gross_stop*100,3)},
             'sample_count':c.execute('SELECT COUNT(*) FROM meme_quote_changes').fetchone()[0],
             'last_change_id':c.execute('SELECT COALESCE(MAX(id),0) FROM meme_quote_changes').fetchone()[0],
             'risk':risk,
