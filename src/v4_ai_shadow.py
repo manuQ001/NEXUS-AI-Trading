@@ -224,6 +224,10 @@ def finish(c,request,verdict=None,usage=None,error=None):
             (verdict['verdict'],json.dumps(roles,ensure_ascii=False),
              verdict['rationale'],(usage or {}).get('input'),(usage or {}).get('output'),
              request['audit_id']))
+        # Snapshot the live REST reference immediately after a valid model
+        # completion. Never use later historical data to invent a baseline.
+        from v4_ai_intelligence import seed
+        seed(c,request,verdict)
     else:
         c.execute("""UPDATE v4_ai_shadow_audit SET outcome='ERROR',
             issue=? WHERE id=? AND outcome='RESERVED'""",
@@ -231,6 +235,7 @@ def finish(c,request,verdict=None,usage=None,error=None):
 
 def report(c):
     initialize(c)
+    from v4_ai_intelligence import report as outcome_report
     config=config_status()
     rows=[dict(x) for x in c.execute("""SELECT id,timestamp,address,symbol,
         model,outcome,verdict,roles_json,rationale,issue,tokens_input,tokens_output
@@ -243,12 +248,24 @@ def report(c):
     count_month=c.execute('SELECT COUNT(*) FROM v4_ai_shadow_audit WHERE month_utc=?',
                          (date[:7],)).fetchone()[0]
     return dict(config,attempts_today=count_today,attempts_month=count_month,
-                reviews=rows)
+                reviews=rows,intelligence=outcome_report(c))
 
 def background_cycle(db_factory,lock,stop):
     """Network I/O NEVER runs while DB lock is held."""
     while not stop.is_set():
         cfg=config_status()
+        # Evaluation uses only previously stored REST reads, regardless of
+        # credentials/opt-in. It never calls OpenAI or submits orders.
+        try:
+            from v4_ai_intelligence import evaluate
+            with lock:
+                cx=db_factory()
+                try:
+                    evaluate(cx)
+                    cx.commit()
+                finally:cx.close()
+        except Exception as exc:
+            print('NEXUS V4 AI Outcomes: '+type(exc).__name__,flush=True)
         if cfg['active']:
             item=None
             try:
