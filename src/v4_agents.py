@@ -348,6 +348,15 @@ def report(c,now=None):
              ELSE 0 END),0)
         FROM v4_paper_trades""",(BUY_COST,SELL_COST,SELL_COST)).fetchone()[0]
     closed=int(stats['closed'])
+    from v4_ai_paper_gate import enabled as ai_gate_enabled
+    from v4_ai_shadow import config_status as ai_config_status
+    ai_config=ai_config_status()
+    # The decision journal is bounded, so report its exact scope. No claim
+    # that these counts measure strategy outperformance or lifetime totals.
+    ai_vetoes=c.execute("""SELECT COUNT(*) FROM v4_agent_decisions
+        WHERE action='WAIT' AND reason LIKE 'AI\\_%' ESCAPE '\\'""").fetchone()[0]
+    ai_approved=c.execute("""SELECT COUNT(*) FROM v4_agent_decisions
+        WHERE action='BUY_PAPER' AND agents_json LIKE '%AI_BUY_CONFIRMED%'""").fetchone()[0]
     last_tick=int(state['last_tick'])
     tick_age=max(0,now-last_tick) if last_tick else None
     return {'mode':'ISOLATED_MULTIAGENT_PAPER','engine':'DETERMINISTIC_AGENTS_NOT_LLM',
@@ -358,6 +367,14 @@ def report(c,now=None):
             'risk_latched':bool(state['risk_latched']),
             'last_tick':state['last_tick'],'last_tick_age_seconds':tick_age,
             'last_decision':state['last_decision'],
+            'ai_consensus':{
+                'gate_enabled':ai_gate_enabled(),
+                'shadow_enabled':bool(ai_config['enabled']),
+                'shadow_active':bool(ai_config['active']),
+                'approved_entries_in_recent_log':int(ai_approved),
+                'vetoed_candidates_in_recent_log':int(ai_vetoes),
+                'log_window_max_rows':MAX_DECISION_ROWS,
+                'note':'AI e un veto opzionale solo per nuovi BUY PAPER; nessun controllo su SELL, risk lock o ordini reali.'},
             'performance':{'closed':closed,'wins':int(stats['wins']),
               'losses':int(stats['losses']),'flat':int(stats['flat']),
               'win_rate_pct':round(100*int(stats['wins'])/closed,2) if closed else None,
