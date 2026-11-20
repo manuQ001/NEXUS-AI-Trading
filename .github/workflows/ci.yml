@@ -1,0 +1,28 @@
+name: Verify NEXUS paper trading
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [dev/autonomous-terminal-stabilization]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile all Python source and tests
+        run: python -m compileall -q src tests updater.py
+      - name: Run full offline test suite
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Verify no real order path is enabled
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source=Path('src/meme_auto.py').read_text(encoding='utf-8')
+          assert 'AUTONOMOUS_PAPER_ONLY' in source
+          assert 'wallet_private_key' not in source
+          PY

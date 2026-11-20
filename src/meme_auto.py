@@ -76,7 +76,7 @@ def status(c):
             'sizing':'DYNAMIC_EUR','min_stake_eur':MIN_STAKE_EUR,'max_initial_fraction':MAX_INITIAL_FRACTION,'cash_reserve_fraction':CASH_RESERVE_FRACTION,
             'mode':'AUTONOMOUS_PAPER_ONLY',
             'journal':[dict(x) for x in c.execute(
-                'SELECT * FROM meme_auto_journal ORDER BY id DESC LIMIT 12')]}
+                'SELECT * FROM meme_auto_journal ORDER BY id DESC LIMIT 35')]}
 
 def _log(c,now,address,action,note):
     c.execute('INSERT INTO meme_auto_journal(timestamp,address,action,note) VALUES(?,?,?,?)',
@@ -160,7 +160,8 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                 if reason:
                     result=trade(c,addr,'SELL',q,fx,now=now)
                     c.execute('DELETE FROM meme_auto_trail WHERE address=?',(addr,))
-                    _log(c,now,addr,'AUTO_SELL',reason+' · pnl_eur='+str(result['pnl_eur']))
+                    _log(c,now,addr,'AUTO_SELL',reason+' · P/L netto virtuale € '+
+                         str(result['pnl_eur'])+' · prezzi indicativi, esecuzione non verificata')
                     messages.append('AUTO_SELL '+reason)
             except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
                 messages.append('QUOTE_NON_DISPONIBILE '+type(exc).__name__)
@@ -168,6 +169,7 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
         c.execute('UPDATE meme_auto_state SET last_scan=? WHERE id=1',(now,))
         if fx is None:
             messages.append('SCAN_SOSPESO_SENZA_CAMBIO')
+            _log(c,now,None,'AUTO_ERROR','Scansione sospesa: cambio USD/EUR indisponibile')
         else:
             try:
                 report=scout()
@@ -198,18 +200,25 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                             messages.append('CAPITALE_DISPONIBILE_O_RISERVA_INSUFFICIENTE')
                             break
                         result=trade(c,mint,'BUY',q,fx,now=now,stake_eur=stake)
-                        _log(c,now,mint,'AUTO_BUY','EUR '+str(result['cost_eur'])+
-                             ' · paper · vendibilità NON verificata')
+                        _log(c,now,mint,'AUTO_BUY','Entrata virtuale EUR '+str(result['cost_eur'])+
+                             ' · liquidita USD '+str(round(liquidity))+
+                             ' · volume 24h USD '+str(round(volume))+
+                             ' · vendibilita non verificata')
                         bought+=1
                         count+=1
                         messages.append('AUTO_BUY '+mint[:8])
                     except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
                         messages.append('CANDIDATO_NON_DISPONIBILE '+type(exc).__name__)
+                _log(c,now,None,'AUTO_SCAN',
+                     'Analizzati '+str(len(rows))+' token; '+str(len(candidates))+
+                     ' idonei; '+str(bought)+' acquisti virtuali; '+
+                     str(count)+' posizioni in portafoglio')
                 if count>=MAX_POSITIONS:messages.append('LIMITE_POSIZIONI')
                 elif bought==0 and not any(x.startswith('CANDIDATO_') for x in messages):
                     messages.append('NESSUN_CANDIDATO_IDONEO')
             except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
                 messages.append('SCOUT_NON_DISPONIBILE '+type(exc).__name__)
+                _log(c,now,None,'AUTO_ERROR','Scout non disponibile: '+type(exc).__name__)
     label=' · '.join(messages) if messages else 'MONITORAGGIO'
     errors=[m for m in messages if 'NON_DISPONIBILE' in m or 'SOSPESO_SENZA' in m]
     c.execute('UPDATE meme_auto_state SET last_tick=?,last_status=?,last_error=? WHERE id=1',

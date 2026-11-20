@@ -2,6 +2,14 @@
 
 Progetto sperimentale per simulare operazioni su BTC/ETH e osservare token emergenti. **Nessun trading reale, nessuna leva e nessun wallet collegato.** Non esiste alcuna garanzia di guadagno.
 
+## NEXUS 2.9.0 — Autonomous Trading Terminal (solo trading virtuale)
+
+La sezione MEME HUNTER ora include un terminale operativo che si aggiorna automaticamente ogni 2 secondi quando il browser è visibile. Mostra lo stato del motore autonomo, l'ultima scansione, le posizioni simultanee, il P/L virtuale stimato, un pronostico euristico per ogni posizione (rialzista/ribassista/incerto) e un registro delle decisioni con conteggio dei token analizzati/idonei, motivi di entrata/uscita e problemi del feed.
+
+Il monitoraggio delle posizioni è eseguito dal server circa ogni 15 secondi; la ricerca di token resta ogni 5 minuti. Questi tempi non sono aggiornamenti exchange tick-by-tick. Gli snapshot DEX Screener REST sono prezzi indicativi, senza garanzia di freschezza della quotazione, liquidità negoziabile o possibilità di vendita. Le spiegazioni non sono consigli di investimento e non controllano direttamente l'esecuzione. Solo ordini virtuali; nessuna credenziale di wallet o trasferimento blockchain.
+
+L'aggiornamento va installato solo dopo il superamento dei test Python e del controllo sintattico della dashboard JS. Il codice è revisionato prima del rilascio ufficiale. L'updater mantiene l'archivio SQLite esistente.
+
 ## Release 2.8.5 — pronostico descrittivo nelle posizioni MEME aperte
 
 Ogni posizione virtuale mostra un segnale aggiornato automaticamente nella dashboard: RIALZISTA, RIBASSISTA, INCERTO o DATI_NON_RECENTI, accompagnato da spiegazione e affidabilità bassa/non valutabile. Il segnale è una *descrizione euristica* delle ultime due variazioni osservate (serve una sequenza di almeno tre prezzi diversi), non un modello predittivo né una probabilità di guadagno. Le richieste REST al provider non garantiscono freschezza del prezzo: quando mancano letture recenti si sospende il segnale. Nessuna decisione automatica di trading dipende da questo pronostico; restano le regole esistenti. Le osservazioni di prezzo vengono registrate in una piccola tabella SQLite per ogni posizione aperta e ripulite alla vendita. Test di regressione inclusi. Non sono collegati wallet reali.
