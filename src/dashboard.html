@@ -392,6 +392,20 @@ body{background:#0b1019}.shell{max-width:1180px}
 .nx-v4-performance-foot{margin-top:11px;color:#a4b6c9;font-size:12px}
 @media(max-width:780px){.nx-v4-performance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
+
+/* Consensus status: independent from execution controls */
+.nx-v4-consensus{margin:12px 0;border:1px solid #35536b;background:linear-gradient(155deg,#142638,#101b2b);padding:16px;border-radius:14px}
+.nx-v4-consensus-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.nx-v4-consensus-status{padding:7px 11px;border:1px solid #647085;background:#293347;color:#ccd9ed;font-size:11px;font-weight:800;border-radius:999px}
+.nx-v4-consensus-status[data-state=on]{background:#103f36;border-color:#38866a;color:#86efd0}
+.nx-v4-consensus-status[data-state=warning]{background:#3a2a1b;border-color:#8c6b3c;color:#ffd59d}
+.nx-v4-consensus-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.nx-v4-consensus-grid>div{background:#0b1827;border:1px solid #2a4054;border-radius:10px;padding:12px;min-width:0}
+.nx-v4-consensus-grid small{display:block;color:#a1b5cc;font-size:10px}
+.nx-v4-consensus-grid strong{display:block;margin-top:5px;color:#eff7ff;font-size:18px}
+#nx-v4-consensus-note{margin:8px 0 0;font-size:11px}
+@media(max-width:680px){.nx-v4-consensus{padding:12px}.nx-v4-consensus-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.nx-v4-consensus-grid>div{padding:9px}.nx-v4-consensus-grid strong{font-size:14px}}
+
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> </div><div class="sub">TRADING PAPER · CONTROLLO DEL BOT</div></div><div class="flex"><span class="chip">● SOLO DENARO VIRTUALE</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav nx-nav-slim" aria-label="Navigazione principale">
 <a href="#meme-section">◉ Dashboard</a><a href="#performance-section">▥ Risultati</a>
@@ -456,6 +470,19 @@ body{background:#0b1019}.shell{max-width:1180px}
     <div><small>POSIZIONI</small><strong id="nx-v4-positions-count">—</strong></div>
     <div><small>DRAWDOWN</small><strong id="nx-v4-drawdown">—</strong></div>
    </div>
+   <section class="nx-v4-consensus" aria-label="Consenso AI per acquisti virtuali">
+    <div class="nx-v4-consensus-heading">
+      <div><div class="nx-live-title">CONSENSO PYTHON + AI</div>
+       <div class="nx-live-muted">Solo per nuovi BUY virtuali, mai per uscite o Risk Lock</div></div>
+      <span class="nx-v4-consensus-status" id="nx-v4-consensus-status" data-state="off">DISATTIVATO</span>
+    </div>
+    <div class="nx-v4-consensus-grid">
+      <div><small>ANALISI GPT</small><strong id="nx-v4-consensus-shadow">—</strong></div>
+      <div><small>INGRESSI CONFERMATI</small><strong id="nx-v4-consensus-approved">—</strong></div>
+      <div><small>CANDIDATI RESPINTI</small><strong id="nx-v4-consensus-vetoed">—</strong></div>
+    </div>
+    <p class="nx-live-muted" id="nx-v4-consensus-note">In attesa dello stato del motore. Nessuna autorità sugli ordini reali.</p>
+   </section>
    <section class="nx-v4-performance" aria-label="Statistiche reali del trading simulato">
     <div class="nx-v4-performance-heading"><div class="nx-live-title">RISULTATI DEL TRADING PAPER</div><span class="nx-live-muted">Tutte le operazioni chiuse · commissioni simulate</span></div>
     <div class="nx-v4-performance-grid">
@@ -1513,6 +1540,20 @@ async function nxLoadV4(){
   heartbeat.dataset.state=!d.enabled?'paused':healthy?'ok':'stale';
   heartbeat.textContent=!d.enabled?'Motore sospeso':healthy?'Motore attivo · ultimo ciclo '+age+'s fa':
     'Motore da verificare · '+(age==null?'nessun ciclo registrato':'ultimo ciclo '+age+'s fa');
+  const ai=d.ai_consensus||{};
+  const gate=$('nx-v4-consensus-status');
+  const active=Boolean(ai.gate_enabled);
+  const shadow=Boolean(ai.shadow_active);
+  gate.dataset.state=active?(shadow?'on':'warning'):'off';
+  gate.textContent=active?(shadow?'RICHIESTA CONFERMA AI':'GATE ATTIVO · GPT NON DISPONIBILE'):'SOLO PYTHON';
+  $('nx-v4-consensus-shadow').textContent=shadow?'Attiva':ai.shadow_enabled?'Chiave mancante':'Spenta';
+  $('nx-v4-consensus-approved').textContent=ai.approved_entries_in_recent_log==null?'—':
+    String(ai.approved_entries_in_recent_log);
+  $('nx-v4-consensus-vetoed').textContent=ai.vetoed_candidates_in_recent_log==null?'—':
+    String(ai.vetoed_candidates_in_recent_log);
+  $('nx-v4-consensus-note').textContent=active?
+    'Solo BUY Python confermati da GPT entro 5 minuti. In mancanza di conferma, nessun nuovo acquisto. Conteggi dal diario recente (max '+String(ai.log_window_max_rows||600)+' decisioni).':
+    'La AI può osservare il mercato, ma non approva né blocca gli ingressi. Attiva il consenso solo dalla configurazione del server.';
   const perf=d.performance||{};
   const realized=Number(perf.realized_net_pnl_eur);
   const perfNet=$('nx-v4-realized-pnl');
