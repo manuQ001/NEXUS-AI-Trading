@@ -66,6 +66,41 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
 @media(max-width:480px){.meme-checks{grid-template-columns:1fr}.meme-dialog-content{padding:12px}}
 
 .meme-quick-panel{margin-bottom:16px;border-color:#35617d}.meme-quick-stats{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.meme-quick-stat{flex:1 1 130px;padding:12px;border-radius:10px;background:#0e1c2d;border:1px solid #2b4158}.meme-quick-stat b{display:block;font-size:19px;font-variant-numeric:tabular-nums}.meme-demo-table{max-height:200px}.meme-quick-btn{padding:7px 9px;background:#1a4640;font-size:11px;white-space:nowrap}.meme-demo-note{border-left:3px solid #bd9250;padding-left:11px}
+
+/* NEXUS Neon Mission Control · frontend only */
+:root{--bg:#09070d;--panel:#1a101c;--line:#572b48;--text:#ffeef9;--muted:#b290a7;--blue:#fa70bc;--green:#61f0b3;--red:#ff708d;--amber:#ffbf70}
+body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(--text)}.shell{max-width:1600px}.top{border-bottom:1px solid #532640;padding-bottom:15px}
+.logo span{color:#fc72bb}.panel{background:linear-gradient(135deg,#1e1020,#100b15);border-color:#512942}.chip{background:#2a1123;color:#ff9dca;border-color:#8d366a}
+.btn{background:#471d38;border-color:#813e64;color:#ffe9f4}.btn:hover{background:#692b51}
+.desk-nav{background:#180e1aeb;border-color:#602b4c}.desk-nav a[aria-current=page]{background:#5e2247;border-color:#a94279;color:#fff;box-shadow:0 0 18px #e3398730}
+.section-index{background:#451a37;border-color:#b9457a;color:#ffb4da}
+.section-divider:after{background:linear-gradient(90deg,#b9457a,transparent)}
+.dataTable th{background:#2b1728}.dataTable td{border-color:#4d2942}
+.agent{background:#231323;border-color:#582d49}
+.nx{margin-bottom:16px;font-family:Inter,Segoe UI,Arial,sans-serif}.nx *{box-sizing:border-box}
+.nx-head{padding:18px 20px;border:1px solid #7c325c;border-radius:14px 14px 0 0;background:linear-gradient(90deg,#31142b,#100a13);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.nx-title{font-size:23px;color:#fa72b8;font-weight:900;letter-spacing:.01em}.nx-standfirst{font:10px/1.8 Consolas,monospace;letter-spacing:.09em;color:#b38ba2}
+.nx-run{font:11px Consolas,monospace;color:#dcc5d2;margin-top:5px}.nx-dot{display:inline-block;background:#7b6674;width:7px;height:7px;border-radius:50%;margin-right:7px}
+.nx-dot.on{background:#63f0b2;box-shadow:0 0 11px #63f0b2}
+.nx-big{font-size:29px;color:#64f0b4;font-weight:850;font-variant-numeric:tabular-nums;text-align:right}
+.nx-small{font:10px Consolas,monospace;color:#b993aa;text-transform:uppercase}
+.nx-strip{display:flex;overflow:auto;border:1px solid #7c325c;border-top:0;background:#170d17}
+.nx-strip>div{padding:10px 14px;border-right:1px solid #47243b;flex:1;min-width:145px}.nx-strip strong{display:block;font:800 11px Consolas,monospace;color:#f2cce1;margin-top:4px}
+.nx-grid{display:grid;grid-template-columns:minmax(200px,.85fr) minmax(350px,1.7fr) minmax(245px,1fr);gap:10px;margin-top:10px}
+.nx-card{min-width:0;padding:14px;border:1px solid #562b49;border-radius:10px;background:linear-gradient(140deg,#221121,#100a14)}
+.nx-heading{font:850 11px Consolas,monospace;color:#f47db6;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #46233c;padding-bottom:10px;margin-bottom:10px;display:flex;justify-content:space-between;gap:7px}
+.nx-tag{border:1px solid #864164;border-radius:5px;padding:2px 5px;color:#fcb5db;font-size:9px;white-space:nowrap}
+.nx-row{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #3c2034;font-size:11px}
+.nx-row b{font-variant-numeric:tabular-nums;text-align:right}.nx-green{color:#65f0b3!important}.nx-red{color:#ff758d!important}
+.nx-ring{width:82px;height:82px;border:2px solid #cf468a;border-radius:50%;display:grid;place-items:center;margin:15px auto;box-shadow:0 0 27px #a733665c;background:#38172e;color:#ff93cb;font-size:31px}
+.nx-numbers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.nx-number{background:#251322;border:1px solid #4c2941;border-radius:7px;padding:9px 7px}.nx-number strong{display:block;font-size:18px;font-variant-numeric:tabular-nums}.nx-number span{font-size:9px;color:#b58da5}
+.nx-position{padding:10px;border:1px solid #5a314c;border-radius:8px;background:#261626;margin-bottom:8px}.nx-muted{font:10px/1.6 Consolas,monospace;color:#bc92aa}
+.nx-agent{padding:8px 0;border-bottom:1px solid #3f2338}.nx-agent b{font:800 11px Consolas,monospace;color:#ffb4d9}.nx-agent small{font:10px Consolas,monospace;color:#be8da8}.nx-agent p{font-size:11px;margin:5px 0;color:#c6a3b8}
+.nx-feed{max-height:350px;overflow:auto;scrollbar-color:#814463 #1a0c16}.nx-event{padding:9px 0;border-bottom:1px solid #46263a}.nx-event b{font:800 11px Consolas,monospace;color:#fb82bf}.nx-event p{font-size:11px;color:#cda8be;margin:4px 0;overflow-wrap:anywhere}
+.nx-disclaimer{margin-top:10px;padding:11px 13px;border:1px dashed #6d3857;border-radius:7px;font-size:11px;color:#bf9bb1}
+.nx-advanced summary{cursor:pointer;color:#ffa3d0;background:#2a1627;border:1px solid #6d3857;border-radius:8px;padding:12px;font-size:12px;font-weight:800;margin:12px 0}
+.nx-advanced[open] summary{margin-bottom:14px}
+@media(max-width:1150px){.nx-grid{grid-template-columns:1fr 1.5fr}.nx-grid>.nx-card:last-child{grid-column:1/-1}}@media(max-width:730px){.nx-grid{grid-template-columns:1fr}.nx-grid>.nx-card:last-child{grid-column:auto}.nx-head{padding:14px}.nx-title{font-size:19px}.nx-big{font-size:24px}}
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> <small style="font-weight:400;color:#7895b2">2.8</small></div><div class="sub">AUTONOMOUS TRADING DESK • LOCAL EDITION</div></div><div class="flex"><span class="chip">● PAPER ONLY • €150</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav" aria-label="Vai alla sezione"><a href="#overview">◎ Panoramica</a><a href="#market">◈ Mercato</a><a href="#agents-section">◆ Agenti</a><a href="#meme-section">◉ Meme Hunter</a><a href="#performance-section">▥ Performance</a><a href="#history-section">▤ Storico</a><a href="#lab-section">⚙ Laboratorio</a></nav>
 <section class="workspace-view" data-view="overview" id="workspace-overview">
@@ -86,6 +121,54 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
 </section>
 <section class="workspace-view" data-view="meme-section" id="workspace-meme-section" hidden>
 <div class="section-divider" id="meme-section"><span class="section-index">06</span><div><h2 class="section-heading">MEME HUNTER · Solana</h2><div class="section-caption">Ricerca token emergenti: dati pubblici, nessuna esecuzione memecoin</div></div></div>
+
+<div class="nx" id="nx-terminal">
+ <header class="nx-head">
+  <div><div class="nx-standfirst">● AUTONOMOUS MULTI-AGENT SYSTEM · SOLANA</div><div class="nx-title">◉ NEXUS BOT TERMINAL <span class="nx-tag">PAPER</span></div>
+   <div class="nx-run"><span class="nx-dot" id="nx-led"></span><span id="nx-run">ATTENDO MOTORE</span> · <span id="nx-last">ultimo ciclo —</span></div></div>
+  <div style="display:flex;gap:22px;align-items:center"><div><div class="nx-small">Equity MEME virtuale</div><div class="nx-big" id="nx-equity">—</div></div>
+   <div><div class="nx-small">Operazioni chiuse</div><strong id="nx-closed">—</strong><div class="nx-small">Vincenti / perdenti</div><strong id="nx-wl">—</strong></div></div>
+ </header>
+ <div class="nx-strip">
+  <div><span class="nx-small">Scanner</span><strong id="nx-scanner">IN ATTESA</strong></div>
+  <div><span class="nx-small">Agenti IA</span><strong id="nx-mode">NON AVVIATI</strong></div>
+  <div><span class="nx-small">Rug Guard</span><strong style="color:#ffbf70">ON-CHAIN NON VERIFICATO</strong></div>
+  <div><span class="nx-small">Quote MEME</span><strong>REST · ~15s</strong></div>
+  <div><span class="nx-small">Ricerca token</span><strong>OGNI 5 MIN</strong></div>
+ </div>
+ <div class="nx-grid">
+  <section class="nx-card">
+   <div class="nx-heading">◆ Scanner & Risk <span class="nx-tag" id="nx-scan-state">IN ATTESA</span></div>
+   <div class="nx-muted" id="nx-scan-description">Il motore non ha ancora comunicato dati.</div>
+   <div class="nx-ring" aria-hidden="true">⌁</div>
+   <div class="nx-row"><span>Capitale</span><b>MEME PAPER EUR</b></div>
+   <div class="nx-row"><span>Ingressi max</span><b>3 / SCAN</b></div>
+   <div class="nx-row"><span>Posizioni simultanee</span><b>8</b></div>
+   <div class="nx-row"><span>Ultima analisi agenti</span><b id="nx-agent-time">—</b></div>
+   <div class="nx-row"><span>Controllo vendibilità</span><b style="color:#ffbf70">NON VERIFICATO</b></div>
+   <div class="nx-disclaimer">Solo dati osservati dal server. Nessuna animazione che simuli attività inesistenti.</div>
+  </section>
+  <section class="nx-card">
+   <div class="nx-heading">◉ Executor · Open Positions <span class="nx-tag" id="nx-position-count">0 / 8</span></div>
+   <div class="nx-numbers">
+    <div class="nx-number"><span>LIQUIDITÀ EUR</span><strong id="nx-cash">—</strong></div>
+    <div class="nx-number"><span>P/L APERTO</span><strong id="nx-pnl">—</strong></div>
+    <div class="nx-number"><span>WIN RATE</span><strong id="nx-winrate">—</strong></div>
+   </div>
+   <div class="nx-heading" style="margin-top:18px">↗ Posizioni & Pronostici <span class="nx-tag">OSSERVAZIONI</span></div>
+   <div id="nx-positions"><div class="nx-muted">Nessuna posizione caricata.</div></div>
+   <div class="nx-disclaimer">Prezzi indicativi, non tick streaming. Stop −6%, target +12%, trailing e timeout gestiti dal motore.</div>
+  </section>
+  <section class="nx-card">
+   <div class="nx-heading">◆ Agent Network <span class="nx-tag" id="nx-agent-status">IN ATTESA</span></div>
+   <div id="nx-agents"><div class="nx-muted">Attendo le valutazioni degli agenti.</div></div>
+   <div class="nx-heading" style="margin-top:18px">▤ Decision Logger <span class="nx-tag" id="nx-feed-count">0 EVENTI</span></div>
+   <div class="nx-feed" id="nx-feed"><div class="nx-muted">Nessun evento registrato.</div></div>
+  </section>
+ </div>
+ <div class="nx-disclaimer">SOLO SIMULAZIONE · Schermata ogni 2s · Quote MEME ~15s · IA generativa solo se configurata · Nessun ordine reale né garanzia di profitto o vendibilità.</div>
+</div>
+<details class="nx-advanced" id="nx-advanced"><summary>▥ Strumenti avanzati · Portafoglio dettagliato, scanner manuale e controlli</summary>
 <section class="panel meme-quick-panel" id="meme-quick-panel">
  <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin:0">⚡ MEME HUNTER · PORTAFOGLIO VIRTUALE</div><div class="sub">Acquisti e vendite virtuali autonomi; le vendite manuali di emergenza restano possibili.</div></div><span class="tag">45 € MEME · PAPER ONLY</span></div>
  <div class="desk-state" style="margin-top:12px"><div>
@@ -149,6 +232,7 @@ body{background:radial-gradient(ellipse at 50% -160px,#152b48 0,transparent 65%)
   </dialog>
   <p class="sub" style="margin-top:12px">RUG utilizza GoPlus; WHALE consulta gli account token più grandi tramite RPC Solana. SHILL non ha ancora fonti social collegate. Token account e wallet non sono la stessa cosa. Un'elevata liquidità non prova che il token sia sicuro. Portafoglio MEME virtuale €45: ordini PAPER autorizzati secondo le regole, ordini reali sempre bloccati.</p>
 </section>
+</details>
 </section>
 <section class="workspace-view" data-view="performance-section" id="workspace-performance-section" hidden>
 <div class="section-divider" id="performance-section"><span class="section-index">07</span><div><h2 class="section-heading">Performance Lab</h2><div class="section-caption">Risultati netti delle operazioni virtuali chiuse</div></div></div><section class="panel" style="margin-top:12px" id="performance-lab">
