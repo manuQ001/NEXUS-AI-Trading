@@ -1221,7 +1221,7 @@ if(typeof EventSource!=='undefined'){
     }catch(_){}
     if(document.visibilityState==='visible'){
       refreshMemeLive();
-      if(JSON.parse(e.data).kind!=='PAPER_TICK')nxLoadDecisionTimeline();
+      try{if(JSON.parse(e.data).kind!=='PAPER_TICK')nxLoadDecisionTimeline();}catch(_){}
     }
   });
   source.onerror=()=>{
