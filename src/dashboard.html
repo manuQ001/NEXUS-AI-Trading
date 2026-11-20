@@ -1,4 +1,4 @@
-<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NEXUS AI 3.7.0 • Autonomous Terminal</title>
+<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NEXUS AI 3.8.0 • Autonomous Terminal</title>
 <style>
 :root{color-scheme:dark;--bg:#080d17;--panel:#121b2a;--line:#27354a;--text:#e5efff;--muted:#94a7c1;--green:#40d6a5;--red:#f57586;--blue:#60c6f7}*{box-sizing:border-box}body{background:var(--bg);color:var(--text);margin:0;font:14px/1.5 system-ui,Segoe UI,Arial,sans-serif}.shell{max-width:1320px;padding:22px 18px;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.logo{font-size:23px;font-weight:850;letter-spacing:1px}.logo span{color:var(--blue)}.sub,.muted{color:var(--muted)}.sub{font-size:12px}.chip{border:1px solid #246047;background:#17372f;color:#72efc0;padding:7px 11px;border-radius:100px;font-size:11px;font-weight:800}.notice{padding:13px;border:1px solid #755b2e;border-radius:10px;background:#2c2318;margin:17px 0;color:#ffe2a3}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;min-width:0}.metric .name{font-size:12px;color:var(--muted)}.metric .val{font-size:clamp(21px,2.5vw,30px);font-weight:800;margin:2px 0}.green{color:var(--green)}.red{color:var(--red)}.rows{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:12px;margin-top:12px}.title{font-weight:800;font-size:15px;margin-bottom:12px}.flex{display:flex;align-items:center;justify-content:space-between;gap:10px}.btn{background:#244057;border:1px solid #3b6179;border-radius:8px;color:#fff;padding:9px 12px;cursor:pointer;font:inherit;font-weight:700}.btn:hover{background:#315b78}.btn:disabled{opacity:.6;cursor:wait}.tab{background:#1c2939;border:1px solid #314357;border-radius:8px;color:#a7bbd1;padding:7px 12px;cursor:pointer}.tab.selected{background:#193e3b;color:#75e5bf}.agents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.agent{background:#0d1522;border:1px solid #283648;border-radius:8px;padding:10px}.agent .n{font-weight:800;font-size:12px}.agent .d{color:var(--muted);font-size:11px;margin-top:3px}.status{font-size:10px;color:#ffca7c}.small{font-size:12px}.dataTable{border-collapse:collapse;width:100%;font-size:12px}.dataTable th,.dataTable td{text-align:left;border-bottom:1px solid #283447;padding:9px 6px}.dataTable th{color:var(--muted);font-weight:600}.scroll{overflow:auto;max-height:330px}.event{border-bottom:1px solid #223145;padding:9px 0;font-size:12px}.event strong{color:var(--blue)}.event .when{color:var(--muted);font-size:10px}.tag{display:inline-block;font-size:10px;border:1px solid #425267;padding:2px 6px;border-radius:5px}.chart{width:100%;height:265px;display:block}.foot{margin:20px 0;color:var(--muted);font-size:12px}.error{color:#ffb2bb;word-break:break-word}.marketline{font-weight:650}#feedback{font-size:11px;color:var(--muted)}@media(max-width:850px){.rows{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:450px){.shell{padding:14px 10px}.agents{grid-template-columns:1fr}.panel{padding:12px}}
 
@@ -124,6 +124,18 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
 @keyframes nx-real-arrival{from{background:rgba(242,130,255,.38);transform:translateY(-5px)}to{background:rgba(106,51,135,.09);transform:translateY(0)}}
 .nx-live-muted{color:#a99fb5;font-size:12px;line-height:1.5}
 @media (prefers-reduced-motion:reduce){.nx-live-item.is-new,.nx-live-beam.is-event:after{animation:none!important}}
+.nx-market-pulse{margin:12px 0;background:linear-gradient(120deg,rgba(57,38,79,.6),rgba(18,17,34,.96));border:1px solid #715087;border-radius:12px;padding:13px}
+.nx-market-summaries{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px;margin:10px 0}
+.nx-market-stat{border:1px solid #493b62;background:rgba(0,0,0,.25);padding:9px 11px;border-radius:9px}
+.nx-market-stat small{display:block;color:#aba4c4;letter-spacing:.03em;font-size:10px}
+.nx-market-stat strong{color:#f1d3ff;font-size:16px}
+.nx-market-pricecards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px}
+.nx-pricecard{border:1px solid #473d61;border-radius:10px;background:rgba(10,7,24,.65);padding:11px;min-width:0}
+.nx-pricecard[data-stale="true"]{opacity:.65;border-color:#a97a42}
+.nx-pricecard svg{height:58px;max-width:100%;display:block;margin:9px 0 4px}
+.nx-pricecard path{fill:none;stroke:#b591fc;stroke-width:2;vector-effect:non-scaling-stroke}
+.nx-pricecard circle{fill:#f1c0fa}
+.nx-market-pnlwarning{font-size:11px;color:#dec9e8;margin-top:9px}
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> <small style="font-weight:400;color:#d28caf">3.1</small></div><div class="sub">AUTONOMOUS TRADING DESK • LOCAL EDITION</div></div><div class="flex"><span class="chip">● PAPER ONLY • €150</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav" aria-label="Vai alla sezione"><a href="#overview">◎ Panoramica</a><a href="#market">◈ Mercato</a><a href="#agents-section">◆ Agenti</a><a href="#meme-section">◉ Meme Hunter</a><a href="#performance-section">▥ Performance</a><a href="#history-section">▤ Storico</a><a href="#lab-section">⚙ Laboratorio</a></nav>
 <section class="workspace-view" data-view="overview" id="workspace-overview">
@@ -170,6 +182,18 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
     <span class="nx-live-chip" id="nx-live-engine-state" data-online="false"><span class="nx-live-dot"></span>MOTORE PAPER IN ATTESA</span>
    </div>
    <div class="nx-live-beam" id="nx-live-beam" aria-hidden="true"></div>
+   <section class="nx-market-pulse" id="nx-market-pulse">
+    <div class="nx-live-head"><span class="nx-live-title">⌁ MARKET PULSE · QUOTE REALMENTE OSSERVATE</span>
+     <span class="nx-live-chip" id="nx-market-mode" data-online="false"><span class="nx-live-dot"></span>REST IN ATTESA</span></div>
+    <div class="nx-market-summaries">
+     <div class="nx-market-stat"><small>VARIAZIONI PREZZO OSSERVATE</small><strong id="nx-market-samples">—</strong></div>
+     <div class="nx-market-stat"><small>BREAK EVEN · PREZZO LORDO</small><strong id="nx-market-breakeven">—</strong></div>
+     <div class="nx-market-stat"><small>PREZZO LORDO PER TARGET NETTO +12%</small><strong id="nx-market-target">—</strong></div>
+     <div class="nx-market-stat"><small>STIMA NETTA A STOP PREZZO −5%</small><strong id="nx-market-stop">—</strong></div>
+    </div>
+    <div class="nx-market-pricecards" id="nx-market-cards"><div class="nx-live-muted">In attesa di quotazioni osservate dal server...</div></div>
+    <div class="nx-market-pnlwarning">Quote DEX Screener REST, campionate dal server (non tick on-chain o prezzi eseguibili). I grafici non interpolano valori mancanti. Lo stop per drawdown resta attivo.</div>
+   </section>
    <div class="nx-live-grid">
     <div class="nx-live-panel">
      <h4>NUOVI MINT · EVENTI PROVIDER</h4>
@@ -548,6 +572,50 @@ async function loadDeskControl(){
  ).join('')||'Non ci sono ancora osservazioni';
  $('nx-desk-disclaimer').textContent=d.disclaimer;
 }
+let nxLastMarketChangeId=0;
+function nxSparkline(points){
+ const prices=(points||[]).map(x=>Number(x.price_usd)).filter(x=>Number.isFinite(x)&&x>0).slice(-36);
+ if(prices.length<2)return '<span class="nx-live-muted">Servono almeno 2 variazioni osservate</span>';
+ const lo=Math.min(...prices),hi=Math.max(...prices),spread=hi-lo||lo*.001;
+ const values=prices.map((p,i)=>{
+   const x=6+i*228/Math.max(1,prices.length-1);
+   const y=50-(p-lo)/spread*40;
+   return [x,y];
+ });
+ const d='M'+values.map(pt=>pt.map(x=>x.toFixed(2)).join(',')).join(' L');
+ const last=values[values.length-1];
+ return '<svg viewBox="0 0 240 58" role="img" aria-label="Storico dei cambi di prezzo REST realmente ricevuti" preserveAspectRatio="none">'+
+   '<path d="'+d+'"/><circle cx="'+last[0].toFixed(2)+'" cy="'+last[1].toFixed(2)+'" r="3"/></svg>';
+}
+async function loadMarketPulse(){
+ const response=await fetch('/api/meme-market-pulse',{cache:'no-store'});
+ if(!response.ok)throw Error('Market Pulse non disponibile');
+ const d=await response.json();
+ const list=d.quotes||[],cost=d.cost_model||{};
+ const percent=x=>Number.isFinite(Number(x))?Number(x).toFixed(2)+'%':'—';
+ $('nx-market-samples').textContent=String(d.sample_count||0);
+ $('nx-market-breakeven').textContent='+'+percent(cost.minimum_gross_move_to_break_even_pct);
+ $('nx-market-target').textContent='+'+percent(cost.gross_move_for_net_target_12_pct);
+ $('nx-market-stop').textContent=percent(cost.estimated_net_at_gross_stop_minus5_pct);
+ nxSetFeed('nx-market-mode',list.some(x=>x.fresh),
+   list.some(x=>x.fresh)?'REST · DATI RECENTI':'REST · NESSUN DATO RECENTE');
+ $('nx-market-cards').innerHTML=list.map(x=>{
+   const old=Number(x.age_seconds)>45;
+   const id=String(x.address||'').slice(0,8);
+   const price=Number(x.price_usd);
+   const delta=x.observations&&x.observations.length>1?
+      (price/Number(x.observations[0].price_usd)-1)*100:null;
+   const change=delta===null?'Una sola osservazione':(delta>=0?'+':'')+delta.toFixed(2)+'% dal primo punto';
+   return '<div class="nx-pricecard" data-stale="'+String(old)+'">'+
+     '<div class="nx-row"><b>'+esc(x.symbol||'?')+'</b><small>'+esc(id)+'…</small></div>'+
+     '<strong>'+esc(Number.isFinite(price)?price.toPrecision(7):'N/D')+' USD</strong>'+
+     nxSparkline(x.observations)+'<div class="nx-live-muted">'+esc(change)+'</div>'+
+     '<div class="nx-live-muted">'+(old?'DATI NON RECENTI':'DATO RECENTE')+
+     ' · '+esc(String(x.age_seconds))+' s · '+esc(x.source)+'</div></div>';
+ }).join('')||'<div class="nx-live-muted">Nessuna quotazione registrata. Lo scanner osserva il mercato senza forzare acquisti.</div>';
+ if(nxLastMarketChangeId&&Number(d.last_change_id)>nxLastMarketChangeId)nxFlashRealPacket();
+ nxLastMarketChangeId=Math.max(nxLastMarketChangeId,Number(d.last_change_id)||0);
+}
 let nxLastMintSerial=0;
 let nxLastJournalId=0;
 function nxFlashRealPacket(){
@@ -644,7 +712,7 @@ let memeLiveBusy=false;
 async function refreshMemeLive(){
  if(document.visibilityState!=='visible'||memeLiveBusy)return;
  memeLiveBusy=true;
- try{await Promise.all([loadMemeAuto(),loadMemeDemo(),loadMemeLive(),loadStrategyIntelligence(),loadDeskControl(),loadMintFeed()]);}
+ try{await Promise.all([loadMemeAuto(),loadMemeDemo(),loadMemeLive(),loadStrategyIntelligence(),loadDeskControl(),loadMintFeed(),loadMarketPulse()]);}
  catch(e){$('meme-demo-message').textContent='Aggiornamento automatico non disponibile: '+e.message;}
  finally{memeLiveBusy=false;}
 }
@@ -659,7 +727,7 @@ if(typeof EventSource!=='undefined'){
     if(indicator)indicator.title='Connessione SSE attiva; quote MEME REST ~10 s';
   });
   source.addEventListener('paper',(e)=>{
-    try{const packet=JSON.parse(e.data);if(['PAPER_MINT','PAPER_JOURNAL','PAPER_PROFILE','PAPER_TICK'].includes(packet.kind))nxFlashRealPacket();}catch(_){}
+    try{const packet=JSON.parse(e.data);if(['PAPER_MINT','PAPER_JOURNAL','PAPER_PROFILE','PAPER_QUOTES'].includes(packet.kind))nxFlashRealPacket();}catch(_){}
     if(document.visibilityState==='visible')refreshMemeLive();
   });
   source.onerror=()=>{
@@ -670,7 +738,7 @@ if(typeof EventSource!=='undefined'){
   };
 }
 setInterval(()=>{if(!nexusEventsOnline)refreshMemeLive()},2000);
-setInterval(()=>{if(nexusEventsOnline&&document.visibilityState==='visible')Promise.all([loadMemeLive(),loadMintFeed()]).catch(()=>{});},10000);
+setInterval(()=>{if(nexusEventsOnline&&document.visibilityState==='visible')Promise.all([loadMemeLive(),loadMintFeed(),loadMarketPulse()]).catch(()=>{});},10000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMemeLive();});
 
 /* NEXUS Neon Mission Control: view only, no simulated events or trades. */

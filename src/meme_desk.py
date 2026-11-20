@@ -70,6 +70,8 @@ def record_scan(c,rows,now=None,guard_blocked=False,source='SCANNER'):
             continue
         seen.add(address)
         decision,reason=classify(row,guard_blocked)
+        from meme_prices import observe as observe_market_price
+        observe_market_price(c,address,row,now=now)
         counts[decision]+=1
         c.execute("""INSERT INTO meme_scan_decisions(
             observed_at,address,symbol,source,liquidity_usd,
