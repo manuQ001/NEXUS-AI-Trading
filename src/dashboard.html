@@ -530,6 +530,13 @@ body{background:#0b1019}.shell{max-width:1180px}
      <div><small>CHIAMATE MESE</small><strong id="nx-v4-ai-month">—</strong></div>
     </div>
     <div class="nx-live-muted" id="nx-v4-ai-note">In attesa del servizio AI Shadow.</div>
+    <section class="nx-v4-sub" aria-label="Scanner Diagnostics NEXUS 4.5" style="margin-top:12px">
+      <div class="nx-live-title">SCANNER DIAGNOSTICS · NEXUS 4.5</div>
+      <div class="nx-live-muted" id="nx-v45-diagnostic-summary">Verifica dei campioni REST in corso.</div>
+      <div id="nx-v45-diagnostic-reasons" class="nx-v4-reason-grid" style="margin-top:10px"></div>
+      <div id="nx-v45-diagnostic-tokens" class="nx-v4-ai-reviews" style="margin-top:10px"></div>
+      <div class="nx-live-muted">Solo dati realmente osservati; nessun ordine o filtro modificato.</div>
+    </section>
     <div id="nx-v4-ai-reviews" class="nx-v4-ai-reviews"><div class="nx-live-muted">Nessuna valutazione AI ricevuta.</div></div>
     <section class="nx-v4-intelligence" id="nx-v4-intelligence" aria-label="AI Decision Intelligence">
      <div class="nx-live-head" style="margin-top:16px">
@@ -1781,6 +1788,814 @@ async function nxLoadV4AI(){
   $('nx-v4-ai-count').textContent=String(d.attempts_today)+' / '+String(d.max_calls_daily);
   $('nx-v4-ai-month').textContent=String(d.attempts_month)+' / '+String(d.max_calls_monthly);
   $('nx-v4-ai-note').textContent=d.note;
+  const diag=d.scanner_diagnostics;
+  if(diag&&diag.mode==='V45_SCANNER_DIAGNOSTICS'){
+   $('nx-v45-diagnostic-summary').textContent='Token osservati: '+diag.tracked_tokens+
+    ' · Quotazioni recenti: '+diag.fresh_tokens+
+    ' · Valutati: '+diag.evaluated_tokens+
+    ' · Prossima chiamata AI non prima di '+diag.ai_cooldown_remaining_seconds+'s (se esiste un candidato)';
+   const reasons=$('nx-v45-diagnostic-reasons');reasons.replaceChildren();
+   const names={MISSING_MARKET_DATA:'Dati incompleti',
+     LOW_LIQUIDITY_OR_VOLUME:'Liquidità / volume insufficienti',
+     INSUFFICIENT_PRICE_CHANGES:'Meno di 3 variazioni reali',
+     VOLATILITY_SPIKE:'Escursione eccessiva',
+     MOMENTUM_NOT_CONFIRMED:'Momentum non confermato',
+     PYTHON_BUY_SIGNAL:'Segnale Python BUY (non autorizzato)'};
+   for(const [key,name] of Object.entries(names)){
+    const item=document.createElement('div');item.className='nx-v4-agent';
+    const title=document.createElement('strong');title.textContent=name;
+    const count=document.createElement('span');count.textContent=String((diag.reasons||{})[key]||0);
+    item.append(title,count);reasons.append(item);
+   }
+   const tokens=$('nx-v45-diagnostic-tokens');tokens.replaceChildren();
+   for(const token of (diag.candidates||[]).slice(0,10)){
+    const item=document.createElement('div');item.className='nx-v4-entry';
+    const title=document.createElement('b');title.textContent=String(token.symbol||'?')+
+      ' · '+(names[token.category]||'Non classificato');
+    const detail=document.createElement('small');detail.textContent=
+      'Prezzo '+token.age_seconds+'s fa · '+token.price_changes+' variazioni reali'+
+      ' · Liquidità 
+  const summary=outcome.stats||{};
+  const grid=$('nx-v4-outcome-grid');
+  grid.replaceChildren();
+  for(const h of (outcome.horizons||[])){
+   const card=document.createElement('div');card.className='nx-v4-outcome-card';
+   const title=document.createElement('strong');title.textContent=(h.seconds/60)+' MIN · '+h.observed+' OSSERVATI';
+   const info=document.createElement('small');
+   info.textContent='In corso: '+h.pending+' · Senza quote: '+(h.missing+h.no_baseline);
+   const wait=document.createElement('small');
+   wait.textContent='WAIT: '+h.wait_declines+' ribassi evitati (teorici), '+h.wait_rises+' rialzi non partecipati, su '+h.wait_observed+' osservati';
+   const directional=document.createElement('small');
+   directional.textContent='BUY/SELL direzionali: '+h.directional_correct+' / '+h.directional_observed+
+    ' · Cambiamento medio: '+(h.mean_return_pct===null?'—':Number(h.mean_return_pct).toFixed(2)+'%');
+   card.append(title,info,wait,directional);grid.append(card);
+  }
+  if(!(outcome.horizons||[]).length)grid.textContent='Metriche non ancora disponibili.';
+  $('nx-v4-outcome-comparison').textContent=
+   'AI vs regole Python alla selezione: '+(summary.rule_agreements||0)+' concordanze, '+
+   (summary.rule_disagreements||0)+' differenze · Analisi con baseline: '+
+   (summary.evaluated_reviews||0)+' · Analisi precedenti senza baseline: '+
+   (summary.legacy_no_reference||0);
+  const outcomes=$('nx-v4-outcome-list');outcomes.replaceChildren();
+  const byId=new Map();
+  for(const r of (outcome.checks||[])){
+   if(!byId.has(r.review_id))byId.set(r.review_id,[]);
+   byId.get(r.review_id).push(r);
+  }
+  for(const [id,checks] of [...byId.entries()].slice(0,8)){
+   const item=document.createElement('div');item.className='nx-v4-outcome-row';
+   const first=checks[0];
+   const labels=checks.map(r=>{
+    const pct=r.status==='OBSERVED'?(Number(r.return_pct)>=0?'+':'')+Number(r.return_pct).toFixed(2)+'%':
+     r.status==='PENDING'?'ATTESA':r.status==='NO_BASELINE'?'BASE ASSENTE':'QUOTA MANCANTE';
+    return (r.horizon_seconds/60)+'m '+pct;
+   });
+   item.textContent=String(first.symbol)+' · AI '+first.ai_verdict+' / Regole '+first.python_verdict+
+    ' · '+labels.join(' | ');
+   outcomes.append(item);
+  }
+  if(!byId.size)outcomes.textContent='Nessuna analisi 4.3 con riferimento registrato. Le valutazioni precedenti restano visibili sopra.';
+  const el=$('nx-v4-ai-reviews');el.replaceChildren();
+  const rows=Array.isArray(d.reviews)?d.reviews:[];
+  if(!rows.length)el.textContent='Nessuna richiesta AI inviata. Configura la chiave e abilita AI Shadow.';
+  for(const r of rows){
+   const item=document.createElement('div');item.className='nx-v4-ai-review';
+   const heading=document.createElement('strong');
+   heading.textContent=String(r.symbol||'?')+' · '+(r.outcome==='COMPLETED'?r.verdict:r.outcome);
+   const meta=document.createElement('small');
+   meta.textContent=new Date(Number(r.timestamp)*1000).toLocaleString('it-IT')+
+    ' · '+String(r.model||'MODELLO')+' · '+String(r.outcome||'');
+   item.append(heading,meta);
+   if(r.outcome==='COMPLETED'){
+    for(const [role,text] of Object.entries(r.roles||{})){
+     const p=document.createElement('p');p.textContent=role.toUpperCase()+': '+String(text);item.append(p);
+    }
+    const why=document.createElement('p');why.textContent='Motivazione: '+String(r.rationale||'');item.append(why);
+   }else if(r.outcome==='ERROR'){
+    const p=document.createElement('p');p.textContent='Richiesta non riuscita: '+String(r.issue||'UNKNOWN');item.append(p);
+   }
+   el.append(item);
+  }
+ }catch(err){
+  $('nx-v4-ai-mode').textContent='DATI NON DISPONIBILI';
+  $('nx-v4-ai-note').textContent=String(err.message);
+ }finally{nxV4AIInFlight=false;}
+}
+nxLoadV4AI();
+setInterval(()=>{if(document.visibilityState==='visible')nxLoadV4AI()},15000);
+
+let nexusEventsOnline=false;
+if(typeof EventSource!=='undefined'){
+  const source=new EventSource('/api/meme-events');
+  source.addEventListener('open',()=>{
+    nxSetFeed('nx-live-connection',true,'SSE CONNESSO');
+    nexusEventsOnline=true;
+    const indicator=$('nx-run');
+    if(indicator)indicator.title='Connessione SSE attiva; quote MEME REST ~10 s';
+  });
+  source.addEventListener('paper',(e)=>{
+    try{
+      const packet=JSON.parse(e.data);
+      if(['PAPER_MINT','PAPER_JOURNAL','PAPER_PROFILE','PAPER_QUOTES'].includes(packet.kind)){
+        nxFlashRealPacket();nxRecordObservedEvent(packet);
+      }
+    }catch(_){}
+    if(document.visibilityState==='visible'){
+      refreshMemeLive();
+      try{if(JSON.parse(e.data).kind!=='PAPER_TICK')nxLoadDecisionTimeline();}catch(_){}
+    }
+  });
+  source.onerror=()=>{
+    nexusEventsOnline=false;
+    nxSetFeed('nx-live-connection',false,'SSE OFFLINE · POLLING');
+    const indicator=$('nx-run');
+    if(indicator)indicator.title='Eventi SSE non disponibili; aggiornamento tramite polling';
+  };
+}
+setInterval(()=>{if(!nexusEventsOnline)refreshMemeLive()},2000);
+setInterval(()=>{if(nexusEventsOnline&&document.visibilityState==='visible')Promise.all([loadMemeLive(),loadMintFeed(),loadMarketPulse(),loadShadowLab()]).catch(()=>{});},10000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){refreshMemeLive();nxLoadDecisionTimeline();}});
+nxLoadDecisionTimeline();
+setInterval(()=>{if(document.visibilityState==='visible')nxLoadDecisionTimeline()},12000);
+
+/* NEXUS Neon Mission Control: view only, no simulated events or trades. */
+function renderNexusCockpitAuto(d){
+  const now=Date.now()/1000;
+  const active=Boolean(d.enabled)&&d.last_tick&&now-d.last_tick<=60;
+  $('nx-led').classList.toggle('on',Boolean(active));
+  $('nx-run').textContent=!d.enabled?'AUTO SOSPESO':active?'AUTONOMOUS PAPER · ATTIVO':'MONITORAGGIO DA VERIFICARE';
+  $('nx-last').textContent=d.last_tick?new Date(d.last_tick*1000).toLocaleTimeString('it-IT'):'non disponibile';
+  $('nx-scanner').textContent=d.last_scan?new Date(d.last_scan*1000).toLocaleTimeString('it-IT'):'NON ANCORA ESEGUITO';
+  const guard=d.risk_circuit||{};
+  const risk=$('nx-risk-circuit');
+  risk.textContent=guard.blocked?
+    'BLOCCO NUOVI BUY · '+String(guard.drawdown_pct??'?')+'%':
+    'SOTTO SOGLIA · '+String(guard.drawdown_pct??'?')+'%';
+  risk.classList.toggle('nx-red',Boolean(guard.blocked));
+  risk.classList.toggle('nx-green',!guard.blocked);
+  $('nx-scan-state').textContent=!d.enabled?'SOSPESO':
+    guard.blocked?'MONITOR / BUY SOSPESI':'ATTIVO';
+  $('nx-scan-description').textContent=String(d.status||'Nessuna attività comunicata')+
+   (d.error?' · '+d.error:'');
+  const ag=d.agents_report||{};
+  $('nx-mode').textContent=ag.mode==='LLM_AGENT_REVIEW'?
+    'LLM: '+String(ag.status||'NON DISPONIBILE'):
+    (ag.mode==='RULE_AGENTS'?'REGOLE (NO LLM)':'NON AVVIATI');
+  $('nx-agent-status').textContent=ag.status||'IN ATTESA';
+  $('nx-agent-time').textContent=d.agents_updated_at?
+    new Date(d.agents_updated_at*1000).toLocaleTimeString('it-IT'):'—';
+  $('nx-agents').innerHTML=(ag.agents||[]).map(a=>
+    '<div class="nx-agent"><b>'+esc(a.name||'AGENTE')+
+    '</b> <small>'+esc(a.status||'')+'</small><p>'+esc(a.reason||'')+'</p></div>'
+   ).join('')||'<div class="nx-muted">Gli agenti non hanno ancora inviato valutazioni.</div>';
+  nxPaperFromJournal(d.journal||[]);
+  nxSetFeed('nx-live-engine-state',active,!d.enabled?'AUTO SOSPESO':
+    d.risk_circuit?.blocked?'MONITOR LIVE · BUY BLOCCATI':active?'MOTORE PAPER · ATTIVO':'MOTORE PAPER · IN ATTESA');
+  const journal=d.journal||[];
+  $('nx-feed-count').textContent=journal.length+' EVENTI';
+  $('nx-feed').innerHTML=journal.map(e=>
+    '<div class="nx-event"><b>'+esc(new Date(e.timestamp*1000).toLocaleTimeString('it-IT'))+
+    ' · '+esc(e.action||'EVENT')+'</b><p>'+esc(e.note||'')+'</p></div>'
+   ).join('')||'<div class="nx-muted">Nessuna attività registrata dal motore.</div>';
+}
+function renderNexusCockpitPortfolio(d){
+  const positions=d.positions||[];
+  const trades=d.trades||[];
+  const closes=trades.filter(t=>t.action==='SELL'&&Number.isFinite(Number(t.pnl_eur)));
+  const wins=closes.filter(t=>Number(t.pnl_eur)>0).length;
+  const losses=closes.filter(t=>Number(t.pnl_eur)<0).length;
+  const openPnl=positions.reduce((sum,p)=>sum+(Number(p.estimated_pnl_eur)||0),0);
+  $('nx-equity').textContent=eurMeme(d.equity_eur);
+  $('nx-cash').textContent=eurMeme(d.cash_eur);
+  $('nx-pnl').textContent=eurMeme(openPnl);
+  $('nx-pnl').classList.toggle('nx-red',openPnl<0);
+  $('nx-pnl').classList.toggle('nx-green',openPnl>=0);
+  $('nx-closed').textContent=String(closes.length);
+  $('nx-wl').textContent=wins+' / '+losses;
+  $('nx-winrate').textContent=closes.length?(100*wins/closes.length).toFixed(1)+'%':'—';
+  $('nx-position-count').textContent=positions.length+' / '+(d.max_positions||8);
+  $('nx-positions').innerHTML=positions.map(p=>{
+    const o=p.outlook||{};
+    const sign=Number(p.estimated_pnl_eur)<0?'nx-red':'nx-green';
+    const trend=o.direction==='RIALZISTA'?'nx-green':o.direction==='RIBASSISTA'?'nx-red':'';
+    return '<article class="nx-position"><div class="nx-row"><b>'+esc(p.symbol||'?')+
+      '</b><b class="'+sign+'">'+eurMeme(p.estimated_pnl_eur)+'</b></div>'+
+      '<div class="nx-row"><span>Ingresso</span><b>'+esc(String(p.entry_price_usd))+
+      ' USD</b></div><div class="nx-row"><span>Ultimo prezzo</span><b>'+
+      esc(String(p.last_price_usd))+' USD</b></div>'+
+      '<div class="nx-row"><span>Pronostico osservativo</span><b class="'+trend+'">'+
+      esc(o.direction||'INCERTO')+'</b></div>'+
+      '<div class="nx-muted">'+esc(o.explanation||'Dati insufficienti')+
+      ' · Affidabilità: '+esc(o.confidence||'NON VALUTABILE')+'</div>'+
+      '<div class="nx-muted">Prezzo: '+esc(p.mark_status||'NON VERIFICATO')+
+      ' · '+esc(String(p.mark_age_seconds??'?'))+' s dall’ultimo controllo</div></article>';
+  }).join('')||'<div class="nx-muted">Nessuna posizione aperta. NEXUS non forza ingressi quando mancano candidati idonei.</div>';
+}
+document.querySelectorAll('[data-nx-view]').forEach(link=>link.addEventListener('click',event=>{
+  event.preventDefault();
+  showWorkspace(link.dataset.nxView,{updateHistory:true});
+}));
+
+const eurMeme=x=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:4}).format(Number(x)||0);
+function renderMemeDemo(d){
+  $('meme-demo-cash').textContent=eurMeme(d.cash_eur);
+  $('meme-demo-equity').textContent=eurMeme(d.equity_eur);
+  $('meme-demo-open').textContent=(d.positions||[]).length+' / '+(d.max_positions||8);
+  $('meme-terminal-positions').textContent=(d.positions||[]).length+' / '+(d.max_positions||8);
+  $('meme-terminal-pnl').textContent=eurMeme((d.positions||[]).reduce((sum,p)=>sum+(Number(p.estimated_pnl_eur)||0),0));
+  $('meme-fx-note').textContent='Cambio USD/EUR: '+(d.fx?Number(d.fx.usd_eur).toFixed(5)+' (riferimento '+d.fx.rate_date+')':'non disponibile')+(d.legacy_demo_positions_archived?' · '+d.legacy_demo_positions_archived+' vecchie posizioni USD demo conservate soltanto in archivio':'');
+  const when=t=>new Date(t*1000).toLocaleString('it-IT');
+  const price=x=>{
+    const n=Number(x);
+    if(!Number.isFinite(n)||n<=0)return '—';
+    return '$'+n.toLocaleString('en-US',{maximumFractionDigits:n<.000001?12:n<.01?9:6});
+  };
+  const signed=(n,digits=2)=>{
+    const value=Number(n);
+    return Number.isFinite(value)?(value>=0?'+':'')+value.toFixed(digits):'—';
+  };
+  $('meme-terminal-cards').innerHTML=(d.positions||[]).map(p=>{
+    const o=p.outlook||{},latest=p.mark_status==='AGGIORNATO';
+    const tint=o.direction==='RIALZISTA'?'green':o.direction==='RIBASSISTA'?'red':'';
+    return '<div style="padding:11px;border:1px solid var(--line,#444);border-radius:10px">'+
+      '<div class="flex" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><strong>'+esc(p.symbol)+
+      '</strong><strong class="'+tint+'">'+esc(o.direction||'INCERTO')+'</strong></div>'+
+      '<div class="sub">P/L virtuale '+eurMeme(p.estimated_pnl_eur)+' · '+esc(String(p.estimated_roi_pct))+'% netto stimato</div>'+
+      '<div class="sub">'+esc(o.explanation||'Attendo dati')+'</div>'+
+      '<div class="sub">'+(latest?'Quotazione letta recentemente':'PREZZO NON AGGIORNATO')+
+      ' · campioni prezzo '+esc(String(o.sample_count||0))+' · affidabilità '+esc(o.confidence||'NON VALUTABILE')+'</div></div>';
+  }).join('')||'<div class="sub">Nessuna posizione aperta. Il motore cerca nuove opportunità senza forzare ingressi.</div>';
+  $('meme-terminal-updated').textContent='Vista aggiornata '+new Date().toLocaleTimeString('it-IT')+
+   ' · Prezzi osservati via DEX Screener REST, non tick streaming né garanzie di esecuzione.';
+  renderNexusCockpitPortfolio(d);
+  $('meme-demo-positions').innerHTML=(d.positions||[]).map(p=>{
+    const fresh=p.mark_status==='AGGIORNATO';
+    const pnl=Number(p.estimated_pnl_eur);
+    const positive=pnl>=0;
+    return '<tr>'+
+      '<td><strong>'+esc(p.symbol)+'</strong><div class="sub">'+esc(p.address.slice(0,6)+'…'+p.address.slice(-4))+'</div></td>'+
+      '<td><strong>'+esc(price(p.entry_price_usd))+'</strong></td>'+
+      '<td><strong>'+esc(price(p.last_price_usd))+'</strong><div class="sub">'+(fresh?'● Prezzo recente':'● Prezzo non aggiornato')+'</div></td>'+
+      '<td><b class="'+(Number(p.price_change_pct)>=0?'green':'red')+'">'+esc(signed(p.price_change_pct))+'%</b></td>'+
+      '<td><b class="'+(positive?'green':'red')+'">'+eurMeme(p.estimated_pnl_eur)+'</b>'+
+        '<div class="sub">'+esc(signed(p.estimated_roi_pct))+'% netto stimato</div></td>'+
+      '<td><strong class="'+(p.outlook?.direction==='RIALZISTA'?'green':p.outlook?.direction==='RIBASSISTA'?'red':'')+'">'+
+        esc(p.outlook?.direction||'IN VALUTAZIONE')+'</strong>'+
+        '<div class="sub">'+esc(p.outlook?.explanation||'Attendo variazioni del prezzo')+'</div>'+
+        '<div class="sub">Variazione osservata: '+(p.outlook?.change_pct==null?'N/D':esc(signed(p.outlook.change_pct))+'%')+
+        ' · Affidabilità: '+esc(p.outlook?.confidence||'NON VALUTABILE')+'</div></td>'+
+      '<td><span class="'+(fresh?'green':'red')+'">'+(fresh?'RECENTE':'NON AGGIORNATO')+'</span>'+
+        '<div class="sub">'+esc(when(p.last_checked_at))+' · '+esc(p.mark_age_seconds)+'s fa</div></td>'+
+      '<td><button class="btn meme-demo-sell" data-mint="'+esc(p.address)+'" type="button">Chiudi test</button></td></tr>';
+  }).join('')||'<tr><td colspan="8" class="muted">Nessuna posizione MEME aperta</td></tr>';
+  $('meme-demo-history').innerHTML=(d.trades||[]).map(t=>
+    '<div class="event">'+esc(when(t.timestamp))+' · '+esc(t.symbol)+' · '+esc(t.action)+
+    (t.pnl_eur==null?'':' · <b class="'+(t.pnl_eur<0?'red':'green')+'">'+eurMeme(t.pnl_eur)+'</b>')+
+    '<div class="sub">'+esc(t.note)+'</div></div>'
+  ).join('')||'<div class="sub">Nessuna operazione MEME</div>';
+}
+async function loadMemeDemo(){
+ const r=await fetch('/api/meme-demo',{cache:'no-store'}),d=await r.json();
+ if(!r.ok||d.mode!=='MEME_EUR_PAPER')throw Error(d.error||'Portafoglio MEME non disponibile');
+ renderMemeDemo(d);
+}
+$('meme-demo-refresh').addEventListener('click',async()=>{
+ try{await loadMemeDemo();$('meme-demo-message').textContent='Portafoglio MEME aggiornato';}
+ catch(e){$('meme-demo-message').textContent='Errore: '+e.message}
+});
+async function executeMemeDemo(action,mint,button){
+ if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
+ if(!confirm((action==='BUY'?'Aprire un acquisto virtuale su ':'Vendere virtualmente la posizione su ')+mint+'? Nessun ordine reale.'))return;
+ button.disabled=true;
+ const info=$('meme-demo-message');
+ // Show feedback beside the clicked token, not only in the panel above the table.
+ let status=button.parentElement.querySelector('.meme-quick-feedback');
+ if(!status){
+   status=document.createElement('div');
+   status.className='meme-quick-feedback sub';
+   status.setAttribute('role','status');
+   status.style.cssText='margin-top:6px;max-width:270px;white-space:normal;overflow-wrap:anywhere';
+   button.insertAdjacentElement('afterend',status);
+ }
+ info.textContent='Richiesta '+action+' ricevuta · recupero quotazione…';
+ status.textContent='Controllo quotazione e cambio EUR/USD…';
+ try{
+   const r=await fetch('/api/meme-demo-trade?action='+action+'&address='+encodeURIComponent(mint),
+     {method:'POST',headers:{'X-NEXUS-Demo-Click':'1'},cache:'no-store'});
+   const d=await r.json();
+   if(!r.ok||!d.ok)throw Error('HTTP '+r.status+' · '+(d.error||'Test non registrato'));
+   renderMemeDemo(d.account);
+   const extra=d.trade.warnings&&d.trade.warnings.length?' · Avvisi: '+d.trade.warnings.join('; '):'';
+   const source=d.trade.quote_source?' · '+d.trade.quote_source:'';
+   info.textContent='Operazione virtuale '+action+' registrata'+
+     (action==='SELL'?' · P/L '+eurMeme(d.trade.pnl_eur):' · importo '+eurMeme(d.trade.cost_eur))+
+     source+extra+' · Nessuna transazione blockchain.';
+   status.textContent='✓ Operazione MEME virtuale '+action+' registrata nel portafoglio da 45 €.';
+   status.classList.remove('red');status.classList.add('green');
+   $('meme-quick-panel').scrollIntoView({block:'start',behavior:'smooth'});
+ }catch(e){
+   const message='Test NON aperto: '+e.message;
+   info.textContent=message;
+   status.textContent=message;
+   status.classList.remove('green');status.classList.add('red');
+ }finally{if(button.isConnected)button.disabled=false}
+}
+$('meme-demo-positions').addEventListener('click',event=>{
+ const b=event.target.closest('.meme-demo-sell');if(b)executeMemeDemo('SELL',b.dataset.mint,b);
+});
+loadMemeDemo().catch(e=>{$('meme-demo-message').textContent='Portafoglio MEME non disponibile: '+e.message});
+$('meme-scan').addEventListener('click',async()=>{
+  const button=$('meme-scan'),info=$('meme-message'),body=$('meme-rows');
+  button.disabled=true;info.textContent='Richiesta manuale DEX Screener in corso…';
+  try{
+    const response=await fetch('/api/meme-scout',{cache:'no-store'});
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw Error(data.error||'Dati non disponibili');
+    const money=x=>x==null?'—':new Intl.NumberFormat('it-IT',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(x);
+    const age=x=>x==null?'—':x<24?x.toFixed(1)+' ore':(x/24).toFixed(1)+' giorni';
+    body.innerHTML=data.candidates.length?data.candidates.map(t=>{
+      const warnings=(t.warnings||[]).join('; ')||'Nessun avviso di mercato, sicurezza comunque non verificata';
+      const link=t.url?'<a href="'+esc(t.url)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">DEX Screener</a>':'—';
+      return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div><span class="sub" style="display:block;margin-top:8px">Acquisto gestito da MEME AUTO</span></td>'+
+        '<td>'+esc(money(t.price_usd))+'</td><td>'+esc(money(t.liquidity_usd))+'</td><td>'+esc(money(t.volume_24h_usd))+'</td><td>'+esc(age(t.pool_age_hours))+'</td>'+
+        '<td><span class="red">NON VERIFICATO</span><div class="sub">'+esc(warnings)+'</div></td><td><button class="btn meme-risk-btn" data-mint="'+esc(t.address)+'" type="button">Controlla</button><span class="meme-analysis-result">Da verificare</span></td><td><button class="btn meme-whale-btn" data-mint="'+esc(t.address)+'" type="button">Analizza</button><span class="meme-analysis-result">Da verificare</span></td><td>'+link+'</td></tr>'
+    }).join(''):'<tr><td colspan="9" class="muted">Nessuna coppia Solana valida nel campione di profili disponibile</td></tr>';
+    info.textContent='Campione '+data.sampled_profiles+' profili · '+data.candidates.length+' coppie visualizzate · '+new Date(data.observed_at*1000).toLocaleTimeString('it-IT')+' · '+data.warning;
+  }catch(e){
+    info.textContent='MEME SCOUT non disponibile: '+e.message+' · Gli ordini reali restano bloccati.';
+    body.innerHTML='<tr><td colspan="9" class="muted">Non sono disponibili dati verificati per questa richiesta</td></tr>';
+  }finally{button.disabled=false}
+});
+// Inspectors render into a bounded dialog, not into the table row.
+const memeDialog=$('meme-analysis-dialog');
+const memeDialogContent=$('meme-dialog-content');
+$('meme-dialog-close').addEventListener('click',()=>memeDialog.close());
+memeDialog.addEventListener('click',event=>{if(event.target===memeDialog)memeDialog.close()});
+let memeRequestId=0;
+function memeDetailTitle(kind,mint){
+  $('meme-analysis-heading').textContent=kind==='rug'?'RUG GUARD 2.0':'WHALE TRACKER 1.0';
+  $('meme-dialog-subtitle').textContent='Mint '+mint.slice(0,7)+'…'+mint.slice(-6)+' · SOLO ANALISI';
+}
+function memeOpenDetail(kind,mint){
+  memeDetailTitle(kind,mint);
+  memeDialogContent.textContent='Richiesta dati in corso…';
+  if(!memeDialog.open)memeDialog.showModal();
+}
+function memeList(items){
+  return '<ul>'+items.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>';
+}
+function memeRugDetail(d){
+  const checks=(d.checks||[]).map(c=>
+    '<div class="meme-check"><div class="sub">'+esc(c.label)+'</div><b class="'+(c.status==='PRESENTE'?'red':'')+'">'+esc(c.status)+'</b></div>'
+  ).join('');
+  return '<div class="meme-summary"><b class="red">'+esc(d.status)+'</b>'+
+    '<div class="sub">Nessuna approvazione di sicurezza o acquisto</div></div>'+
+    '<div class="meme-checks">'+checks+'</div>'+
+    '<div class="meme-summary">Concentrazione primi 10 holder (GoPlus): <b>'+
+      (d.top10_holder_pct==null?'non disponibile':esc(d.top10_holder_pct)+'%')+'</b></div>'+
+    '<details><summary>Rischi rilevati ('+(d.findings||[]).length+')</summary>'+
+      memeList(d.findings&&d.findings.length?d.findings:['Nessun flag nei campi letti: NON significa sicuro'])+'</details>'+
+    '<details><summary>Dati mancanti ('+(d.missing||[]).length+')</summary>'+
+      memeList(d.missing&&d.missing.length?d.missing:['Nessun dato mancante nei campi letti'])+'</details>'+
+    '<details><summary>Limiti e nota della fonte</summary><p class="sub">'+esc(d.warning)+'</p></details>'+
+    '<p class="red small">ACQUISTI MEMECOIN BLOCCATI</p>';
+}
+function memeWhaleDetail(d){
+  const n=v=>Number(v).toFixed(2)+'%';
+  const rows=(d.accounts||[]).map((a,i)=>
+    '<li>#'+(i+1)+' '+esc(a.address.slice(0,6)+'…'+a.address.slice(-4))+
+    ' · '+esc(n(a.percentage_supply))+' · owner '+esc(a.owner?a.owner.slice(0,7)+'…'+a.owner.slice(-5):'non disponibile')+'</li>'
+  ).join('');
+  return '<div class="meme-summary"><b class="'+(d.top10_token_accounts_pct>=60?'red':'')+'">Top 10 token account: '+
+    esc(n(d.top10_token_accounts_pct))+'</b><div>Top 20 token account: '+esc(n(d.top20_token_accounts_pct))+'</div>'+
+    '<div class="sub">Owner nei principali account: '+(d.owners_resolved?'osservati':'non disponibili')+'</div></div>'+
+    '<p class="sub">Token account ≠ singolo wallet. Pool, exchange e custodi non sono esclusi dal calcolo.</p>'+
+    '<details><summary>Account e proprietari ('+(d.accounts||[]).length+')</summary><ul>'+rows+'</ul></details>'+
+    '<details><summary>Avvisi e limitazioni</summary>'+memeList(d.warnings||[])+
+      '<p class="sub">'+esc(d.warning)+'</p></details>'+
+    '<p class="red small">ACQUISTI MEMECOIN BLOCCATI</p>';
+}
+$('meme-rows').addEventListener('click',async event=>{
+  const button=event.target.closest('.meme-risk-btn,.meme-whale-btn');
+  if(!button)return;
+  const mint=button.dataset.mint;
+  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
+  const rug=button.classList.contains('meme-risk-btn'),kind=rug?'rug':'whale';
+  const status=button.parentElement.querySelector('.meme-analysis-result');
+  const requestId=++memeRequestId;
+  button.disabled=true;
+  memeOpenDetail(kind,mint);
+  try{
+    const endpoint=rug?'/api/meme-risk?address=':'/api/meme-whales?address=';
+    const response=await fetch(endpoint+encodeURIComponent(mint),{cache:'no-store'});
+    const d=await response.json();
+    if(!response.ok||!d.ok)throw Error(d.error||'Dati non disponibili');
+    if(requestId!==memeRequestId)return;
+    memeDialogContent.innerHTML=rug?memeRugDetail(d):memeWhaleDetail(d);
+    status.textContent=rug?d.status:'Top 10: '+Number(d.top10_token_accounts_pct).toFixed(1)+'%';
+    status.className='meme-analysis-result '+(rug&&d.status==='RISCHI_RILEVATI'||!rug&&d.top10_token_accounts_pct>=60?'red':'');
+  }catch(e){
+    if(requestId!==memeRequestId)return;
+    memeDialogContent.textContent='NON VERIFICATO · '+e.message+' · Nessun acquisto autorizzato.';
+    status.textContent='Non verificato';
+  }finally{button.disabled=false}
+});
+$('orderbook-study').addEventListener('click',async()=>{const b=$('orderbook-study');b.disabled=true;$('orderbook-result').textContent='Richiedo book pubblico Kraken…';try{const response=await fetch('/api/orderbook-study?symbol='+symbol);const x=await response.json();if(!response.ok||!x.ok)throw Error(x.error||'Book non disponibile');const a=x.report;$('orderbook-result').innerHTML='<b>'+esc(a.symbol)+' · spread osservato '+esc(a.spread_bps.toFixed(2))+' bps · '+new Date(a.observed_at*1000).toLocaleTimeString('it-IT')+'</b><div class="event">Best bid '+fmt(a.best_bid)+' · best ask '+fmt(a.best_ask)+'</div>'+[['BUY',a.buy],['SELL',a.sell]].map(v=>'<div class="event"><b>'+v[0]+'</b> · '+esc(v[1].status)+' · quantità coperta '+esc(v[1].filled_pct.toFixed(1))+'% · VWAP '+fmt(v[1].vwap)+' · commissione stimata '+fmt(v[1].estimated_fee_eur)+'</div>').join('')+'<div class="event"><b>Controllo qualità: '+esc(a.quality.status)+'</b> · HTTP '+esc(a.quality.request_ms_first)+' / '+esc(a.quality.request_ms_second)+' ms · oscillazione bid/ask '+esc(a.quality.bid_ask_drift_bps)+' bps · età ricezione '+esc(a.quality.age_seconds)+' s</div><div class="sub">'+esc(a.quality.reasons.length?a.quality.reasons.join('; '):'Verifiche locali superate (nessuna garanzia di eseguibilità)')+'</div><p class="sub">'+esc(a.quality.warning)+'</p><p class="sub">'+esc(a.warning)+'</p>'}catch(e){$('orderbook-result').textContent='Book non disponibile: '+e.message}finally{b.disabled=false}});$('execution-study').addEventListener('click',async()=>{const b=$('execution-study');b.disabled=true;$('execution-study-result').textContent='Calcolo scenari sintetici…';try{const r=await fetch('/api/execution-study?symbol='+symbol);const x=await r.json();if(!x.ok)throw Error(x.error||'Studio non disponibile');const a=x.report;$('execution-study-result').innerHTML='<b>'+esc(a.symbol)+' · riferimento '+fmt(a.reference_mid_eur)+' · ordine '+fmt(a.requested_eur)+'</b>'+a.scenarios.map(v=>'<div class="event"><b>'+esc(v.scenario)+'</b> · riempimento '+esc(v.fill_percentage)+'% · controvalore '+fmt(v.filled_eur)+' · commissione '+fmt(v.fee_eur)+'</div>').join('')+'<p class="sub">'+esc(a.warning)+'</p>'}catch(e){$('execution-study-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('run-backtest').addEventListener('click',()=>backtest('BTC'));$('run-eth').addEventListener('click',()=>backtest('ETH'));$('run-suite').addEventListener('click',async()=>{const b=$('run-suite');b.disabled=true;$('suite-result').textContent='Test in corso…';try{const r=await fetch('/api/tests');const d=await r.json();$('suite-result').textContent=(d.ok?'TEST SUPERATI':'TEST FALLITI')+'\n'+(d.output||d.error)}catch(e){$('suite-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('check-update').addEventListener('click',async()=>{const b=$('check-update');b.disabled=true;try{const r=await fetch('/api/updates');const d=await r.json();$('update-result').textContent=d.error||d.note||(d.update_available?'Versione disponibile: '+d.available_version:'Sei sulla versione corrente')}catch(e){$('update-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('selftest').addEventListener('click',async()=>{const b=$('selftest');b.disabled=true;$('selftest-result').textContent='Eseguo il test isolato…';try{const r=await fetch('/api/selftest');const o=await r.json();$('selftest-result').textContent=o.ok?'TEST SUPERATO: '+o.checks.join(' · ')+' — '+o.note:'TEST FALLITO: '+(o.error||'Errore sconosciuto')}catch(e){$('selftest-result').textContent='Errore test: '+e.message}finally{b.disabled=false}});$('sync').addEventListener('click',()=>load(true));document.querySelectorAll('[data-symbol]').forEach(b=>b.addEventListener('click',()=>{symbol=b.dataset.symbol;document.querySelectorAll('[data-symbol]').forEach(x=>x.classList.toggle('selected',x===b));if(data)render(data);paintLive()}));fetch('/api/history').then(r=>r.json()).then(d=>{if(!d.ok)return;const x=d.markets||{};const summary=['BTC','ETH'].map(k=>{const v=x[k]||{};return k+': '+(v.candles||0)+' candele ('+(v.span_days||0)+' giorni di intervallo)'}).join(' · ');$('history-coverage').textContent='Archivio locale · '+summary}).catch(()=>{});fetch('/api/maintenance').then(r=>r.json()).then(d=>{$('maintenance-result').textContent=d.last_run?'Ultimo controllo automatico: '+new Date(d.last_run*1000).toLocaleString('it-IT')+' · '+(d.tests_ok?'TEST OK':'TEST FALLITI'):'Test automatici in preparazione'}).catch(()=>{});load(false);setInterval(()=>{if(document.visibilityState==='visible')load(false)},30000);
+</script></body></html>
++(token.liquidity_usd==null?'n/d':Number(token.liquidity_usd).toLocaleString('it-IT'))+
+      ' · Volume 24h 
+  const summary=outcome.stats||{};
+  const grid=$('nx-v4-outcome-grid');
+  grid.replaceChildren();
+  for(const h of (outcome.horizons||[])){
+   const card=document.createElement('div');card.className='nx-v4-outcome-card';
+   const title=document.createElement('strong');title.textContent=(h.seconds/60)+' MIN · '+h.observed+' OSSERVATI';
+   const info=document.createElement('small');
+   info.textContent='In corso: '+h.pending+' · Senza quote: '+(h.missing+h.no_baseline);
+   const wait=document.createElement('small');
+   wait.textContent='WAIT: '+h.wait_declines+' ribassi evitati (teorici), '+h.wait_rises+' rialzi non partecipati, su '+h.wait_observed+' osservati';
+   const directional=document.createElement('small');
+   directional.textContent='BUY/SELL direzionali: '+h.directional_correct+' / '+h.directional_observed+
+    ' · Cambiamento medio: '+(h.mean_return_pct===null?'—':Number(h.mean_return_pct).toFixed(2)+'%');
+   card.append(title,info,wait,directional);grid.append(card);
+  }
+  if(!(outcome.horizons||[]).length)grid.textContent='Metriche non ancora disponibili.';
+  $('nx-v4-outcome-comparison').textContent=
+   'AI vs regole Python alla selezione: '+(summary.rule_agreements||0)+' concordanze, '+
+   (summary.rule_disagreements||0)+' differenze · Analisi con baseline: '+
+   (summary.evaluated_reviews||0)+' · Analisi precedenti senza baseline: '+
+   (summary.legacy_no_reference||0);
+  const outcomes=$('nx-v4-outcome-list');outcomes.replaceChildren();
+  const byId=new Map();
+  for(const r of (outcome.checks||[])){
+   if(!byId.has(r.review_id))byId.set(r.review_id,[]);
+   byId.get(r.review_id).push(r);
+  }
+  for(const [id,checks] of [...byId.entries()].slice(0,8)){
+   const item=document.createElement('div');item.className='nx-v4-outcome-row';
+   const first=checks[0];
+   const labels=checks.map(r=>{
+    const pct=r.status==='OBSERVED'?(Number(r.return_pct)>=0?'+':'')+Number(r.return_pct).toFixed(2)+'%':
+     r.status==='PENDING'?'ATTESA':r.status==='NO_BASELINE'?'BASE ASSENTE':'QUOTA MANCANTE';
+    return (r.horizon_seconds/60)+'m '+pct;
+   });
+   item.textContent=String(first.symbol)+' · AI '+first.ai_verdict+' / Regole '+first.python_verdict+
+    ' · '+labels.join(' | ');
+   outcomes.append(item);
+  }
+  if(!byId.size)outcomes.textContent='Nessuna analisi 4.3 con riferimento registrato. Le valutazioni precedenti restano visibili sopra.';
+  const el=$('nx-v4-ai-reviews');el.replaceChildren();
+  const rows=Array.isArray(d.reviews)?d.reviews:[];
+  if(!rows.length)el.textContent='Nessuna richiesta AI inviata. Configura la chiave e abilita AI Shadow.';
+  for(const r of rows){
+   const item=document.createElement('div');item.className='nx-v4-ai-review';
+   const heading=document.createElement('strong');
+   heading.textContent=String(r.symbol||'?')+' · '+(r.outcome==='COMPLETED'?r.verdict:r.outcome);
+   const meta=document.createElement('small');
+   meta.textContent=new Date(Number(r.timestamp)*1000).toLocaleString('it-IT')+
+    ' · '+String(r.model||'MODELLO')+' · '+String(r.outcome||'');
+   item.append(heading,meta);
+   if(r.outcome==='COMPLETED'){
+    for(const [role,text] of Object.entries(r.roles||{})){
+     const p=document.createElement('p');p.textContent=role.toUpperCase()+': '+String(text);item.append(p);
+    }
+    const why=document.createElement('p');why.textContent='Motivazione: '+String(r.rationale||'');item.append(why);
+   }else if(r.outcome==='ERROR'){
+    const p=document.createElement('p');p.textContent='Richiesta non riuscita: '+String(r.issue||'UNKNOWN');item.append(p);
+   }
+   el.append(item);
+  }
+ }catch(err){
+  $('nx-v4-ai-mode').textContent='DATI NON DISPONIBILI';
+  $('nx-v4-ai-note').textContent=String(err.message);
+ }finally{nxV4AIInFlight=false;}
+}
+nxLoadV4AI();
+setInterval(()=>{if(document.visibilityState==='visible')nxLoadV4AI()},15000);
+
+let nexusEventsOnline=false;
+if(typeof EventSource!=='undefined'){
+  const source=new EventSource('/api/meme-events');
+  source.addEventListener('open',()=>{
+    nxSetFeed('nx-live-connection',true,'SSE CONNESSO');
+    nexusEventsOnline=true;
+    const indicator=$('nx-run');
+    if(indicator)indicator.title='Connessione SSE attiva; quote MEME REST ~10 s';
+  });
+  source.addEventListener('paper',(e)=>{
+    try{
+      const packet=JSON.parse(e.data);
+      if(['PAPER_MINT','PAPER_JOURNAL','PAPER_PROFILE','PAPER_QUOTES'].includes(packet.kind)){
+        nxFlashRealPacket();nxRecordObservedEvent(packet);
+      }
+    }catch(_){}
+    if(document.visibilityState==='visible'){
+      refreshMemeLive();
+      try{if(JSON.parse(e.data).kind!=='PAPER_TICK')nxLoadDecisionTimeline();}catch(_){}
+    }
+  });
+  source.onerror=()=>{
+    nexusEventsOnline=false;
+    nxSetFeed('nx-live-connection',false,'SSE OFFLINE · POLLING');
+    const indicator=$('nx-run');
+    if(indicator)indicator.title='Eventi SSE non disponibili; aggiornamento tramite polling';
+  };
+}
+setInterval(()=>{if(!nexusEventsOnline)refreshMemeLive()},2000);
+setInterval(()=>{if(nexusEventsOnline&&document.visibilityState==='visible')Promise.all([loadMemeLive(),loadMintFeed(),loadMarketPulse(),loadShadowLab()]).catch(()=>{});},10000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){refreshMemeLive();nxLoadDecisionTimeline();}});
+nxLoadDecisionTimeline();
+setInterval(()=>{if(document.visibilityState==='visible')nxLoadDecisionTimeline()},12000);
+
+/* NEXUS Neon Mission Control: view only, no simulated events or trades. */
+function renderNexusCockpitAuto(d){
+  const now=Date.now()/1000;
+  const active=Boolean(d.enabled)&&d.last_tick&&now-d.last_tick<=60;
+  $('nx-led').classList.toggle('on',Boolean(active));
+  $('nx-run').textContent=!d.enabled?'AUTO SOSPESO':active?'AUTONOMOUS PAPER · ATTIVO':'MONITORAGGIO DA VERIFICARE';
+  $('nx-last').textContent=d.last_tick?new Date(d.last_tick*1000).toLocaleTimeString('it-IT'):'non disponibile';
+  $('nx-scanner').textContent=d.last_scan?new Date(d.last_scan*1000).toLocaleTimeString('it-IT'):'NON ANCORA ESEGUITO';
+  const guard=d.risk_circuit||{};
+  const risk=$('nx-risk-circuit');
+  risk.textContent=guard.blocked?
+    'BLOCCO NUOVI BUY · '+String(guard.drawdown_pct??'?')+'%':
+    'SOTTO SOGLIA · '+String(guard.drawdown_pct??'?')+'%';
+  risk.classList.toggle('nx-red',Boolean(guard.blocked));
+  risk.classList.toggle('nx-green',!guard.blocked);
+  $('nx-scan-state').textContent=!d.enabled?'SOSPESO':
+    guard.blocked?'MONITOR / BUY SOSPESI':'ATTIVO';
+  $('nx-scan-description').textContent=String(d.status||'Nessuna attività comunicata')+
+   (d.error?' · '+d.error:'');
+  const ag=d.agents_report||{};
+  $('nx-mode').textContent=ag.mode==='LLM_AGENT_REVIEW'?
+    'LLM: '+String(ag.status||'NON DISPONIBILE'):
+    (ag.mode==='RULE_AGENTS'?'REGOLE (NO LLM)':'NON AVVIATI');
+  $('nx-agent-status').textContent=ag.status||'IN ATTESA';
+  $('nx-agent-time').textContent=d.agents_updated_at?
+    new Date(d.agents_updated_at*1000).toLocaleTimeString('it-IT'):'—';
+  $('nx-agents').innerHTML=(ag.agents||[]).map(a=>
+    '<div class="nx-agent"><b>'+esc(a.name||'AGENTE')+
+    '</b> <small>'+esc(a.status||'')+'</small><p>'+esc(a.reason||'')+'</p></div>'
+   ).join('')||'<div class="nx-muted">Gli agenti non hanno ancora inviato valutazioni.</div>';
+  nxPaperFromJournal(d.journal||[]);
+  nxSetFeed('nx-live-engine-state',active,!d.enabled?'AUTO SOSPESO':
+    d.risk_circuit?.blocked?'MONITOR LIVE · BUY BLOCCATI':active?'MOTORE PAPER · ATTIVO':'MOTORE PAPER · IN ATTESA');
+  const journal=d.journal||[];
+  $('nx-feed-count').textContent=journal.length+' EVENTI';
+  $('nx-feed').innerHTML=journal.map(e=>
+    '<div class="nx-event"><b>'+esc(new Date(e.timestamp*1000).toLocaleTimeString('it-IT'))+
+    ' · '+esc(e.action||'EVENT')+'</b><p>'+esc(e.note||'')+'</p></div>'
+   ).join('')||'<div class="nx-muted">Nessuna attività registrata dal motore.</div>';
+}
+function renderNexusCockpitPortfolio(d){
+  const positions=d.positions||[];
+  const trades=d.trades||[];
+  const closes=trades.filter(t=>t.action==='SELL'&&Number.isFinite(Number(t.pnl_eur)));
+  const wins=closes.filter(t=>Number(t.pnl_eur)>0).length;
+  const losses=closes.filter(t=>Number(t.pnl_eur)<0).length;
+  const openPnl=positions.reduce((sum,p)=>sum+(Number(p.estimated_pnl_eur)||0),0);
+  $('nx-equity').textContent=eurMeme(d.equity_eur);
+  $('nx-cash').textContent=eurMeme(d.cash_eur);
+  $('nx-pnl').textContent=eurMeme(openPnl);
+  $('nx-pnl').classList.toggle('nx-red',openPnl<0);
+  $('nx-pnl').classList.toggle('nx-green',openPnl>=0);
+  $('nx-closed').textContent=String(closes.length);
+  $('nx-wl').textContent=wins+' / '+losses;
+  $('nx-winrate').textContent=closes.length?(100*wins/closes.length).toFixed(1)+'%':'—';
+  $('nx-position-count').textContent=positions.length+' / '+(d.max_positions||8);
+  $('nx-positions').innerHTML=positions.map(p=>{
+    const o=p.outlook||{};
+    const sign=Number(p.estimated_pnl_eur)<0?'nx-red':'nx-green';
+    const trend=o.direction==='RIALZISTA'?'nx-green':o.direction==='RIBASSISTA'?'nx-red':'';
+    return '<article class="nx-position"><div class="nx-row"><b>'+esc(p.symbol||'?')+
+      '</b><b class="'+sign+'">'+eurMeme(p.estimated_pnl_eur)+'</b></div>'+
+      '<div class="nx-row"><span>Ingresso</span><b>'+esc(String(p.entry_price_usd))+
+      ' USD</b></div><div class="nx-row"><span>Ultimo prezzo</span><b>'+
+      esc(String(p.last_price_usd))+' USD</b></div>'+
+      '<div class="nx-row"><span>Pronostico osservativo</span><b class="'+trend+'">'+
+      esc(o.direction||'INCERTO')+'</b></div>'+
+      '<div class="nx-muted">'+esc(o.explanation||'Dati insufficienti')+
+      ' · Affidabilità: '+esc(o.confidence||'NON VALUTABILE')+'</div>'+
+      '<div class="nx-muted">Prezzo: '+esc(p.mark_status||'NON VERIFICATO')+
+      ' · '+esc(String(p.mark_age_seconds??'?'))+' s dall’ultimo controllo</div></article>';
+  }).join('')||'<div class="nx-muted">Nessuna posizione aperta. NEXUS non forza ingressi quando mancano candidati idonei.</div>';
+}
+document.querySelectorAll('[data-nx-view]').forEach(link=>link.addEventListener('click',event=>{
+  event.preventDefault();
+  showWorkspace(link.dataset.nxView,{updateHistory:true});
+}));
+
+const eurMeme=x=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:4}).format(Number(x)||0);
+function renderMemeDemo(d){
+  $('meme-demo-cash').textContent=eurMeme(d.cash_eur);
+  $('meme-demo-equity').textContent=eurMeme(d.equity_eur);
+  $('meme-demo-open').textContent=(d.positions||[]).length+' / '+(d.max_positions||8);
+  $('meme-terminal-positions').textContent=(d.positions||[]).length+' / '+(d.max_positions||8);
+  $('meme-terminal-pnl').textContent=eurMeme((d.positions||[]).reduce((sum,p)=>sum+(Number(p.estimated_pnl_eur)||0),0));
+  $('meme-fx-note').textContent='Cambio USD/EUR: '+(d.fx?Number(d.fx.usd_eur).toFixed(5)+' (riferimento '+d.fx.rate_date+')':'non disponibile')+(d.legacy_demo_positions_archived?' · '+d.legacy_demo_positions_archived+' vecchie posizioni USD demo conservate soltanto in archivio':'');
+  const when=t=>new Date(t*1000).toLocaleString('it-IT');
+  const price=x=>{
+    const n=Number(x);
+    if(!Number.isFinite(n)||n<=0)return '—';
+    return '$'+n.toLocaleString('en-US',{maximumFractionDigits:n<.000001?12:n<.01?9:6});
+  };
+  const signed=(n,digits=2)=>{
+    const value=Number(n);
+    return Number.isFinite(value)?(value>=0?'+':'')+value.toFixed(digits):'—';
+  };
+  $('meme-terminal-cards').innerHTML=(d.positions||[]).map(p=>{
+    const o=p.outlook||{},latest=p.mark_status==='AGGIORNATO';
+    const tint=o.direction==='RIALZISTA'?'green':o.direction==='RIBASSISTA'?'red':'';
+    return '<div style="padding:11px;border:1px solid var(--line,#444);border-radius:10px">'+
+      '<div class="flex" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><strong>'+esc(p.symbol)+
+      '</strong><strong class="'+tint+'">'+esc(o.direction||'INCERTO')+'</strong></div>'+
+      '<div class="sub">P/L virtuale '+eurMeme(p.estimated_pnl_eur)+' · '+esc(String(p.estimated_roi_pct))+'% netto stimato</div>'+
+      '<div class="sub">'+esc(o.explanation||'Attendo dati')+'</div>'+
+      '<div class="sub">'+(latest?'Quotazione letta recentemente':'PREZZO NON AGGIORNATO')+
+      ' · campioni prezzo '+esc(String(o.sample_count||0))+' · affidabilità '+esc(o.confidence||'NON VALUTABILE')+'</div></div>';
+  }).join('')||'<div class="sub">Nessuna posizione aperta. Il motore cerca nuove opportunità senza forzare ingressi.</div>';
+  $('meme-terminal-updated').textContent='Vista aggiornata '+new Date().toLocaleTimeString('it-IT')+
+   ' · Prezzi osservati via DEX Screener REST, non tick streaming né garanzie di esecuzione.';
+  renderNexusCockpitPortfolio(d);
+  $('meme-demo-positions').innerHTML=(d.positions||[]).map(p=>{
+    const fresh=p.mark_status==='AGGIORNATO';
+    const pnl=Number(p.estimated_pnl_eur);
+    const positive=pnl>=0;
+    return '<tr>'+
+      '<td><strong>'+esc(p.symbol)+'</strong><div class="sub">'+esc(p.address.slice(0,6)+'…'+p.address.slice(-4))+'</div></td>'+
+      '<td><strong>'+esc(price(p.entry_price_usd))+'</strong></td>'+
+      '<td><strong>'+esc(price(p.last_price_usd))+'</strong><div class="sub">'+(fresh?'● Prezzo recente':'● Prezzo non aggiornato')+'</div></td>'+
+      '<td><b class="'+(Number(p.price_change_pct)>=0?'green':'red')+'">'+esc(signed(p.price_change_pct))+'%</b></td>'+
+      '<td><b class="'+(positive?'green':'red')+'">'+eurMeme(p.estimated_pnl_eur)+'</b>'+
+        '<div class="sub">'+esc(signed(p.estimated_roi_pct))+'% netto stimato</div></td>'+
+      '<td><strong class="'+(p.outlook?.direction==='RIALZISTA'?'green':p.outlook?.direction==='RIBASSISTA'?'red':'')+'">'+
+        esc(p.outlook?.direction||'IN VALUTAZIONE')+'</strong>'+
+        '<div class="sub">'+esc(p.outlook?.explanation||'Attendo variazioni del prezzo')+'</div>'+
+        '<div class="sub">Variazione osservata: '+(p.outlook?.change_pct==null?'N/D':esc(signed(p.outlook.change_pct))+'%')+
+        ' · Affidabilità: '+esc(p.outlook?.confidence||'NON VALUTABILE')+'</div></td>'+
+      '<td><span class="'+(fresh?'green':'red')+'">'+(fresh?'RECENTE':'NON AGGIORNATO')+'</span>'+
+        '<div class="sub">'+esc(when(p.last_checked_at))+' · '+esc(p.mark_age_seconds)+'s fa</div></td>'+
+      '<td><button class="btn meme-demo-sell" data-mint="'+esc(p.address)+'" type="button">Chiudi test</button></td></tr>';
+  }).join('')||'<tr><td colspan="8" class="muted">Nessuna posizione MEME aperta</td></tr>';
+  $('meme-demo-history').innerHTML=(d.trades||[]).map(t=>
+    '<div class="event">'+esc(when(t.timestamp))+' · '+esc(t.symbol)+' · '+esc(t.action)+
+    (t.pnl_eur==null?'':' · <b class="'+(t.pnl_eur<0?'red':'green')+'">'+eurMeme(t.pnl_eur)+'</b>')+
+    '<div class="sub">'+esc(t.note)+'</div></div>'
+  ).join('')||'<div class="sub">Nessuna operazione MEME</div>';
+}
+async function loadMemeDemo(){
+ const r=await fetch('/api/meme-demo',{cache:'no-store'}),d=await r.json();
+ if(!r.ok||d.mode!=='MEME_EUR_PAPER')throw Error(d.error||'Portafoglio MEME non disponibile');
+ renderMemeDemo(d);
+}
+$('meme-demo-refresh').addEventListener('click',async()=>{
+ try{await loadMemeDemo();$('meme-demo-message').textContent='Portafoglio MEME aggiornato';}
+ catch(e){$('meme-demo-message').textContent='Errore: '+e.message}
+});
+async function executeMemeDemo(action,mint,button){
+ if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
+ if(!confirm((action==='BUY'?'Aprire un acquisto virtuale su ':'Vendere virtualmente la posizione su ')+mint+'? Nessun ordine reale.'))return;
+ button.disabled=true;
+ const info=$('meme-demo-message');
+ // Show feedback beside the clicked token, not only in the panel above the table.
+ let status=button.parentElement.querySelector('.meme-quick-feedback');
+ if(!status){
+   status=document.createElement('div');
+   status.className='meme-quick-feedback sub';
+   status.setAttribute('role','status');
+   status.style.cssText='margin-top:6px;max-width:270px;white-space:normal;overflow-wrap:anywhere';
+   button.insertAdjacentElement('afterend',status);
+ }
+ info.textContent='Richiesta '+action+' ricevuta · recupero quotazione…';
+ status.textContent='Controllo quotazione e cambio EUR/USD…';
+ try{
+   const r=await fetch('/api/meme-demo-trade?action='+action+'&address='+encodeURIComponent(mint),
+     {method:'POST',headers:{'X-NEXUS-Demo-Click':'1'},cache:'no-store'});
+   const d=await r.json();
+   if(!r.ok||!d.ok)throw Error('HTTP '+r.status+' · '+(d.error||'Test non registrato'));
+   renderMemeDemo(d.account);
+   const extra=d.trade.warnings&&d.trade.warnings.length?' · Avvisi: '+d.trade.warnings.join('; '):'';
+   const source=d.trade.quote_source?' · '+d.trade.quote_source:'';
+   info.textContent='Operazione virtuale '+action+' registrata'+
+     (action==='SELL'?' · P/L '+eurMeme(d.trade.pnl_eur):' · importo '+eurMeme(d.trade.cost_eur))+
+     source+extra+' · Nessuna transazione blockchain.';
+   status.textContent='✓ Operazione MEME virtuale '+action+' registrata nel portafoglio da 45 €.';
+   status.classList.remove('red');status.classList.add('green');
+   $('meme-quick-panel').scrollIntoView({block:'start',behavior:'smooth'});
+ }catch(e){
+   const message='Test NON aperto: '+e.message;
+   info.textContent=message;
+   status.textContent=message;
+   status.classList.remove('green');status.classList.add('red');
+ }finally{if(button.isConnected)button.disabled=false}
+}
+$('meme-demo-positions').addEventListener('click',event=>{
+ const b=event.target.closest('.meme-demo-sell');if(b)executeMemeDemo('SELL',b.dataset.mint,b);
+});
+loadMemeDemo().catch(e=>{$('meme-demo-message').textContent='Portafoglio MEME non disponibile: '+e.message});
+$('meme-scan').addEventListener('click',async()=>{
+  const button=$('meme-scan'),info=$('meme-message'),body=$('meme-rows');
+  button.disabled=true;info.textContent='Richiesta manuale DEX Screener in corso…';
+  try{
+    const response=await fetch('/api/meme-scout',{cache:'no-store'});
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw Error(data.error||'Dati non disponibili');
+    const money=x=>x==null?'—':new Intl.NumberFormat('it-IT',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(x);
+    const age=x=>x==null?'—':x<24?x.toFixed(1)+' ore':(x/24).toFixed(1)+' giorni';
+    body.innerHTML=data.candidates.length?data.candidates.map(t=>{
+      const warnings=(t.warnings||[]).join('; ')||'Nessun avviso di mercato, sicurezza comunque non verificata';
+      const link=t.url?'<a href="'+esc(t.url)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">DEX Screener</a>':'—';
+      return '<tr><td><strong>'+esc(t.symbol)+'</strong><div class="sub">'+esc(t.name)+'</div><div class="sub" title="'+esc(t.address)+'">'+esc(t.address.slice(0,6))+'…'+esc(t.address.slice(-4))+'</div><span class="sub" style="display:block;margin-top:8px">Acquisto gestito da MEME AUTO</span></td>'+
+        '<td>'+esc(money(t.price_usd))+'</td><td>'+esc(money(t.liquidity_usd))+'</td><td>'+esc(money(t.volume_24h_usd))+'</td><td>'+esc(age(t.pool_age_hours))+'</td>'+
+        '<td><span class="red">NON VERIFICATO</span><div class="sub">'+esc(warnings)+'</div></td><td><button class="btn meme-risk-btn" data-mint="'+esc(t.address)+'" type="button">Controlla</button><span class="meme-analysis-result">Da verificare</span></td><td><button class="btn meme-whale-btn" data-mint="'+esc(t.address)+'" type="button">Analizza</button><span class="meme-analysis-result">Da verificare</span></td><td>'+link+'</td></tr>'
+    }).join(''):'<tr><td colspan="9" class="muted">Nessuna coppia Solana valida nel campione di profili disponibile</td></tr>';
+    info.textContent='Campione '+data.sampled_profiles+' profili · '+data.candidates.length+' coppie visualizzate · '+new Date(data.observed_at*1000).toLocaleTimeString('it-IT')+' · '+data.warning;
+  }catch(e){
+    info.textContent='MEME SCOUT non disponibile: '+e.message+' · Gli ordini reali restano bloccati.';
+    body.innerHTML='<tr><td colspan="9" class="muted">Non sono disponibili dati verificati per questa richiesta</td></tr>';
+  }finally{button.disabled=false}
+});
+// Inspectors render into a bounded dialog, not into the table row.
+const memeDialog=$('meme-analysis-dialog');
+const memeDialogContent=$('meme-dialog-content');
+$('meme-dialog-close').addEventListener('click',()=>memeDialog.close());
+memeDialog.addEventListener('click',event=>{if(event.target===memeDialog)memeDialog.close()});
+let memeRequestId=0;
+function memeDetailTitle(kind,mint){
+  $('meme-analysis-heading').textContent=kind==='rug'?'RUG GUARD 2.0':'WHALE TRACKER 1.0';
+  $('meme-dialog-subtitle').textContent='Mint '+mint.slice(0,7)+'…'+mint.slice(-6)+' · SOLO ANALISI';
+}
+function memeOpenDetail(kind,mint){
+  memeDetailTitle(kind,mint);
+  memeDialogContent.textContent='Richiesta dati in corso…';
+  if(!memeDialog.open)memeDialog.showModal();
+}
+function memeList(items){
+  return '<ul>'+items.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>';
+}
+function memeRugDetail(d){
+  const checks=(d.checks||[]).map(c=>
+    '<div class="meme-check"><div class="sub">'+esc(c.label)+'</div><b class="'+(c.status==='PRESENTE'?'red':'')+'">'+esc(c.status)+'</b></div>'
+  ).join('');
+  return '<div class="meme-summary"><b class="red">'+esc(d.status)+'</b>'+
+    '<div class="sub">Nessuna approvazione di sicurezza o acquisto</div></div>'+
+    '<div class="meme-checks">'+checks+'</div>'+
+    '<div class="meme-summary">Concentrazione primi 10 holder (GoPlus): <b>'+
+      (d.top10_holder_pct==null?'non disponibile':esc(d.top10_holder_pct)+'%')+'</b></div>'+
+    '<details><summary>Rischi rilevati ('+(d.findings||[]).length+')</summary>'+
+      memeList(d.findings&&d.findings.length?d.findings:['Nessun flag nei campi letti: NON significa sicuro'])+'</details>'+
+    '<details><summary>Dati mancanti ('+(d.missing||[]).length+')</summary>'+
+      memeList(d.missing&&d.missing.length?d.missing:['Nessun dato mancante nei campi letti'])+'</details>'+
+    '<details><summary>Limiti e nota della fonte</summary><p class="sub">'+esc(d.warning)+'</p></details>'+
+    '<p class="red small">ACQUISTI MEMECOIN BLOCCATI</p>';
+}
+function memeWhaleDetail(d){
+  const n=v=>Number(v).toFixed(2)+'%';
+  const rows=(d.accounts||[]).map((a,i)=>
+    '<li>#'+(i+1)+' '+esc(a.address.slice(0,6)+'…'+a.address.slice(-4))+
+    ' · '+esc(n(a.percentage_supply))+' · owner '+esc(a.owner?a.owner.slice(0,7)+'…'+a.owner.slice(-5):'non disponibile')+'</li>'
+  ).join('');
+  return '<div class="meme-summary"><b class="'+(d.top10_token_accounts_pct>=60?'red':'')+'">Top 10 token account: '+
+    esc(n(d.top10_token_accounts_pct))+'</b><div>Top 20 token account: '+esc(n(d.top20_token_accounts_pct))+'</div>'+
+    '<div class="sub">Owner nei principali account: '+(d.owners_resolved?'osservati':'non disponibili')+'</div></div>'+
+    '<p class="sub">Token account ≠ singolo wallet. Pool, exchange e custodi non sono esclusi dal calcolo.</p>'+
+    '<details><summary>Account e proprietari ('+(d.accounts||[]).length+')</summary><ul>'+rows+'</ul></details>'+
+    '<details><summary>Avvisi e limitazioni</summary>'+memeList(d.warnings||[])+
+      '<p class="sub">'+esc(d.warning)+'</p></details>'+
+    '<p class="red small">ACQUISTI MEMECOIN BLOCCATI</p>';
+}
+$('meme-rows').addEventListener('click',async event=>{
+  const button=event.target.closest('.meme-risk-btn,.meme-whale-btn');
+  if(!button)return;
+  const mint=button.dataset.mint;
+  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))return;
+  const rug=button.classList.contains('meme-risk-btn'),kind=rug?'rug':'whale';
+  const status=button.parentElement.querySelector('.meme-analysis-result');
+  const requestId=++memeRequestId;
+  button.disabled=true;
+  memeOpenDetail(kind,mint);
+  try{
+    const endpoint=rug?'/api/meme-risk?address=':'/api/meme-whales?address=';
+    const response=await fetch(endpoint+encodeURIComponent(mint),{cache:'no-store'});
+    const d=await response.json();
+    if(!response.ok||!d.ok)throw Error(d.error||'Dati non disponibili');
+    if(requestId!==memeRequestId)return;
+    memeDialogContent.innerHTML=rug?memeRugDetail(d):memeWhaleDetail(d);
+    status.textContent=rug?d.status:'Top 10: '+Number(d.top10_token_accounts_pct).toFixed(1)+'%';
+    status.className='meme-analysis-result '+(rug&&d.status==='RISCHI_RILEVATI'||!rug&&d.top10_token_accounts_pct>=60?'red':'');
+  }catch(e){
+    if(requestId!==memeRequestId)return;
+    memeDialogContent.textContent='NON VERIFICATO · '+e.message+' · Nessun acquisto autorizzato.';
+    status.textContent='Non verificato';
+  }finally{button.disabled=false}
+});
+$('orderbook-study').addEventListener('click',async()=>{const b=$('orderbook-study');b.disabled=true;$('orderbook-result').textContent='Richiedo book pubblico Kraken…';try{const response=await fetch('/api/orderbook-study?symbol='+symbol);const x=await response.json();if(!response.ok||!x.ok)throw Error(x.error||'Book non disponibile');const a=x.report;$('orderbook-result').innerHTML='<b>'+esc(a.symbol)+' · spread osservato '+esc(a.spread_bps.toFixed(2))+' bps · '+new Date(a.observed_at*1000).toLocaleTimeString('it-IT')+'</b><div class="event">Best bid '+fmt(a.best_bid)+' · best ask '+fmt(a.best_ask)+'</div>'+[['BUY',a.buy],['SELL',a.sell]].map(v=>'<div class="event"><b>'+v[0]+'</b> · '+esc(v[1].status)+' · quantità coperta '+esc(v[1].filled_pct.toFixed(1))+'% · VWAP '+fmt(v[1].vwap)+' · commissione stimata '+fmt(v[1].estimated_fee_eur)+'</div>').join('')+'<div class="event"><b>Controllo qualità: '+esc(a.quality.status)+'</b> · HTTP '+esc(a.quality.request_ms_first)+' / '+esc(a.quality.request_ms_second)+' ms · oscillazione bid/ask '+esc(a.quality.bid_ask_drift_bps)+' bps · età ricezione '+esc(a.quality.age_seconds)+' s</div><div class="sub">'+esc(a.quality.reasons.length?a.quality.reasons.join('; '):'Verifiche locali superate (nessuna garanzia di eseguibilità)')+'</div><p class="sub">'+esc(a.quality.warning)+'</p><p class="sub">'+esc(a.warning)+'</p>'}catch(e){$('orderbook-result').textContent='Book non disponibile: '+e.message}finally{b.disabled=false}});$('execution-study').addEventListener('click',async()=>{const b=$('execution-study');b.disabled=true;$('execution-study-result').textContent='Calcolo scenari sintetici…';try{const r=await fetch('/api/execution-study?symbol='+symbol);const x=await r.json();if(!x.ok)throw Error(x.error||'Studio non disponibile');const a=x.report;$('execution-study-result').innerHTML='<b>'+esc(a.symbol)+' · riferimento '+fmt(a.reference_mid_eur)+' · ordine '+fmt(a.requested_eur)+'</b>'+a.scenarios.map(v=>'<div class="event"><b>'+esc(v.scenario)+'</b> · riempimento '+esc(v.fill_percentage)+'% · controvalore '+fmt(v.filled_eur)+' · commissione '+fmt(v.fee_eur)+'</div>').join('')+'<p class="sub">'+esc(a.warning)+'</p>'}catch(e){$('execution-study-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('run-backtest').addEventListener('click',()=>backtest('BTC'));$('run-eth').addEventListener('click',()=>backtest('ETH'));$('run-suite').addEventListener('click',async()=>{const b=$('run-suite');b.disabled=true;$('suite-result').textContent='Test in corso…';try{const r=await fetch('/api/tests');const d=await r.json();$('suite-result').textContent=(d.ok?'TEST SUPERATI':'TEST FALLITI')+'\n'+(d.output||d.error)}catch(e){$('suite-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('check-update').addEventListener('click',async()=>{const b=$('check-update');b.disabled=true;try{const r=await fetch('/api/updates');const d=await r.json();$('update-result').textContent=d.error||d.note||(d.update_available?'Versione disponibile: '+d.available_version:'Sei sulla versione corrente')}catch(e){$('update-result').textContent='Errore: '+e.message}finally{b.disabled=false}});$('selftest').addEventListener('click',async()=>{const b=$('selftest');b.disabled=true;$('selftest-result').textContent='Eseguo il test isolato…';try{const r=await fetch('/api/selftest');const o=await r.json();$('selftest-result').textContent=o.ok?'TEST SUPERATO: '+o.checks.join(' · ')+' — '+o.note:'TEST FALLITO: '+(o.error||'Errore sconosciuto')}catch(e){$('selftest-result').textContent='Errore test: '+e.message}finally{b.disabled=false}});$('sync').addEventListener('click',()=>load(true));document.querySelectorAll('[data-symbol]').forEach(b=>b.addEventListener('click',()=>{symbol=b.dataset.symbol;document.querySelectorAll('[data-symbol]').forEach(x=>x.classList.toggle('selected',x===b));if(data)render(data);paintLive()}));fetch('/api/history').then(r=>r.json()).then(d=>{if(!d.ok)return;const x=d.markets||{};const summary=['BTC','ETH'].map(k=>{const v=x[k]||{};return k+': '+(v.candles||0)+' candele ('+(v.span_days||0)+' giorni di intervallo)'}).join(' · ');$('history-coverage').textContent='Archivio locale · '+summary}).catch(()=>{});fetch('/api/maintenance').then(r=>r.json()).then(d=>{$('maintenance-result').textContent=d.last_run?'Ultimo controllo automatico: '+new Date(d.last_run*1000).toLocaleString('it-IT')+' · '+(d.tests_ok?'TEST OK':'TEST FALLITI'):'Test automatici in preparazione'}).catch(()=>{});load(false);setInterval(()=>{if(document.visibilityState==='visible')load(false)},30000);
+</script></body></html>
++(token.volume_24h_usd==null?'n/d':Number(token.volume_24h_usd).toLocaleString('it-IT'));
+    item.append(title,detail);tokens.append(item);
+   }
+   if(!(diag.candidates||[]).length)tokens.textContent='Nessun token con una quotazione sufficientemente recente.';
+  }
   const outcome=d.intelligence||{};
   const summary=outcome.stats||{};
   const grid=$('nx-v4-outcome-grid');
