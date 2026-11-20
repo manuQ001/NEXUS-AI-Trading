@@ -104,6 +104,24 @@ def analyze(profiles,pairs,now_ms=None):
             'meme_execution':'BLOCKED'}
 
 
+def scan_profiles(profiles,fetch=_get_json):
+    """Enrich only WebSocket-discovered profiles using the documented REST pairs API.
+
+    WS events are *profile changes*, not mint creations or trading signals.
+    """
+    if not isinstance(profiles,list):raise ValueError('Profili non validi')
+    seen=set()
+    safe=[]
+    for p in profiles[:MAX_TOKENS]:
+        if not isinstance(p,dict) or p.get('chainId')!='solana':continue
+        a=p.get('tokenAddress')
+        if isinstance(a,str) and ADDRESS.fullmatch(a) and a not in seen:
+            seen.add(a)
+            safe.append({'chainId':'solana','tokenAddress':a})
+    pairs=fetch(PAIRS_ROOT+','.join(seen_address['tokenAddress'] for seen_address in safe)) if safe else []
+    return analyze(safe,pairs)
+
+
 def scan(fetch=_get_json):
     profiles=fetch(PROFILES)
     if not isinstance(profiles,list):raise ValueError('Profili non validi')
