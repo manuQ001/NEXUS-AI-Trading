@@ -333,14 +333,36 @@ def report(c,now=None):
         p['stale_quote']=p['quote_age_seconds']>MAX_QUOTE_AGE
         p['modeled_net_pnl_eur']=round(
             p['synthetic_qty']*p['last_price_usd']*(1-SELL_COST)-p['stake_eur'],4)
-    sells=[t for t in trades if t['side']=='SELL_PAPER']
+    # All-time ledger aggregates, not just the 20 recent trades shown on screen.
+    # pnl_eur of SELL_PAPER is already net of both modeled fees.
+    stats=c.execute("""SELECT
+        COUNT(*) AS closed,
+        COALESCE(SUM(CASE WHEN pnl_eur>0 THEN 1 ELSE 0 END),0) AS wins,
+        COALESCE(SUM(CASE WHEN pnl_eur<0 THEN 1 ELSE 0 END),0) AS losses,
+        COALESCE(SUM(CASE WHEN pnl_eur=0 THEN 1 ELSE 0 END),0) AS flat,
+        COALESCE(SUM(pnl_eur),0) AS realized_net_pnl
+        FROM v4_paper_trades WHERE side='SELL_PAPER'""").fetchone()
+    fees=c.execute("""SELECT COALESCE(SUM(
+        CASE WHEN side='BUY_PAPER' THEN amount_eur*?
+             WHEN side='SELL_PAPER' THEN amount_eur*?/(1-?)
+             ELSE 0 END),0)
+        FROM v4_paper_trades""",(BUY_COST,SELL_COST,SELL_COST)).fetchone()[0]
+    closed=int(stats['closed'])
+    last_tick=int(state['last_tick'])
+    tick_age=max(0,now-last_tick) if last_tick else None
     return {'mode':'ISOLATED_MULTIAGENT_PAPER','engine':'DETERMINISTIC_AGENTS_NOT_LLM',
             'enabled':bool(state['enabled']),'cash_eur':round(state['cash_eur'],4),
             'initial_eur':INITIAL_EUR,'equity_eur':equity,
             'peak_equity_eur':state['peak_equity_eur'],
             'drawdown_pct':round((1-equity/max(.01,state['peak_equity_eur']))*100,3),
             'risk_latched':bool(state['risk_latched']),
-            'last_tick':state['last_tick'],'last_decision':state['last_decision'],
+            'last_tick':state['last_tick'],'last_tick_age_seconds':tick_age,
+            'last_decision':state['last_decision'],
+            'performance':{'closed':closed,'wins':int(stats['wins']),
+              'losses':int(stats['losses']),'flat':int(stats['flat']),
+              'win_rate_pct':round(100*int(stats['wins'])/closed,2) if closed else None,
+              'realized_net_pnl_eur':round(float(stats['realized_net_pnl']),4),
+              'modeled_fees_eur':round(float(fees),4)},
             'max_positions':MAX_POSITIONS,'max_trade_pct':MAX_ALLOCATION*100,
             'positions':positions,'trades':trades,'decisions':decisions,
             'recent_waits':recent_waits,'wait_reason_counts':wait_reasons,
