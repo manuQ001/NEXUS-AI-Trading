@@ -1,3 +1,40 @@
+## NEXUS 3.10.0 — Risk Intelligence (read-only evidence)
+
+La dashboard MEME aggiunge la sezione **RISK INTELLIGENCE · SOURCE AUDIT**.
+I dati volume/liquidita dello scanner vengono archiviati per massimo 350
+token e sette giorni in una tabella dedicata. Il fatto che un token superi
+il filtro di volume/liquidita NON verifica sicurezza, contratto, vendibilita,
+rug pull, freeze, concentrazione o LP lock: l'interfaccia lo mostra
+esplicitamente.
+
+Il progetto possedeva gia il controllo manuale *Rug Guard / GoPlus Solana*;
+ora e possibile far esaminare **in modalita sola lettura** fino a un
+token non ancora controllato ogni 90 secondi, su richiesta esplicita
+dell'utente. Per attivare, in PowerShell **prima di avviare il server**:
+
+```powershell
+$env:NEXUS_RISK_GOPLUS_ENABLED = '1'
+py .\src\server.py
+```
+
+Il valore predefinito e *disabilitato* e non implica chiamate a GoPlus.
+Si applica inoltre un massimo di 120 interrogazioni esterne per database,
+anche dopo riavvii; non si attivano servizi a pagamento, chiavi o abbonamenti
+in maniera automatica. Verificare le condizioni del provider prima di
+abilitare i controlli. Un risultato GoPlus e attribuito a quella fonte
+terza e non costituisce prova on-chain autonoma.
+
+Risultati: `NOT_CHECKED`, `PROVIDER_ERROR`, `RISCHI_RILEVATI`,
+`DATI_INCOMPLETI` oppure `NESSUN_FLAG_NEI_CAMPI_LETTI`.
+Anche `NESSUN_FLAG_NEI_CAMPI_LETTI` **non equivale a SICURO**. Le
+informazioni LP lock e sellability restano NON VERIFICATE.
+API locale: `GET /api/meme-risk-intelligence`.
+
+La nuova analisi NON modifica score Shadow 3.9, ordine delle decisioni
+PAPER, capitale, saldo, portafoglio, comandi di trading o Risk Lock
+persistente; non autorizza acquisti virtuali o reali. Nessuna credenziale
+wallet viene richiesta.
+
 ## NEXUS 3.9.1 — Fair Shadow Rotation e verifica copertura
 
 Correzione su richiesta: con sei segnali Shadow pendenti la versione 3.9.0
