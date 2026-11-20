@@ -107,6 +107,14 @@ class TestMemeAuto(unittest.TestCase):
         costs=sorted(p['cost_eur'] for p in portfolio(self.c)['positions'])
         self.assertEqual(costs,[1.5,3.0,4.5])
         self.assertEqual(portfolio(self.c)['cash_eur'],36.0)
+    def test_terminal_records_scan_counts_and_buy_rationale(self):
+        rows=[dict(Q,address=M),dict(Q,address=A,liquidity_usd=2)]
+        state=tick(self.c,now=2000,scout=lambda:{'candidates':rows},
+                   quote=lambda mint:Q,fx_rate=fx)
+        events=state['journal']
+        self.assertTrue(any(x['action']=='AUTO_SCAN' and 'Analizzati 2 token' in x['note'] for x in events))
+        self.assertTrue(any(x['action']=='AUTO_BUY' and 'liquidita USD' in x['note'] for x in events))
+        self.assertEqual(len(portfolio(self.c)['positions']),1)
     def test_multiple_distinct_orders_same_scan(self):
         rows=[dict(Q,address=x) for x in (M,A,B)]
         tick(self.c,now=2000,scout=lambda:{'candidates':rows},quote=lambda _:Q,fx_rate=fx)
