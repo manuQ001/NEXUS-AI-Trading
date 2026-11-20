@@ -1,4 +1,4 @@
-<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NEXUS AI 3.11.0 • Autonomous Terminal</title>
+<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NEXUS AI 3.12.0 • Autonomous Terminal</title>
 <style>
 :root{color-scheme:dark;--bg:#080d17;--panel:#121b2a;--line:#27354a;--text:#e5efff;--muted:#94a7c1;--green:#40d6a5;--red:#f57586;--blue:#60c6f7}*{box-sizing:border-box}body{background:var(--bg);color:var(--text);margin:0;font:14px/1.5 system-ui,Segoe UI,Arial,sans-serif}.shell{max-width:1320px;padding:22px 18px;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.logo{font-size:23px;font-weight:850;letter-spacing:1px}.logo span{color:var(--blue)}.sub,.muted{color:var(--muted)}.sub{font-size:12px}.chip{border:1px solid #246047;background:#17372f;color:#72efc0;padding:7px 11px;border-radius:100px;font-size:11px;font-weight:800}.notice{padding:13px;border:1px solid #755b2e;border-radius:10px;background:#2c2318;margin:17px 0;color:#ffe2a3}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;min-width:0}.metric .name{font-size:12px;color:var(--muted)}.metric .val{font-size:clamp(21px,2.5vw,30px);font-weight:800;margin:2px 0}.green{color:var(--green)}.red{color:var(--red)}.rows{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:12px;margin-top:12px}.title{font-weight:800;font-size:15px;margin-bottom:12px}.flex{display:flex;align-items:center;justify-content:space-between;gap:10px}.btn{background:#244057;border:1px solid #3b6179;border-radius:8px;color:#fff;padding:9px 12px;cursor:pointer;font:inherit;font-weight:700}.btn:hover{background:#315b78}.btn:disabled{opacity:.6;cursor:wait}.tab{background:#1c2939;border:1px solid #314357;border-radius:8px;color:#a7bbd1;padding:7px 12px;cursor:pointer}.tab.selected{background:#193e3b;color:#75e5bf}.agents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.agent{background:#0d1522;border:1px solid #283648;border-radius:8px;padding:10px}.agent .n{font-weight:800;font-size:12px}.agent .d{color:var(--muted);font-size:11px;margin-top:3px}.status{font-size:10px;color:#ffca7c}.small{font-size:12px}.dataTable{border-collapse:collapse;width:100%;font-size:12px}.dataTable th,.dataTable td{text-align:left;border-bottom:1px solid #283447;padding:9px 6px}.dataTable th{color:var(--muted);font-weight:600}.scroll{overflow:auto;max-height:330px}.event{border-bottom:1px solid #223145;padding:9px 0;font-size:12px}.event strong{color:var(--blue)}.event .when{color:var(--muted);font-size:10px}.tag{display:inline-block;font-size:10px;border:1px solid #425267;padding:2px 6px;border-radius:5px}.chart{width:100%;height:265px;display:block}.foot{margin:20px 0;color:var(--muted);font-size:12px}.error{color:#ffb2bb;word-break:break-word}.marketline{font-weight:650}#feedback{font-size:11px;color:var(--muted)}@media(max-width:850px){.rows{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:450px){.shell{padding:14px 10px}.agents{grid-template-columns:1fr}.panel{padding:12px}}
 
@@ -207,6 +207,24 @@ body{background:radial-gradient(ellipse at 52% -15%,#242044 0,transparent 52%),#
 #nx-terminal[data-focus=live] #nx-desk-control,#nx-terminal[data-focus=live] #nx-strategy-intelligence{display:none}
 @media(max-width:720px){.nx-nav-slim>a{padding:9px 8px!important;font-size:11px}.nx-more-links{width:min(220px,85vw)}.nx-focus-button{padding:11px 13px}.nx-live-console{padding:12px}.nx-grid{grid-template-columns:1fr}.nx-head{padding:13px}.nx-strip>div{min-width:130px}}
 @media(prefers-reduced-motion:reduce){.nx-focus-button{transition:none}.nx-event-pill.nx-event-new{animation:none}}
+/* NEXUS 3.12 sampled OHLC chart: server observations only */
+.nx-candle-station{border:1px solid #3a4c69;background:linear-gradient(155deg,#111e32,#0b1423);border-radius:15px;margin:16px 0;padding:16px}
+.nx-candle-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.nx-candle-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nx-candle-controls label{font-size:11px;color:#a8bcd8}
+.nx-candle-controls select{background:#1c2940;border:1px solid #496083;border-radius:8px;padding:9px 10px;color:#f0f4ff;max-width:205px;font:700 12px Segoe UI,sans-serif}
+.nx-candle-controls select:focus-visible{outline:2px solid #b5a3ff;outline-offset:3px}
+.nx-candle-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:15px 0}
+.nx-candle-kpis>div{padding:10px 11px;border-radius:10px;border:1px solid #334760;background:#131f33}
+.nx-candle-kpis small{display:block;color:#90a6bf;font:10px Consolas,monospace;margin-bottom:5px}
+.nx-candle-kpis strong{font:750 14px Segoe UI,sans-serif;color:#dce6fc;overflow-wrap:anywhere}
+.nx-candle-chart-wrap{background:#0a1526;border:1px solid #293e58;border-radius:11px;overflow:hidden;min-height:250px}
+#nx-candle-chart{display:block;width:100%;height:auto;min-height:250px;max-height:410px}
+.nx-candle-bull{fill:#57dab0;stroke:#57dab0}.nx-candle-bear{fill:#f47b96;stroke:#f47b96}
+.nx-candle-flat{fill:#adbbd4;stroke:#adbbd4}
+.nx-candle-grid{stroke:#30405a;stroke-width:1;stroke-dasharray:3 5}
+.nx-candle-tick{fill:#8ea4c0;font:12px Consolas,monospace}
+@media(max-width:740px){.nx-candle-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.nx-candle-station{padding:11px}.nx-candle-controls select{max-width:160px}#nx-candle-chart{min-height:205px}}
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> <small style="font-weight:400;color:#d28caf">3.1</small></div><div class="sub">AUTONOMOUS TRADING DESK • LOCAL EDITION</div></div><div class="flex"><span class="chip">● PAPER ONLY • €150</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav nx-nav-slim" aria-label="Navigazione principale">
 <a href="#meme-section">◉ Terminale</a><a href="#market">◈ Mercato</a><a href="#performance-section">▥ Performance</a>
@@ -303,6 +321,30 @@ body{background:radial-gradient(ellipse at 52% -15%,#242044 0,transparent 52%),#
      <div class="nx-market-stat"><small>STIMA NETTA A STOP PREZZO −5%</small><strong id="nx-market-stop">—</strong></div>
     </div>
     <div class="nx-live-muted" id="nx-market-monitor-health">Monitor quotazioni osservate: in attesa...</div>
+    <section class="nx-candle-station" aria-label="Grafico OHLC memecoin da campioni REST">
+      <div class="nx-candle-header">
+        <div><strong class="nx-live-title">MARKET CHART PRO · OHLC OSSERVATO</strong>
+          <div class="nx-live-muted">Candlestick da letture REST · nessun prezzo o intervallo inventato</div></div>
+        <div class="nx-candle-controls">
+          <label for="nx-candle-token">Token</label>
+          <select id="nx-candle-token" aria-label="Seleziona token per il grafico"><option value="">Attendo quotazioni</option></select>
+          <label for="nx-candle-timeframe">Intervallo</label>
+          <select id="nx-candle-timeframe" aria-label="Intervallo candele"><option value="60">1 minuto</option><option value="300">5 minuti</option></select>
+        </div>
+      </div>
+      <div class="nx-candle-kpis">
+       <div><small>PREZZO OSSERVATO</small><strong id="nx-candle-price">—</strong></div>
+       <div><small>ULTIMA LETTURA REST</small><strong id="nx-candle-age">—</strong></div>
+       <div><small>LIQUIDITÀ USD</small><strong id="nx-candle-liquidity">—</strong></div>
+       <div><small>VOLUME 24H USD*</small><strong id="nx-candle-volume">—</strong></div>
+      </div>
+      <div class="nx-candle-chart-wrap">
+       <svg id="nx-candle-chart" role="img" aria-label="Candele dei prezzi REST realmente osservati" viewBox="0 0 920 345" preserveAspectRatio="xMidYMid meet">
+        <text x="24" y="155" fill="#91a7c4" font-size="15">Nessuna quotazione disponibile</text>
+       </svg>
+      </div>
+      <div class="nx-live-muted" id="nx-candle-status">In attesa del primo campione. *Il volume 24h non è il volume delle singole candele.</div>
+    </section>
     <div class="nx-market-pricecards" id="nx-market-cards"><div class="nx-live-muted">In attesa di quotazioni osservate dal server...</div></div>
     <div class="nx-market-pnlwarning">Quote DEX Screener REST ricontrollate ogni ~10s fino a 3 token idonei, campionate dal server (non tick on-chain o prezzi eseguibili). I grafici non interpolano valori mancanti. Lo stop per drawdown resta attivo.</div>
    </section>
@@ -752,6 +794,110 @@ async function loadShadowLab(){
  }).join('')||'<div class="nx-live-muted">Nessun segnale finché non arrivano candidati idonei.</div>';
  $('nx-shadow-disclaimer').textContent=d.disclaimer;
 }
+let nxSelectedCandleMint='';
+let nxLastCandleRequest=0;
+function nxCandleFormat(x){
+ const n=Number(x);
+ if(!Number.isFinite(n)||n<=0)return '—';
+ return n>=1?n.toFixed(4):n>=.001?n.toFixed(6):n.toPrecision(6);
+}
+function nxDrawObservedCandles(d){
+ const bars=Array.isArray(d.candles)?d.candles:[];
+ const chart=$('nx-candle-chart'),ns='http://www.w3.org/2000/svg';
+ const el=(name,attrs={},label)=>{
+  const e=document.createElementNS(ns,name);
+  for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));
+  if(label!==undefined)e.textContent=String(label);
+  return e;
+ };
+ const observed=Number(d.last_observed_at)||0;
+ const age=observed?Math.max(0,Math.floor(Date.now()/1000-observed)):null;
+ $('nx-candle-age').textContent=age===null?'NESSUN DATO':age<=45?'RECENTE · '+age+'s':'NON RECENTE · '+age+'s';
+ $('nx-candle-price').textContent=bars.length?nxCandleFormat(bars[bars.length-1].close)+' USD':'—';
+ const liquidity=Number(d.liquidity_usd),volume=Number(d.volume_24h_usd);
+ $('nx-candle-liquidity').textContent=d.liquidity_usd!=null&&Number.isFinite(liquidity)?
+  'USD '+Math.round(liquidity).toLocaleString('it-IT'):'—';
+ $('nx-candle-volume').textContent=d.volume_24h_usd!=null&&Number.isFinite(volume)?
+  'USD '+Math.round(volume).toLocaleString('it-IT'):'—';
+ chart.replaceChildren();
+ if(!bars.length){
+  chart.append(el('text',{x:32,y:155,fill:'#99abc8','font-size':15},
+    'Nessuna lettura REST: nessuna candela inventata'));
+  $('nx-candle-status').textContent=d.disclaimer||'Dati non disponibili.';
+  return;
+ }
+ const w=920,h=345,left=92,right=22,top=20,bottom=44;
+ const prices=bars.flatMap(b=>[Number(b.high),Number(b.low)]);
+ const hi=Math.max(...prices),lo=Math.min(...prices),span=hi-lo||hi*.005||1e-12;
+ const upper=hi+span*.12,lower=Math.max(0,lo-span*.12);
+ const y=p=>top+(upper-p)/(upper-lower)*(h-top-bottom);
+ const interval=Number(d.interval_seconds)||60;
+ const first=Number(bars[0].time),last=Number(bars[bars.length-1].time);
+ const duration=Math.max(interval,last-first+interval);
+ const x=t=>left+(Number(t)-first+interval/2)/duration*(w-left-right);
+ const bw=Math.max(2,Math.min(14,(w-left-right)/bars.length*.55));
+ for(let i=0;i<=4;i++){
+  const val=lower+(upper-lower)*i/4,Y=y(val);
+  chart.append(el('line',{x1:left,y1:Y,x2:w-right,y2:Y,class:'nx-candle-grid'}));
+  chart.append(el('text',{x:3,y:Y+4,class:'nx-candle-tick'},nxCandleFormat(val)));
+ }
+ for(const b of bars){
+  const X=x(b.time),yo=y(b.open),yc=y(b.close),yh=y(b.high),yl=y(b.low);
+  const move=Number(b.close)-Number(b.open);
+  const group=el('g',{class:move>0?'nx-candle-bull':move<0?'nx-candle-bear':'nx-candle-flat'});
+  group.append(el('line',{x1:X,y1:yh,x2:X,y2:yl,'stroke-width':1.5}));
+  group.append(el('rect',{x:X-bw/2,y:Math.min(yo,yc),width:bw,height:Math.max(2,Math.abs(yo-yc)),rx:1}));
+  const stamp=new Date(Number(b.time)*1000).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+  group.append(el('title',{},stamp+' | O '+nxCandleFormat(b.open)+' | H '+nxCandleFormat(b.high)+
+    ' | L '+nxCandleFormat(b.low)+' | C '+nxCandleFormat(b.close)+
+    ' | '+b.observations+' letture REST'));
+  chart.append(group);
+ }
+ for(const b of [bars[0],bars[Math.floor((bars.length-1)/2)],bars[bars.length-1]]){
+  const stamp=new Date(Number(b.time)*1000).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+  chart.append(el('text',{x:x(b.time),y:h-12,'text-anchor':'middle',class:'nx-candle-tick'},stamp));
+ }
+ const missing=Math.max(0,Math.floor((last-first)/interval)+1-bars.length);
+ const count=bars.reduce((sum,b)=>sum+Number(b.observations||0),0);
+ $('nx-candle-status').textContent=bars.length+' candele REST campionate · '+missing+
+  ' intervalli senza letture · '+count+' letture · Volume 24h provider, non per candela. Nessun prezzo eseguibile garantito.';
+}
+async function nxRefreshCandleChart(){
+ const mint=$('nx-candle-token').value,interval=$('nx-candle-timeframe').value;
+ if(!mint){nxDrawObservedCandles({candles:[]});return;}
+ const id=++nxLastCandleRequest;
+ try{
+  const res=await fetch('/api/meme-market-candles?address='+encodeURIComponent(mint)+
+   '&interval='+encodeURIComponent(interval),{cache:'no-store'});
+  if(!res.ok)throw Error('Dati non disponibili');
+  const d=await res.json();
+  if(id===nxLastCandleRequest)nxDrawObservedCandles(d);
+ }catch(err){
+  if(id===nxLastCandleRequest)$('nx-candle-status').textContent='Grafico non disponibile: '+err.message;
+ }
+}
+function nxSyncCandleSelection(quotes){
+ const select=$('nx-candle-token');
+ const chosen=quotes.some(q=>q.address===nxSelectedCandleMint)?
+    nxSelectedCandleMint:(quotes[0]&&quotes[0].address)||'';
+ const signature=quotes.map(q=>q.address+'|'+q.symbol).join(':');
+ if(select.dataset.signature!==signature){
+   select.replaceChildren();
+   for(const q of quotes){
+    const opt=document.createElement('option');
+    opt.value=String(q.address);opt.textContent=String(q.symbol||'?')+' · '+String(q.address).slice(0,8);
+    select.append(opt);
+   }
+   select.dataset.signature=signature;
+ }
+ nxSelectedCandleMint=chosen;
+ select.value=chosen;
+}
+$('nx-candle-token').addEventListener('change',()=>{
+ nxSelectedCandleMint=$('nx-candle-token').value;
+ nxRefreshCandleChart();
+});
+$('nx-candle-timeframe').addEventListener('change',nxRefreshCandleChart);
 let nxLastMarketChangeId=0;
 function nxSparkline(points){
  const prices=(points||[]).map(x=>Number(x.price_usd)).filter(x=>Number.isFinite(x)&&x>0).slice(-36);
@@ -803,6 +949,8 @@ async function loadMarketPulse(){
      '<div class="nx-live-muted">'+(old?'DATI NON RECENTI':'DATO RECENTE')+
      ' · '+esc(String(x.age_seconds))+' s · '+esc(x.source)+'</div></div>';
  }).join('')||'<div class="nx-live-muted">Nessuna quotazione registrata. Lo scanner osserva il mercato senza forzare acquisti.</div>';
+ nxSyncCandleSelection(list);
+ await nxRefreshCandleChart();
  if(nxLastMarketChangeId&&Number(d.last_change_id)>nxLastMarketChangeId)nxFlashRealPacket();
  nxLastMarketChangeId=Math.max(nxLastMarketChangeId,Number(d.last_change_id)||0);
 }

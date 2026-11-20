@@ -1,3 +1,34 @@
+## NEXUS 3.12.0 — Market Chart Pro (OHLC da osservazioni REST)
+
+La scheda **Prezzi** nel Terminale NEXUS adesso mostra un grafico OHLC
+con candele rialziste/ribassiste, scelta del token e intervalli 1m/5m.
+Il grafico usa i record `meme_quote_reads` preesistenti, generati
+quando il server legge realmente una quotazione DEX Screener REST.
+Il nuovo endpoint locale e
+`GET /api/meme-market-candles?address=<MINT>&interval=60`
+(intervalli consentiti 60 o 300 secondi).
+
+**Interpretazione corretta:** queste sono candele OHLC *campionate*,
+NON candele exchange derivate da ogni trade. Open/high/low/close
+rappresentano il primo, massimo, minimo e ultimo prezzo effettivamente
+letto dal server in quel minuto o blocco di cinque minuti. La frequenza
+delle letture dipende dal monitor, dalla rotazione dei token, dalla
+disponibilita della fonte e dal fatto che NEXUS sia in esecuzione.
+Un minuto senza letture REST viene omesso, non riempito artificialmente.
+I prezzi immutati costituiscono comunque letture reali. I dati sono
+conservati in memoria persistente SQLite esistente, senza cambiare
+l'archivio o il numero di chiamate REST al provider.
+
+La visualizzazione espone l'eta dell'ultima lettura, liquidita e volume
+24h (snapshot indicativi del provider). Il **volume 24h NON e volume
+della candela**. Il grafico non mostra un volume per barra inventato.
+Candele/quotazioni non sono prezzi eseguibili, non dimostrano vendibilita
+e non sono una prova di liquidita sufficiente per negoziare.
+
+Il sistema preserva tutte le altre schede Live Desk, Shadow, Risk,
+Agenti e Strumenti; Risk Lock, storico, portafoglio PAPER e divieto
+di ordini reali rimangono invariati.
+
 ## NEXUS 3.11.0 — Clean Live Dashboard (sola interfaccia)
 
 Interfaccia piu ordinata, navigazione minimale e tre viste primarie

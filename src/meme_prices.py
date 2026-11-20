@@ -205,6 +205,65 @@ def changes_after(c,last_id=0,limit=25):
           LEFT JOIN meme_quote_latest l ON l.address=c.address
           WHERE c.id>? ORDER BY c.id LIMIT ?""",(last_id,limit))]
 
+def observed_candles(c,address,interval_seconds=60,now=None,limit=60):
+    """Build sampled OHLC from actual time-stamped REST reads only.
+
+    These are NOT exchange trade candles: OHLC uses REST samples rather than
+    exchange prints, there is no volume per bar and missing periods are absent.
+    Read time is the server sampling time, not the DEX trade timestamp.
+    """
+    initialize(c)
+    now=int(time.time()) if now is None else int(now)
+    if not isinstance(address,str) or not ADDRESS.fullmatch(address):
+        raise ValueError('Invalid mint address')
+    if interval_seconds not in (60,300):
+        raise ValueError('Invalid candle interval')
+    limit=max(1,min(int(limit),90))
+    latest=c.execute("""SELECT symbol,source,observed_at,price_usd,
+        liquidity_usd,volume_24h_usd FROM meme_quote_latest WHERE address=?""",
+        (address,)).fetchone()
+    if latest is None:
+        return {'address':address,'interval_seconds':interval_seconds,
+                'mode':'REST_SAMPLED_OHLC','candles':[],'last_observed_at':None,
+                'fresh':False,'source':'DEX_SCREENER_REST',
+                'disclaimer':'Nessuna quotazione REST osservata per questo mint.'}
+    start=max(0,now-RETENTION_SECONDS)
+    # Bounded historical reads. Never forward-fill gaps or create candles
+    # from an interpolated quote.
+    samples=c.execute("""SELECT observed_at,price_usd,id FROM meme_quote_reads
+        WHERE address=? AND observed_at>=? AND observed_at<=?
+        AND source='DEX_SCREENER_REST'
+        ORDER BY observed_at,id LIMIT 6000""",(address,start,now)).fetchall()
+    buckets={}
+    for row in samples:
+        price=_positive(row['price_usd'])
+        if price is None:continue
+        bucket=int(row['observed_at'])//interval_seconds*interval_seconds
+        bar=buckets.get(bucket)
+        if bar is None:
+            buckets[bucket]={'time':bucket,'open':price,'high':price,
+                             'low':price,'close':price,'observations':1,
+                             'first_read_at':int(row['observed_at']),
+                             'last_read_at':int(row['observed_at'])}
+        else:
+            bar['high']=max(bar['high'],price)
+            bar['low']=min(bar['low'],price)
+            bar['close']=price
+            bar['observations']+=1
+            bar['last_read_at']=int(row['observed_at'])
+    bars=sorted(buckets.values(),key=lambda x:x['time'])[-limit:]
+    last_age=max(0,now-int(latest['observed_at']))
+    return {'address':address,'symbol':latest['symbol'],
+            'source':'DEX_SCREENER_REST','interval_seconds':interval_seconds,
+            'mode':'REST_SAMPLED_OHLC','candles':bars,'last_observed_at':int(latest['observed_at']),
+            'age_seconds':last_age,'fresh':last_age<=45,
+            'liquidity_usd':latest['liquidity_usd'],
+            'volume_24h_usd':latest['volume_24h_usd'],
+            'disclaimer':('Candele OHLC campionate da letture REST reali, '
+                'NON da transazioni exchange. Periodi senza letture omessi, '
+                'nessuna interpolazione; volume 24h e valore di riferimento, '
+                'non volume per candela. Prezzi non garantiti eseguibili.')}
+
 def snapshot(c,now=None):
     initialize(c)
     now=int(time.time()) if now is None else int(now)
