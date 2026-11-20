@@ -200,8 +200,10 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx):
                             messages.append('CAPITALE_DISPONIBILE_O_RISERVA_INSUFFICIENTE')
                             break
                         result=trade(c,mint,'BUY',q,fx,now=now,stake_eur=stake)
-                        _log(c,now,mint,'AUTO_BUY','Entrata virtuale € '+str(result['cost_eur'])+
-                             ' · liquidità osservata 
+                        _log(c,now,mint,'AUTO_BUY','Entrata virtuale EUR '+str(result['cost_eur'])+
+                             ' · liquidita USD '+str(round(liquidity))+
+                             ' · volume 24h USD '+str(round(volume))+
+                             ' · vendibilita non verificata')
                         bought+=1
                         count+=1
                         messages.append('AUTO_BUY '+mint[:8])
