@@ -31,6 +31,17 @@ class TestRealAIShadow(unittest.TestCase):
     def tearDown(self):
         self.c.close()
         self.tmp.cleanup()
+    def test_ai_candidate_prefers_python_buy_over_higher_liquidity_wait(self):
+        from v4_ai_shadow import candidate
+        other='So11111111111111111111111111111111111111112'
+        for t,p in [(1000,.01),(1010,.01001),(1020,.01002)]:
+            observe(self.c,other,{'address':other,'symbol':'WAIT_HIGH_LIQ',
+                'price_usd':p,'liquidity_usd':200000,
+                'volume_24h_usd':250000},now=t)
+        item=candidate(self.c,1021)
+        self.assertEqual(item['address'],MINT)
+        self.assertEqual(item['rules_verdict'],'BUY')
+
     def test_off_by_default_and_no_key_leaks(self):
         d=config_status({})
         self.assertFalse(d['active'])
