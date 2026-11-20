@@ -1,3 +1,36 @@
+## NEXUS 3.5.0 — Strategy Intelligence (solo PAPER)
+
+Nuovo pannello Strategy Intelligence nel terminale MEME e endpoint locale
+`GET /api/meme-intelligence`. Sono raccolte e rese leggibili due categorie
+rigorosamente diverse:
+
+1. **Storico operazioni gia chiuse:** accoppiamento dei BUY/SELL realmente
+   registrati nel database PAPER per indirizzo; P/L realizzato registrato,
+   stima dell'impatto dei costi simulati del 3% per lato, durata, variazione
+   prezzo/FX e causale AUTO_SELL quando il diario contiene una corrispondenza
+   con data e indirizzo. I BUY senza vendita e i SELL senza acquisto
+   corrispondente sono segnalati separatamente, non reinterpretati come profitto.
+   Le causali non identificabili sono marcate non attribuibili. Non e un
+   backtest e non ricostruisce dati di mercato mancanti.
+2. **Watchlist osservativa mentre il Circuit Breaker e attivo:** i candidati
+   restituiti dalle scansioni gia effettuate vengono memorizzati con prezzo,
+   liquidita, volume, data di prima/ultima osservazione e numero di
+   osservazioni. Solo dopo almeno due osservazioni indipendenti viene
+   mostrata una variazione rispetto alla prima. La watchlist non esegue
+   ordini e non fa nuove chiamate di mercato; non finge fill, P/L o risultati
+   ipotetici. Il database mantiene al massimo 400 indirizzi e scarta
+   osservazioni non riviste da 48 ore.
+
+Il limite del 10% di drawdown del portafoglio MEME iniziale rimane invariato,
+come i filtri di ingresso, gli stop, la strategia EXIT, i dati SQLite e gli
+ordini reali disabilitati. Nessun azzeramento del saldo e nessuna riattivazione
+automatica degli acquisti viene introdotta da questa funzione; il circuito
+preesistente continua a ricalcolarsi sull'equity virtuale.
+
+Le statistiche storiche includono le operazioni delle versioni precedenti,
+quindi non misurano di per se la performance della 3.5.0. La variazione di
+prezzo dei token osservati non e un guadagno reale o virtuale eseguibile.
+
 ## NEXUS 3.4.0 — Strategia PAPER disciplinata
 
 Prima di ogni BUY automatico MEME richiediamo almeno $10.000 di liquidita osservata e $20.000 di volume 24h, in aggiunta ai controlli preesistenti. Se l'età del pool è nota e inferiore a 30 minuti il candidato è rifiutato. Sono soglie sperimentali da verificare sui risultati, NON una garanzia di sicurezza, performance o vendita eseguibile. Il bot registra AUTO_REJECT quando una verifica di qualità fallisce.
