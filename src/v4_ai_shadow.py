@@ -11,6 +11,7 @@ import re
 import sqlite3
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime,timezone
 
 ENDPOINT='https://api.openai.com/v1/responses'
@@ -191,6 +192,26 @@ def _make_request(item,key,timeout=15):
     return verdict,{'input':int(usage.get('input_tokens') or 0),
                     'output':int(usage.get('output_tokens') or 0)}
 
+def _safe_api_error(exc):
+    """Retain only an HTTP status and a documented provider error code.
+
+    Never store raw HTTP bodies, request headers, Authorization values,
+    untrusted descriptions, full traceback or credentials.
+    """
+    if isinstance(exc,urllib.error.HTTPError):
+        status=exc.code if isinstance(exc.code,int) and 100<=exc.code<=599 else 0
+        code='HTTP_'+str(status)
+        try:
+            raw=exc.read(4096)
+            data=json.loads(raw)
+            value=(data.get('error') or {}).get('code')
+            if isinstance(value,str) and re.fullmatch(r'[a-zA-Z][a-zA-Z0-9_]{0,45}',value):
+                code+='_'+value
+        except (ValueError,TypeError,AttributeError,OSError,UnicodeDecodeError):
+            pass
+        return code[:90]
+    return type(exc).__name__[:48]
+
 def finish(c,request,verdict=None,usage=None,error=None):
     """Store only validated facts and usage. Never save credentials or raw errors."""
     initialize(c)
@@ -206,7 +227,7 @@ def finish(c,request,verdict=None,usage=None,error=None):
     else:
         c.execute("""UPDATE v4_ai_shadow_audit SET outcome='ERROR',
             issue=? WHERE id=? AND outcome='RESERVED'""",
-            (str(error or 'UNKNOWN')[:32],request['audit_id']))
+            (str(error or 'UNKNOWN')[:90],request['audit_id']))
 
 def report(c):
     initialize(c)
@@ -242,7 +263,7 @@ def background_cycle(db_factory,lock,stop):
                         verdict,usage=_make_request(item,os.environ['NEXUS_OPENAI_API_KEY'])
                         issue=None
                     except Exception as e:
-                        verdict=None;usage=None;issue=type(e).__name__
+                        verdict=None;usage=None;issue=_safe_api_error(e)
                     with lock:
                         c=db_factory()
                         try:
