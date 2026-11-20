@@ -24,7 +24,7 @@ EVENT_SERIAL=0
 
 def publish_paper_event(kind,payload,timestamp=None):
     global EVENT_SERIAL
-    if kind not in ('PAPER_TICK','PAPER_JOURNAL','PAPER_PROFILE','PAPER_MINT'):raise ValueError('Unknown event')
+    if kind not in ('PAPER_TICK','PAPER_JOURNAL','PAPER_PROFILE','PAPER_MINT','PAPER_QUOTES'):raise ValueError('Unknown event')
     with EVENT_CONDITION:
         EVENT_SERIAL+=1
         item={'id':EVENT_SERIAL,'kind':kind,
@@ -155,6 +155,15 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
                 self.out({'ok':False,'status':'NON_VERIFICATO','meme_execution':'BLOCKED',
                           'error':'RPC Solana non disponibile o non valido: '+type(exc).__name__},503)
+        elif path=='/api/meme-market-pulse':
+            from meme_prices import snapshot as market_snapshot
+            with LOCK:
+                c=connect()
+                try:
+                    result=market_snapshot(c)
+                    c.commit()
+                finally:c.close()
+            self.out(result)
         elif path=='/api/meme-mints':
             from meme_mints import FEED
             self.out(FEED.state())
@@ -460,6 +469,7 @@ def market_monitor_loop(stop, interval_seconds=30):
 def meme_auto_loop(stop, interval_seconds=10):
     """Experimental MEME PAPER engine, independent of dashboard and BTC/ETH."""
     from meme_auto import tick
+    from meme_prices import changes_after
     from meme_live import INBOX
     from meme_scout import scan_profiles
     with LOCK:
@@ -469,6 +479,14 @@ def meme_auto_loop(stop, interval_seconds=10):
         ).fetchone()[0] if db.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='meme_auto_journal'"
         ).fetchone() else 0
+        finally:db.close()
+    with LOCK:
+        db=connect()
+        try:
+            from meme_prices import initialize as init_market
+            init_market(db)
+            previous_quote_id=db.execute(
+                'SELECT COALESCE(MAX(id),0) FROM meme_quote_changes').fetchone()[0]
         finally:db.close()
     while not stop.is_set():
         try:
@@ -487,7 +505,16 @@ def meme_auto_loop(stop, interval_seconds=10):
                         'SELECT id FROM meme_auto_journal WHERE id>? ORDER BY id LIMIT 60',
                         (previous_event_id,))]
                     if new_events:previous_event_id=max(x['id'] for x in new_events)
+                    changed_quotes=changes_after(c,previous_quote_id,limit=40)
+                    if changed_quotes:
+                        previous_quote_id=max(x['id'] for x in changed_quotes)
                 finally:c.close()
+            if changed_quotes:
+                publish_paper_event('PAPER_QUOTES',{
+                    'count':len(changed_quotes),
+                    'last_change_id':previous_quote_id,
+                    'source':'DEX_SCREENER_REST_SERVER_OBSERVATIONS',
+                    'sample_server_time':changed_quotes[-1]['observed_at']})
             publish_paper_event('PAPER_TICK',{'last_tick':state['last_tick'],
                 'status':state['status'],'last_scan':state['last_scan']})
             if live_profiles:
