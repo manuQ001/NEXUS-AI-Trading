@@ -23,6 +23,8 @@ COOLDOWN_SECONDS=3600
 WAIT_LOG_COOLDOWN_SECONDS=60
 MAX_DECISION_ROWS=600
 MAX_WAIT_EVALUATIONS=20
+EQUITY_HISTORY_MIN_SECONDS=60
+EQUITY_HISTORY_MAX_ROWS=4000
 
 def initialize(c):
     c.execute("""CREATE TABLE IF NOT EXISTS v4_paper_state(
@@ -46,6 +48,12 @@ def initialize(c):
         symbol TEXT NOT NULL,side TEXT NOT NULL,reason TEXT NOT NULL,
         price_usd REAL NOT NULL,amount_eur REAL NOT NULL,
         pnl_eur REAL,model_fee_pct REAL NOT NULL)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS v4_equity_history(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER NOT NULL,
+        equity_eur REAL NOT NULL,
+        cash_eur REAL NOT NULL,
+        open_positions INTEGER NOT NULL)""")
     c.execute("""CREATE TABLE IF NOT EXISTS v4_agent_decisions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp INTEGER NOT NULL,address TEXT,symbol TEXT,
@@ -106,6 +114,56 @@ def _equity(c,state):
         if price:equity+=float(p['synthetic_qty'])*price*(1-SELL_COST)
     return round(equity,6)
 
+def _record_equity(c, now, *, force=False):
+    """Store actual engine-account marks, not interpolated or fake market ticks.
+
+    The initial stored point is a CURRENT state, not backfilled history.
+    Positions are valued using the last observed REST price (may be stale).
+    """
+    state=c.execute('SELECT * FROM v4_paper_state WHERE id=1').fetchone()
+    if state is None:
+        return
+    equity=_equity(c,state)
+    cash=float(state['cash_eur'])
+    count=c.execute('SELECT COUNT(*) FROM v4_paper_positions').fetchone()[0]
+    last=c.execute("""SELECT timestamp,equity_eur,cash_eur,open_positions
+        FROM v4_equity_history ORDER BY id DESC LIMIT 1""").fetchone()
+    if last and now<=int(last['timestamp']):
+        return
+    changed=not last or (abs(equity-float(last['equity_eur']))>=0.005 or
+        abs(cash-float(last['cash_eur']))>=0.005 or count!=int(last['open_positions']))
+    if not (force or changed or not last or now-int(last['timestamp'])>=EQUITY_HISTORY_MIN_SECONDS):
+        return
+    c.execute("""INSERT INTO v4_equity_history(
+        timestamp,equity_eur,cash_eur,open_positions) VALUES(?,?,?,?)""",
+        (now,equity,cash,count))
+    c.execute("""DELETE FROM v4_equity_history WHERE id NOT IN
+        (SELECT id FROM v4_equity_history ORDER BY id DESC LIMIT ?)""",
+        (EQUITY_HISTORY_MAX_ROWS,))
+
+
+def equity_history(c,limit=720):
+    """Observed account history and matching paper journal events for the graph."""
+    initialize(c)
+    limit=max(2,min(int(limit),1440))
+    rows=[dict(r) for r in c.execute("""SELECT timestamp,equity_eur,cash_eur,open_positions
+        FROM (SELECT id,timestamp,equity_eur,cash_eur,open_positions
+              FROM v4_equity_history ORDER BY id DESC LIMIT ?)
+        ORDER BY id ASC""",(limit,))]
+    if not rows:
+        return {'mode':'V4_OBSERVED_EQUITY_HISTORY','points':[],'trades':[],
+                'warning':'Nessun campione storico. Inizia dal primo ciclo V4 dopo questo aggiornamento.'}
+    since=rows[0]['timestamp']
+    trades=[dict(t) for t in c.execute("""SELECT id,timestamp,symbol,side,pnl_eur
+        FROM v4_paper_trades WHERE timestamp>=?
+        AND side IN ('BUY_PAPER','SELL_PAPER') ORDER BY id DESC LIMIT 300""",(since,))][::-1]
+    return {'mode':'V4_OBSERVED_EQUITY_HISTORY','points':rows,'trades':trades,
+            'warning':('Storico disponibile solo dal primo campione registrato; '
+             'nessun backfill inventato. Equity PAPER calcolata con prezzi REST '
+             'osservati, anche se l’ultima quotazione puo essere vecchia. '
+             'Valori non eseguibili sul mercato.')}
+
+
 def _log(c,now,address,symbol,action,reason,agents):
     import json
     c.execute("""INSERT INTO v4_agent_decisions(
@@ -140,6 +198,7 @@ def tick(c,now=None):
     state=c.execute('SELECT * FROM v4_paper_state WHERE id=1').fetchone()
     if not state['enabled']:
         c.execute("UPDATE v4_paper_state SET last_tick=?,last_decision='SUSPENDED' WHERE id=1",(now,))
+        _record_equity(c,now)
         return {'status':'SUSPENDED','new_trades':0}
     latest=_latest(c,now)
     by_address={r['address']:r for r in latest}
@@ -249,6 +308,7 @@ def tick(c,now=None):
     _trim_decision_log(c)
     c.execute('UPDATE v4_paper_state SET last_tick=?,last_decision=? WHERE id=1',
               (now,decision))
+    _record_equity(c,now,force=bool(completed))
     return {'status':decision,'new_trades':completed,'new_wait_records':wait_recorded}
 
 def report(c,now=None):
