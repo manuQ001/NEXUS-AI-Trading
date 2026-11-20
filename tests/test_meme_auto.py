@@ -50,7 +50,9 @@ class TestMemeAuto(unittest.TestCase):
         self.c.commit()
         self.assertFalse(circuit_breaker(self.c,2060)['blocked'])
         resumed=tick(self.c,now=2060,scout=report,quote=lambda _:Q,fx_rate=fx)
-        self.assertEqual(len(portfolio(self.c)['positions']),1)
+        # Raw equity may recover, but the persistent risk latch must not.
+        self.assertTrue(resumed['risk_circuit']['latched'])
+        self.assertEqual(len(portfolio(self.c)['positions']),0)
 
     def test_quality_filter_logs_skipped_candidate(self):
         with patch('meme_auto.MIN_ENTRY_LIQUIDITY',10000),patch('meme_auto.MIN_ENTRY_VOLUME',20000):

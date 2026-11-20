@@ -158,6 +158,16 @@ class Handler(BaseHTTPRequestHandler):
         elif path=='/api/meme-live':
             from meme_live import INBOX
             self.out(INBOX.state())
+        elif path=='/api/meme-desk':
+            from meme_desk import report as desk_report
+            from meme_live import INBOX
+            with LOCK:
+                c=connect()
+                try:
+                    result=desk_report(c,stream=INBOX.state())
+                    c.commit()
+                finally:c.close()
+            self.out(result)
         elif path=='/api/meme-intelligence':
             from meme_intelligence import report as strategy_report
             with LOCK:

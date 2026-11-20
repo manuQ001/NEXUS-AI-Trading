@@ -1,3 +1,41 @@
+## NEXUS 3.6.0 — Desk Control & Permanent Risk Lock (PAPER)
+
+La versione aggiunge un pannello **DESK CONTROL** sotto Strategy Intelligence con
+otto ruoli (SEARCH, RUG, SNIPER, RISK, WHALE, EXIT, SHILL, HEAD OF DESK).
+Sono stati effettivi dei moduli correnti: non sono otto processi LLM
+indipendenti. In particolare RUG/WHALE restano controlli on-demand e SHILL non
+ha fonti social collegate; la dashboard indica esplicitamente questa mancanza,
+anziché presentare attività o sicurezza inventate.
+
+Ogni candidato restituito dallo scanner, REST o dal feed di profili WS, viene
+analizzato e registrato nel nuovo registro SQLite `meme_scan_decisions`
+(indirizzo, simbolo, fonte, liquidita, volume, prezzo, eta pool quando noti,
+motivo tecnico dello scarto). Stati: **REJECTED**, **WATCH_ONLY** quando i filtri
+quantitativi passano ma il drawdown blocca l'acquisto, **SCREENED** quando
+occorrono ancora le verifiche quote, eventuale LLM e capitale. SCREENED non
+significa BUY autorizzato e gli eventi di discovery non equivalgono a
+transazioni sulla blockchain. Il registro non legge Telegram o wallet privati,
+non aggiunge richieste API, conserva max 1000 record degli ultimi sette giorni.
+
+**Blocco rischio persistente**: al raggiungimento del drawdown MEME del 10%
+il parametro SQLite `meme_auto_state.risk_latched` viene fissato a 1. Un
+rimbalzo dell'equity o un riavvio del server non sblocca automaticamente
+nuovi acquisti; la normale funzione di monitoraggio/EXIT rimane attiva.
+Nessun comando per azzerare il saldo o riprendere trading e stato introdotto
+in 3.6.0. Si tratta di una scelta conservativa per poter valutare prima le
+cause della perdita. I dati e i trade storici vengono conservati intatti.
+
+API locale: `GET /api/meme-desk`. Il payload contiene stato feed, ruoli,
+decisioni e conteggi reali provenienti dal DB locale. Controlli non verificati
+come mint authority, blocco LP, vendibilita e fonti social rimangono non
+verificati, indipendentemente dal numero dei ruoli.
+
+**Limiti:** lo scanner e basato su DEX Screener profili WebSocket + REST,
+non su tutte le creazioni token Solana. I prezzi rimangono quote indicative
+REST, non market orderbook eseguibile. Nessun ordine reale e mai abilitato,
+nessun profitto e garantito, e le nuove analisi non migliorano di per se la
+performance storica.
+
 ## NEXUS 3.5.0 — Strategy Intelligence (solo PAPER)
 
 Nuovo pannello Strategy Intelligence nel terminale MEME e endpoint locale

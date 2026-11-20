@@ -2,7 +2,7 @@
 import json, subprocess, sys, hashlib, urllib.request
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='3.5.0'
+VERSION='3.6.0'
 CONFIG=ROOT/'updates.json'
 
 def run_tests(timeout=40):
