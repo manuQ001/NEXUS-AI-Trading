@@ -292,7 +292,33 @@ def snapshot(c,now=None):
     net_at_gross_stop=(1-0.05)*(1-SELL_COST)/(1+BUY_COST)-1
     monitor_initialize(c)
     monitor_row=dict(c.execute('SELECT * FROM meme_quote_monitor WHERE id=1').fetchone())
+    auto_enabled=bool(auto.get('enabled'))
+    scan_row=c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='meme_scan_decisions'").fetchone()
+    scanned=int(c.execute('SELECT COUNT(*) FROM meme_scan_decisions').fetchone()[0]) if scan_row else 0
+    latest_scan=int(auto.get('last_scan') or 0)
+    if not auto_enabled:
+        quote_status='AUTO_SUSPENDED'
+        explanation=('Il monitor REST e sospeso insieme a MEME AUTO. '
+                     'Il Risk Lock degli acquisti e un controllo distinto.')
+    elif not result and not latest_scan:
+        quote_status='WAITING_FIRST_SCAN'
+        explanation='Nessuna scansione completata ancora. Verificare lo stato del motore.'
+    elif not result:
+        quote_status='NO_OBSERVED_QUOTES'
+        explanation=('Nessuna quotazione REST valida disponibile. Controllare '
+                     'scanner, rete, feed DEX e ultima scansione; non e un problema '
+                     'risolvibile disegnando prezzi sintetici.')
+    elif not any(x['fresh'] for x in result):
+        quote_status='STALE_QUOTES'
+        explanation='Solo prezzi vecchi: nessuna lettura REST recente confermata.'
+    else:
+        quote_status='OBSERVED_QUOTES'
+        explanation='Quotazioni REST realmente osservate disponibili.'
     return {'mode':'OBSERVED_REST_PRICES','quotes':result,
+            'quote_status':quote_status,
+            'quote_explanation':explanation,
+            'auto_enabled':auto_enabled,'last_scan':latest_scan,
+            'scan_decisions_recorded':scanned,
             'monitor':{'interval_seconds':WATCH_INTERVAL_SECONDS,
                 'last_attempt':monitor_row['last_attempt'],
                 'last_success':monitor_row['last_success'],
