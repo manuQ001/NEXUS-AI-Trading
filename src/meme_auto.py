@@ -248,6 +248,12 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx,force_scan=
                 candidates=eligible_candidates(c,rows,now)
                 guard=circuit_breaker(c,now)
                 if guard['blocked']:
+                    from meme_intelligence import observe_blocked
+                    observed=observe_blocked(c,rows,now=now)
+                    # Observations reuse the already obtained scout snapshot.
+                    # Never place orders or consult paid models for blocked entries.
+                    if observed:
+                        messages.append('WATCHLIST_'+str(observed)+'_OSSERVATI')
                     candidates=[]
                     _log(c,now,None,'RISK_CIRCUIT',
                          'Nuovi ingressi SOSPESI · '+guard['reason']+
