@@ -8,7 +8,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from core import connect
 from meme_auto import init_auto,tick
 from meme_desk import record_scan
-from meme_prices import observe,changes_after,snapshot,refresh_watchlist
+from meme_prices import observe,changes_after,snapshot,refresh_watchlist,observed_candles
 from meme_portfolio import portfolio
 from server import publish_paper_event,events_after
 
@@ -110,6 +110,54 @@ class TestMarketPulse(unittest.TestCase):
         self.assertEqual(len(pulse['quotes']),1)
         self.assertEqual(len(pulse['quotes'][0]['observations']),2)
         self.assertEqual(len(portfolio(self.c)['positions']),0)
+    def test_candles_use_actual_reads_including_identical_quotes_only(self):
+        # Reads 01:00/01:20 and 02:00/02:30. The missing minute 03
+        # stays absent; no interpolated bar is allowed.
+        for t,price in [(60,.010),(80,.010),(120,.011),(150,.009),(240,.012)]:
+            observe(self.c,A,dict(Q,price_usd=price),now=t)
+        d=observed_candles(self.c,A,interval_seconds=60,now=245)
+        self.assertEqual(d['mode'],'REST_SAMPLED_OHLC')
+        self.assertEqual([x['time'] for x in d['candles']],[60,120,240])
+        self.assertEqual(d['candles'][0]['observations'],2)
+        self.assertEqual(d['candles'][0]['open'],.01)
+        self.assertEqual(d['candles'][0]['close'],.01)
+        self.assertEqual(d['candles'][1]['open'],.011)
+        self.assertEqual(d['candles'][1]['high'],.011)
+        self.assertEqual(d['candles'][1]['low'],.009)
+        self.assertEqual(d['candles'][1]['close'],.009)
+        self.assertEqual(d['candles'][2]['close'],.012)
+        self.assertNotIn('volume',d['candles'][2])
+        self.assertEqual(len(portfolio(self.c)['positions']),0)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM meme_eur_trades').fetchone()[0],0)
+    def test_candle_timeframe_and_no_fake_data(self):
+        self.assertEqual(observed_candles(self.c,A,now=100)['candles'],[])
+        with self.assertRaises(ValueError):observed_candles(self.c,A,interval_seconds=10)
+        with self.assertRaises(ValueError):observed_candles(self.c,'BAD')
+        observe(self.c,A,Q,now=60)
+        observe(self.c,A,dict(Q,price_usd=.02),now=360)
+        d=observed_candles(self.c,A,interval_seconds=300,now=400)
+        self.assertEqual([x['time'] for x in d['candles']],[0,300])
+        self.assertFalse(d['fresh'])
+        # Future observations are never backfilled into earlier reports.
+        d=observed_candles(self.c,A,interval_seconds=60,now=80)
+        self.assertEqual([x['time'] for x in d['candles']],[60])
+    def test_candle_rejects_invalid_quotes_and_stale_delayed_reads(self):
+        observe(self.c,A,Q,now=500)
+        observe(self.c,A,dict(Q,price_usd=float('nan')),now=600)
+        observe(self.c,A,dict(Q,price_usd=.2),now=499)
+        d=observed_candles(self.c,A,now=600)
+        self.assertEqual(len(d['candles']),1)
+        self.assertEqual(d['candles'][0]['observations'],1)
+        self.assertAlmostEqual(d['candles'][0]['close'],.01)
+    def test_chart_ui_displays_observation_caveat_and_selection(self):
+        source=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        for anchor in ('nx-candle-chart','nx-candle-token','nx-candle-timeframe',
+                       'nx-candle-status','function nxDrawObservedCandles',
+                       "fetch('/api/meme-market-candles?address='"):
+            self.assertIn(anchor,source)
+        self.assertIn('nessun prezzo o intervallo inventato',source)
+        self.assertIn('prefers-reduced-motion',source)
+
     def test_cost_model_reports_gross_vs_net_friction(self):
         cost=snapshot(self.c)['cost_model']
         self.assertAlmostEqual(cost['minimum_gross_move_to_break_even_pct'],6.186,places=2)
