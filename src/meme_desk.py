@@ -82,6 +82,8 @@ def record_scan(c,rows,now=None,guard_blocked=False,source='SCANNER'):
             _positive(row.get('volume_24h_usd')),
             _positive(row.get('price_usd')),
             _nonnegative(row.get('pool_age_hours')),decision,reason))
+    from meme_shadow import capture as capture_shadow
+    capture_shadow(c,rows,now=now,source=source)
     c.execute('DELETE FROM meme_scan_decisions WHERE observed_at<?',(now-KEEP_SECONDS,))
     c.execute("""DELETE FROM meme_scan_decisions WHERE id NOT IN
         (SELECT id FROM meme_scan_decisions ORDER BY id DESC LIMIT ?)""",(MAX_ROWS,))
