@@ -90,6 +90,67 @@ def observe(c,address,quote,now=None,source='DEX_SCREENER_REST'):
         (MAX_POINTS,))
     return change_id if changed else None
 
+WATCH_INTERVAL_SECONDS=10
+WATCH_RECENT_SECONDS=600
+WATCH_MAX_TOKENS=3
+
+def monitor_initialize(c):
+    initialize(c)
+    c.execute("""CREATE TABLE IF NOT EXISTS meme_quote_monitor(
+        id INTEGER PRIMARY KEY CHECK(id=1),
+        last_attempt INTEGER NOT NULL DEFAULT 0,
+        last_success INTEGER NOT NULL DEFAULT 0,
+        checked INTEGER NOT NULL DEFAULT 0,
+        errors INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT NOT NULL DEFAULT '')""")
+    c.execute("INSERT OR IGNORE INTO meme_quote_monitor(id) VALUES(1)")
+
+def refresh_watchlist(c,now=None,quote=None):
+    """Poll at most 3 recently observed tokens, even with no open PAPER positions.
+
+    These read-only reference quotes never pass into the execution engine.
+    Only server-side public REST calls are allowed. No paid WS subscriptions,
+    fake price ticks, or bypass of the persistent drawdown lock.
+    """
+    monitor_initialize(c)
+    now=int(time.time()) if now is None else int(now)
+    state=c.execute('SELECT last_attempt FROM meme_quote_monitor WHERE id=1').fetchone()
+    if now-int(state['last_attempt'])<WATCH_INTERVAL_SECONDS:
+        return {'status':'RATE_LIMITED','checked':0,'errors':0}
+    # No market monitoring after the user explicitly suspends MEME AUTO.
+    a=c.execute("SELECT enabled FROM meme_auto_state WHERE id=1").fetchone()
+    if not a or not a['enabled']:
+        return {'status':'AUTO_SUSPENDED','checked':0,'errors':0}
+    # Watch only recently discovered tokens with sufficiently useful public
+    # market quality, prioritizing liquid candidates over feed noise.
+    positions={r['address'] for r in c.execute('SELECT address FROM meme_eur_positions')}
+    rows=c.execute("""SELECT address FROM meme_quote_latest
+        WHERE observed_at>=? AND liquidity_usd>=10000 AND volume_24h_usd>=20000
+        ORDER BY liquidity_usd DESC,volume_24h_usd DESC,address LIMIT 20""",
+        (now-WATCH_RECENT_SECONDS,)).fetchall()
+    addresses=[row['address'] for row in rows if row['address'] not in positions][:WATCH_MAX_TOKENS]
+    checked=0
+    errors=0
+    last_error=''
+    from meme_demo import indicative_quote
+    obtain=quote if quote is not None else indicative_quote
+    for address in addresses:
+        try:
+            q=obtain(address)
+            if not isinstance(q,dict) or not _positive(q.get('price_usd')):
+                raise ValueError('Invalid quote')
+            observe(c,address,q,now=now)
+            checked+=1
+        except (OSError,TypeError,ValueError,KeyError,OverflowError,TimeoutError) as exc:
+            errors+=1
+            last_error=type(exc).__name__
+    c.execute("""UPDATE meme_quote_monitor
+        SET last_attempt=?,last_success=CASE WHEN ?>0 THEN ? ELSE last_success END,
+        checked=?,errors=?,last_error=? WHERE id=1""",
+        (now,checked,now,checked,errors,last_error))
+    return {'status':'OBSERVED' if checked else 'NO_VALID_QUOTES',
+            'checked':checked,'errors':errors}
+
 def changes_after(c,last_id=0,limit=25):
     initialize(c)
     try:last_id=max(0,int(last_id))
@@ -126,7 +187,15 @@ def snapshot(c,now=None):
     round_trip_break_even=(1+BUY_COST)/(1-SELL_COST)-1
     gross_for_net_target=(1+0.12)*(1+BUY_COST)/(1-SELL_COST)-1
     net_at_gross_stop=(1-0.05)*(1-SELL_COST)/(1+BUY_COST)-1
+    monitor_initialize(c)
+    monitor_row=dict(c.execute('SELECT * FROM meme_quote_monitor WHERE id=1').fetchone())
     return {'mode':'OBSERVED_REST_PRICES','quotes':result,
+            'monitor':{'interval_seconds':WATCH_INTERVAL_SECONDS,
+                'last_attempt':monitor_row['last_attempt'],
+                'last_success':monitor_row['last_success'],
+                'checked':monitor_row['checked'],
+                'errors':monitor_row['errors'],
+                'last_error':monitor_row['last_error']},
             'cost_model':{'buy_pct':BUY_COST*100,'sell_pct':SELL_COST*100,
                'minimum_gross_move_to_break_even_pct':round(round_trip_break_even*100,3),
                'gross_move_for_net_target_12_pct':round(gross_for_net_target*100,3),
