@@ -18,6 +18,13 @@ def _positive(v):
     except (ValueError,TypeError,OverflowError):
         return None
 
+def _nonnegative(v):
+    try:
+        x=float(v)
+        return x if math.isfinite(x) and x>=0 else None
+    except (ValueError,TypeError,OverflowError):
+        return None
+
 def initialize(c):
     c.execute("""CREATE TABLE IF NOT EXISTS meme_scan_decisions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +79,7 @@ def record_scan(c,rows,now=None,guard_blocked=False,source='SCANNER'):
             _positive(row.get('liquidity_usd')),
             _positive(row.get('volume_24h_usd')),
             _positive(row.get('price_usd')),
-            _positive(row.get('pool_age_hours')),decision,reason))
+            _nonnegative(row.get('pool_age_hours')),decision,reason))
     c.execute('DELETE FROM meme_scan_decisions WHERE observed_at<?',(now-KEEP_SECONDS,))
     c.execute("""DELETE FROM meme_scan_decisions WHERE id NOT IN
         (SELECT id FROM meme_scan_decisions ORDER BY id DESC LIMIT ?)""",(MAX_ROWS,))
