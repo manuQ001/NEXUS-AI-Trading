@@ -34,6 +34,40 @@ class TestMaintenance(unittest.TestCase):
         self.assertIn("renderNexusCockpitPortfolio(d)",html)
         self.assertNotIn('fakeTrade',html)
 
+    def test_v311_focus_views_preserve_live_sources_and_controls(self):
+        from html.parser import HTMLParser
+        class Inspect(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.views=[]
+                self.ids=[]
+                self.nav_links=[]
+            def handle_starttag(self,tag,attrs):
+                props=dict(attrs)
+                if 'id' in props:self.ids.append(props['id'])
+                if 'data-nx-focus' in props:self.views.append(props['data-nx-focus'])
+                if tag=='a' and props.get('href','').startswith('#'):
+                    self.nav_links.append(props['href'])
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        p=Inspect();p.feed(html)
+        self.assertEqual(p.views,['live','prices','shadow','risk','desk','tools'])
+        for name in ['nx-event-tape','nx-event-counter','nx-active-focus-label',
+                     'nx-market-pulse','nx-shadow-lab','nx-risk-lab','nx-desk-control',
+                     'nx-advanced','meme-auto-toggle']:
+            self.assertEqual(p.ids.count(name),1,name)
+        for section in ['#overview','#market','#meme-section','#performance-section',
+                        '#lab-section','#agents-section','#history-section','#execution-section']:
+            self.assertIn(section,p.nav_links)
+        self.assertIn('function nxRecordObservedEvent(packet)',html)
+        self.assertIn("['PAPER_MINT','PAPER_PROFILE','PAPER_QUOTES','PAPER_JOURNAL']",html)
+        self.assertIn("if(nxObservedSessionEvents===0)tape.replaceChildren()",html)
+        self.assertIn('prefers-reduced-motion:reduce',html)
+        self.assertIn('nx-focus-button:focus-visible',html)
+        self.assertIn("fetch('/api/meme-shadow'",html)
+        self.assertIn("fetch('/api/meme-risk-intelligence'",html)
+        self.assertNotIn('Math.random()',html)
+        self.assertNotIn('fakeTrade',html)
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())
