@@ -354,7 +354,7 @@ def report(c,now=None):
     # The decision journal is bounded, so report its exact scope. No claim
     # that these counts measure strategy outperformance or lifetime totals.
     ai_vetoes=c.execute("""SELECT COUNT(*) FROM v4_agent_decisions
-        WHERE action='WAIT' AND reason LIKE 'AI\\_%' ESCAPE '\\'""").fetchone()[0]
+        WHERE action='WAIT' AND substr(reason,1,3)='AI_'""").fetchone()[0]
     ai_approved=c.execute("""SELECT COUNT(*) FROM v4_agent_decisions
         WHERE action='BUY_PAPER' AND agents_json LIKE '%AI_BUY_CONFIRMED%'""").fetchone()[0]
     last_tick=int(state['last_tick'])
