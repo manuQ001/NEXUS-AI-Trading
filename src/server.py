@@ -24,7 +24,7 @@ EVENT_SERIAL=0
 
 def publish_paper_event(kind,payload,timestamp=None):
     global EVENT_SERIAL
-    if kind not in ('PAPER_TICK','PAPER_JOURNAL','PAPER_PROFILE'):raise ValueError('Unknown event')
+    if kind not in ('PAPER_TICK','PAPER_JOURNAL','PAPER_PROFILE','PAPER_MINT'):raise ValueError('Unknown event')
     with EVENT_CONDITION:
         EVENT_SERIAL+=1
         item={'id':EVENT_SERIAL,'kind':kind,
@@ -155,6 +155,9 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError,TimeoutError) as exc:
                 self.out({'ok':False,'status':'NON_VERIFICATO','meme_execution':'BLOCKED',
                           'error':'RPC Solana non disponibile o non valido: '+type(exc).__name__},503)
+        elif path=='/api/meme-mints':
+            from meme_mints import FEED
+            self.out(FEED.state())
         elif path=='/api/meme-live':
             from meme_live import INBOX
             self.out(INBOX.state())
@@ -521,8 +524,12 @@ def main():
     threading.Thread(target=maintenance_loop,args=(stop,),daemon=True).start()
     threading.Thread(target=market_monitor_loop,args=(stop,),daemon=True).start()
     from meme_live import listen
+    from meme_mints import listen as listen_mints
     threading.Thread(target=listen,args=(stop,),daemon=True,
                      name='NEXUS-MEME-Profile-Stream').start()
+    threading.Thread(target=listen_mints,args=(stop,),
+                     kwargs={'publish':publish_paper_event},daemon=True,
+                     name='NEXUS-Solana-Mint-Stream').start()
     threading.Thread(target=meme_auto_loop,args=(stop,),daemon=True).start()
     print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
     print('Dashboard: http://127.0.0.1:8765')
