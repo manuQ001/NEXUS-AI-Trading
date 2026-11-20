@@ -274,7 +274,12 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx,force_scan=
                          'Riutilizzata valutazione precedente per candidati invariati · '
                          'nessun nuovo consulto API')
                 else:
-                    assessment=review_meme_agents(candidates[:3])
+                    if guard['blocked']:
+                        from meme_agents import rule_agents
+                        assessment=rule_agents([])
+                        assessment['note']='Solo osservazione: RISK Circuit Breaker attivo; nessuna consultazione IA'
+                    else:
+                        assessment=review_meme_agents(candidates[:3])
                     c.execute('''INSERT INTO meme_agent_latest(id,updated_at,report_json)
                         VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET
                         updated_at=excluded.updated_at,report_json=excluded.report_json''',
