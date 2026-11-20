@@ -428,6 +428,7 @@ async function backtest(asset){const btns=[$('run-backtest'),$('run-eth')];btns.
   (e.address?' · <span class="sub">'+esc(e.address.slice(0,7))+'…</span>':'')+
   '<div class="sub">'+esc(e.note)+'</div></div>'
  ).join('')||'<div class="sub">Nessun evento ancora registrato</div>';
+ renderNexusCockpitAuto(d);
  $('meme-auto-toggle').textContent=d.enabled?'Sospendi AUTO':'Riattiva AUTO';
  $('meme-auto-toggle').disabled=false;
  return d;
@@ -454,6 +455,74 @@ async function refreshMemeLive(){
 }
 setInterval(refreshMemeLive,2000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMemeLive();});
+
+/* NEXUS Neon Mission Control: view only, no simulated events or trades. */
+function renderNexusCockpitAuto(d){
+  const now=Date.now()/1000;
+  const active=Boolean(d.enabled)&&d.last_tick&&now-d.last_tick<=60;
+  $('nx-led').classList.toggle('on',Boolean(active));
+  $('nx-run').textContent=!d.enabled?'AUTO SOSPESO':active?'AUTONOMOUS PAPER · ATTIVO':'MONITORAGGIO DA VERIFICARE';
+  $('nx-last').textContent=d.last_tick?new Date(d.last_tick*1000).toLocaleTimeString('it-IT'):'non disponibile';
+  $('nx-scanner').textContent=d.last_scan?new Date(d.last_scan*1000).toLocaleTimeString('it-IT'):'NON ANCORA ESEGUITO';
+  $('nx-scan-state').textContent=d.enabled?'ATTIVO':'SOSPESO';
+  $('nx-scan-description').textContent=String(d.status||'Nessuna attività comunicata')+
+   (d.error?' · '+d.error:'');
+  const ag=d.agents_report||{};
+  $('nx-mode').textContent=ag.mode==='LLM_AGENT_REVIEW'?
+    'LLM: '+String(ag.status||'NON DISPONIBILE'):
+    (ag.mode==='RULE_AGENTS'?'REGOLE (NO LLM)':'NON AVVIATI');
+  $('nx-agent-status').textContent=ag.status||'IN ATTESA';
+  $('nx-agent-time').textContent=d.agents_updated_at?
+    new Date(d.agents_updated_at*1000).toLocaleTimeString('it-IT'):'—';
+  $('nx-agents').innerHTML=(ag.agents||[]).map(a=>
+    '<div class="nx-agent"><b>'+esc(a.name||'AGENTE')+
+    '</b> <small>'+esc(a.status||'')+'</small><p>'+esc(a.reason||'')+'</p></div>'
+   ).join('')||'<div class="nx-muted">Gli agenti non hanno ancora inviato valutazioni.</div>';
+  const journal=d.journal||[];
+  $('nx-feed-count').textContent=journal.length+' EVENTI';
+  $('nx-feed').innerHTML=journal.map(e=>
+    '<div class="nx-event"><b>'+esc(new Date(e.timestamp*1000).toLocaleTimeString('it-IT'))+
+    ' · '+esc(e.action||'EVENT')+'</b><p>'+esc(e.note||'')+'</p></div>'
+   ).join('')||'<div class="nx-muted">Nessuna attività registrata dal motore.</div>';
+}
+function renderNexusCockpitPortfolio(d){
+  const positions=d.positions||[];
+  const trades=d.trades||[];
+  const closes=trades.filter(t=>t.action==='SELL'&&Number.isFinite(Number(t.pnl_eur)));
+  const wins=closes.filter(t=>Number(t.pnl_eur)>0).length;
+  const losses=closes.filter(t=>Number(t.pnl_eur)<0).length;
+  const openPnl=positions.reduce((sum,p)=>sum+(Number(p.estimated_pnl_eur)||0),0);
+  $('nx-equity').textContent=eurMeme(d.equity_eur);
+  $('nx-cash').textContent=eurMeme(d.cash_eur);
+  $('nx-pnl').textContent=eurMeme(openPnl);
+  $('nx-pnl').classList.toggle('nx-red',openPnl<0);
+  $('nx-pnl').classList.toggle('nx-green',openPnl>=0);
+  $('nx-closed').textContent=String(closes.length);
+  $('nx-wl').textContent=wins+' / '+losses;
+  $('nx-winrate').textContent=closes.length?(100*wins/closes.length).toFixed(1)+'%':'—';
+  $('nx-position-count').textContent=positions.length+' / '+(d.max_positions||8);
+  $('nx-positions').innerHTML=positions.map(p=>{
+    const o=p.outlook||{};
+    const sign=Number(p.estimated_pnl_eur)<0?'nx-red':'nx-green';
+    const trend=o.direction==='RIALZISTA'?'nx-green':o.direction==='RIBASSISTA'?'nx-red':'';
+    return '<article class="nx-position"><div class="nx-row"><b>'+esc(p.symbol||'?')+
+      '</b><b class="'+sign+'">'+eurMeme(p.estimated_pnl_eur)+'</b></div>'+
+      '<div class="nx-row"><span>Ingresso</span><b>'+esc(String(p.entry_price_usd))+
+      ' USD</b></div><div class="nx-row"><span>Ultimo prezzo</span><b>'+
+      esc(String(p.last_price_usd))+' USD</b></div>'+
+      '<div class="nx-row"><span>Pronostico osservativo</span><b class="'+trend+'">'+
+      esc(o.direction||'INCERTO')+'</b></div>'+
+      '<div class="nx-muted">'+esc(o.explanation||'Dati insufficienti')+
+      ' · Affidabilità: '+esc(o.confidence||'NON VALUTABILE')+'</div>'+
+      '<div class="nx-muted">Prezzo: '+esc(p.mark_status||'NON VERIFICATO')+
+      ' · '+esc(String(p.mark_age_seconds??'?'))+' s dall’ultimo controllo</div></article>';
+  }).join('')||'<div class="nx-muted">Nessuna posizione aperta. NEXUS non forza ingressi quando mancano candidati idonei.</div>';
+}
+document.querySelectorAll('[data-nx-view]').forEach(link=>link.addEventListener('click',event=>{
+  event.preventDefault();
+  showWorkspace(link.dataset.nxView,{updateHistory:true});
+}));
+
 const eurMeme=x=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:4}).format(Number(x)||0);
 function renderMemeDemo(d){
   $('meme-demo-cash').textContent=eurMeme(d.cash_eur);
@@ -485,6 +554,7 @@ function renderMemeDemo(d){
   }).join('')||'<div class="sub">Nessuna posizione aperta. Il motore cerca nuove opportunità senza forzare ingressi.</div>';
   $('meme-terminal-updated').textContent='Vista aggiornata '+new Date().toLocaleTimeString('it-IT')+
    ' · Prezzi osservati via DEX Screener REST, non tick streaming né garanzie di esecuzione.';
+  renderNexusCockpitPortfolio(d);
   $('meme-demo-positions').innerHTML=(d.positions||[]).map(p=>{
     const fresh=p.mark_status==='AGGIORNATO';
     const pnl=Number(p.estimated_pnl_eur);
