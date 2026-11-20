@@ -303,7 +303,12 @@ def tick(c,now=None,scout=scan,quote=indicative_quote,fx_rate=get_fx,force_scan=
                         rejection=entry_rejection(candidate,q)
                         if rejection:
                             _log(c,now,mint,'AUTO_REJECT',
-                                 rejection+' · liquidita min (c,candidate,q)
+                                 rejection+' · liquidita min USD '+str(int(MIN_ENTRY_LIQUIDITY))+
+                                 ' · volume 24h min USD '+str(int(MIN_ENTRY_VOLUME))+
+                                 ' · nessun acquisto')
+                            messages.append('FILTRO_QUALITA_'+rejection)
+                            continue
+                        stake=dynamic_stake(c,candidate,q)
                         if stake is None:
                             messages.append('CAPITALE_DISPONIBILE_O_RISERVA_INSUFFICIENTE')
                             break
