@@ -1,5 +1,6 @@
 """Local dashboard server, no third-party packages or external-order execution."""
 import json, sys, threading, webbrowser, time, sqlite3
+from collections import deque
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -16,6 +17,27 @@ from maintenance import run_tests, check_updates, VERSION, ROOT
 from downloader import download_if_available, read_staged
 
 LOCK=threading.Lock()
+# Notifications contain committed local PAPER state, never synthetic transactions.
+EVENT_CONDITION=threading.Condition()
+EVENT_HISTORY=deque(maxlen=128)
+EVENT_SERIAL=0
+
+def publish_paper_event(kind,payload,timestamp=None):
+    global EVENT_SERIAL
+    if kind not in ('PAPER_TICK','PAPER_JOURNAL'):raise ValueError('Unknown event')
+    with EVENT_CONDITION:
+        EVENT_SERIAL+=1
+        item={'id':EVENT_SERIAL,'kind':kind,
+              'time':int(time.time()) if timestamp is None else int(timestamp),
+              'data':payload}
+        EVENT_HISTORY.append(item)
+        EVENT_CONDITION.notify_all()
+    return item
+
+def events_after(last_id):
+    with EVENT_CONDITION:
+        return [dict(item) for item in EVENT_HISTORY if item['id']>last_id]
+
 # Recent manual DEX Scout quote fallback for local USD-credit DEMO ONLY.
 # Bounded to 16 mints and 5 minutes. Never used by the BTC/ETH strategy.
 MEME_SCOUT_QUOTES={}
@@ -35,6 +57,34 @@ class Handler(BaseHTTPRequestHandler):
         path=urlsplit(self.path).path
         if path=='/':
             self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(PAGE)));self.end_headers();self.wfile.write(PAGE)
+        elif path=='/api/meme-events':
+            # Local EventSource notifications; client fetches actual state separately.
+            try:cursor=max(0,int(self.headers.get('Last-Event-ID','0')))
+            except (TypeError,ValueError):cursor=0
+            self.send_response(200)
+            self.send_header('Content-Type','text/event-stream; charset=utf-8')
+            self.send_header('Cache-Control','no-store')
+            self.send_header('X-Accel-Buffering','no')
+            self.end_headers()
+            try:
+                self.wfile.write(b'retry: 2000\n\n')
+                self.wfile.flush()
+                while True:
+                    with EVENT_CONDITION:
+                        pending=[dict(item) for item in EVENT_HISTORY if item['id']>cursor]
+                        if not pending:
+                            EVENT_CONDITION.wait(timeout=15)
+                            pending=[dict(item) for item in EVENT_HISTORY if item['id']>cursor]
+                    if not pending:self.wfile.write(b': connected\n\n')
+                    else:
+                        for item in pending:
+                            cursor=item['id']
+                            msg=('id: '+str(cursor)+'\nevent: paper\ndata: '+
+                                 json.dumps(item,ensure_ascii=False)+'\n\n')
+                            self.wfile.write(msg.encode('utf-8'))
+                    self.wfile.flush()
+            except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError,OSError):
+                return
         elif path=='/api/state':
             with LOCK:
                 c=connect();startup_events(c);data=snapshot(c);c.close()
@@ -382,15 +432,26 @@ def market_monitor_loop(stop, interval_seconds=30):
             break
 
 
-def meme_auto_loop(stop, interval_seconds=15):
+def meme_auto_loop(stop, interval_seconds=10):
     """Experimental MEME PAPER engine, independent of dashboard and BTC/ETH."""
     from meme_auto import tick
+    previous_event_id=0
     while not stop.is_set():
         try:
             with LOCK:
                 c=connect()
-                try:tick(c)
+                try:
+                    state=tick(c)
+                    new_events=[dict(row) for row in c.execute(
+                        'SELECT id FROM meme_auto_journal WHERE id>? ORDER BY id LIMIT 60',
+                        (previous_event_id,))]
+                    if new_events:previous_event_id=max(x['id'] for x in new_events)
                 finally:c.close()
+            publish_paper_event('PAPER_TICK',{'last_tick':state['last_tick'],
+                'status':state['status'],'last_scan':state['last_scan']})
+            if new_events:
+                publish_paper_event('PAPER_JOURNAL',{'last_journal_id':previous_event_id,
+                    'count':len(new_events)})
         except Exception as exc:
             print('NEXUS MEME PAPER monitor: '+type(exc).__name__,flush=True)
         if stop.wait(interval_seconds):break
@@ -422,7 +483,7 @@ def main():
     print(f'NEXUS AI {VERSION} — SOLO SIMULAZIONE')
     print('Dashboard: http://127.0.0.1:8765')
     print('Monitoraggio BTC/ETH ogni 30 s mentre il programma resta acceso, anche senza browser.')
-    print('MEME AUTO PAPER: compravendite SIMULATE autonome: monitor ogni 15 s circa, scan ogni 5 minuti; nessuna transazione reale.')
+    print('MEME AUTO PAPER: compravendite SIMULATE autonome: monitor ogni 10 s circa, scan ogni 60 s; nessuna transazione reale.')
     print('Premi CTRL+C per chiudere. Nessuna operazione reale.')
     if '--no-browser' not in sys.argv:
         threading.Timer(0.8,lambda:webbrowser.open('http://127.0.0.1:8765')).start()
