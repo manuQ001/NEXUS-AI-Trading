@@ -80,7 +80,10 @@ def candidate(c,now):
             continue
         ranked.append((float(q['liquidity_usd']),q,h,vote,reason,roles))
     if not ranked:return None
-    ranked.sort(key=lambda t:t[0],reverse=True)
+    # Prefer candidates that Python would actually BUY before spending API
+    # budget on observations that cannot lead to a PAPER entry. This only
+    # changes research priority; it never changes Python eligibility or risk.
+    ranked.sort(key=lambda t:(t[3]=='BUY',t[0]),reverse=True)
     for _,q,h,vote,reason,roles in ranked[:MAX_CANDIDATES]:
         prev=c.execute("""SELECT timestamp,observed_at FROM v4_ai_shadow_audit
             WHERE address=? ORDER BY id DESC LIMIT 1""",(q['address'],)).fetchone()
