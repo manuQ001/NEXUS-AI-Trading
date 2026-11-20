@@ -107,7 +107,7 @@ def trade(c,address,action,quote,fx,now=None,stake_eur=None):
     warnings=_market_warnings(quote)
     initialize(c)
     current=c.execute('SELECT * FROM meme_eur_positions WHERE address=?',(address,)).fetchone()
-    wallet=c.execute("SELECT cash FROM wallets WHERE strategy='meme'").fetchone()
+    wallet=c.execute("SELECT cash,initial FROM wallets WHERE strategy='meme'").fetchone()
     if wallet is None:raise ValueError('Portafoglio MEME non inizializzato')
     if action=='BUY':
         if current:raise ValueError('Posizione già aperta su questo token')
