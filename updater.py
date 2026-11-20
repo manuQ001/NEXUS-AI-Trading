@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parent
 FILES=[
     'src/core.py','src/server.py','src/dashboard.html','src/selftest.py',
     'src/maintenance.py','src/backtest.py','src/downloader.py',
-    'src/agents.py','src/execution.py','src/orderbook.py','src/meme_scout.py','src/rug_guard.py','src/whale_tracker.py','src/meme_demo.py','src/meme_auto.py','src/meme_portfolio.py',
+    'src/agents.py','src/meme_agents.py','src/execution.py','src/orderbook.py','src/meme_scout.py','src/rug_guard.py','src/whale_tracker.py','src/meme_demo.py','src/meme_auto.py','src/meme_portfolio.py',
     'src/external_ai.py','src/research_journal.py','src/hypothesis.py',
     'tests/test_orderbook.py','tests/test_agents.py','tests/test_execution.py',
     'tests/test_backtest.py','tests/test_core.py','tests/test_maintenance.py',
