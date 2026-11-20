@@ -80,6 +80,8 @@ def review(rows, *, model=None, api_key=None, timeout=10, opener=None):
     """
     global _calls
     base=rule_agents(rows)
+    # Empty discovery batches must never consume paid model budget.
+    if not base['reviewed_addresses']:return base
     model=model if model is not None else os.environ.get('NEXUS_MEME_AI_MODEL','')
     api_key=api_key if api_key is not None else os.environ.get('NEXUS_MEME_AI_API_KEY','')
     if not model and not api_key:return base
