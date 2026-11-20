@@ -133,8 +133,8 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
   <div><span class="nx-small">Scanner</span><strong id="nx-scanner">IN ATTESA</strong></div>
   <div><span class="nx-small">Agenti IA</span><strong id="nx-mode">NON AVVIATI</strong></div>
   <div><span class="nx-small">Rug Guard</span><strong style="color:#ffbf70">ON-CHAIN NON VERIFICATO</strong></div>
-  <div><span class="nx-small">Quote MEME</span><strong>REST · ~15s</strong></div>
-  <div><span class="nx-small">Ricerca token</span><strong>OGNI 5 MIN</strong></div>
+  <div><span class="nx-small">Quote MEME</span><strong>REST · ~10s</strong></div>
+  <div><span class="nx-small">Ricerca token</span><strong>OGNI 60s</strong></div>
  </div>
  <div class="nx-grid">
   <section class="nx-card">
@@ -166,14 +166,14 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
    <div class="nx-feed" id="nx-feed"><div class="nx-muted">Nessun evento registrato.</div></div>
   </section>
  </div>
- <div class="nx-disclaimer">SOLO SIMULAZIONE · Schermata ogni 2s · Quote MEME ~15s · IA generativa solo se configurata · Nessun ordine reale né garanzia di profitto o vendibilità.</div>
+ <div class="nx-disclaimer">SOLO SIMULAZIONE · Schermata ogni 2s · Quote MEME ~10s · IA generativa solo se configurata · Nessun ordine reale né garanzia di profitto o vendibilità.</div>
 </div>
 <details class="nx-advanced" id="nx-advanced"><summary>▥ Strumenti avanzati · Portafoglio dettagliato, scanner manuale e controlli</summary>
 <section class="panel meme-quick-panel" id="meme-quick-panel">
  <div class="flex" style="flex-wrap:wrap"><div><div class="title" style="margin:0">⚡ MEME HUNTER · PORTAFOGLIO VIRTUALE</div><div class="sub">Acquisti e vendite virtuali autonomi; le vendite manuali di emergenza restano possibili.</div></div><span class="tag">45 € MEME · PAPER ONLY</span></div>
  <div class="desk-state" style="margin-top:12px"><div>
   <strong id="meme-auto-label">MEME AUTO PAPER · Caricamento…</strong>
-  <div class="sub" id="meme-auto-status">Controllo prezzi ogni 15 secondi circa; schermata aggiornata automaticamente ogni 2 secondi.</div>
+  <div class="sub" id="meme-auto-status">Prezzi MEME richiesti circa ogni 10 secondi; eventi inoltrati via SSE, polling di riserva.</div>
   </div><button id="meme-auto-toggle" class="btn" type="button" disabled>Caricamento…</button></div>
  <div class="sub" style="margin-top:8px">Acquisti automatici variabili da 1,50 a 4,50 € virtuali, riserva del 20% del capitale MEME iniziale, massimo 3 nuove posizioni per scansione · stop netto −6%, target netto +12%, trailing da +8% (distanza 4 punti), uscita dopo 15 minuti · costi simulati 3% per lato. Nessuna garanzia di vendibilità o profitto reale.</div>
  <div style="margin:14px 0;padding:16px;border:1px solid var(--line, #444);border-radius:14px">
@@ -209,7 +209,7 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
  <div class="meme-quick-stat"><div class="sub">Equity stimata ultimo prezzo</div><b id="meme-demo-equity">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Posizioni aperte</div><b id="meme-demo-open">—</b></div>
  <div class="meme-quick-stat"><div class="sub">Importo per operazione</div><b>Automatico · 1,50–4,50 €</b></div></div>
- <div class="sub meme-demo-note">Unico portafoglio MEME da 45 € iniziali, già incluso nel patrimonio NEXUS. Prezzi indicativi DEX Screener richiesti dal server circa ogni 15s con AUTO attivo; un dato vecchio viene evidenziato. Pronostici descrittivi a bassa affidabilità basati sulle ultime variazioni osservate, non previsioni né segnali per ordini reali. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume insufficienti impediscono gli ingressi automatici; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
+ <div class="sub meme-demo-note">Unico portafoglio MEME da 45 € iniziali, già incluso nel patrimonio NEXUS. Prezzi indicativi DEX Screener richiesti dal server circa ogni 10s con AUTO attivo; un dato vecchio viene evidenziato. Pronostici descrittivi a bassa affidabilità basati sulle ultime variazioni osservate, non previsioni né segnali per ordini reali. P/L e equity includono un costo di uscita stimato del 3%. Nessuna verifica di vendibilità. Liquidità e volume insufficienti impediscono gli ingressi automatici; il prezzo USD deve essere valido. Una chiusura virtuale non garantisce una vendita realmente eseguibile.</div>
  <div class="sub" id="meme-fx-note" style="margin-top:9px">Cambio di riferimento USD/EUR in caricamento</div>
  <div class="flex" style="margin:13px 0 8px;flex-wrap:wrap"><b>Posizioni MEME aperte</b><button class="btn" id="meme-demo-refresh" type="button">↻ Aggiorna</button></div>
  <div class="scroll meme-demo-table"><table class="dataTable"><thead><tr><th>Token</th><th>Ingresso</th><th>Prezzo osservato</th><th>Variazione</th><th>P/L stimato</th><th>Pronostico breve</th><th>Ultimo dato</th><th>Operazione</th></tr></thead><tbody id="meme-demo-positions"><tr><td colspan="8" class="muted">Nessun test caricato</td></tr></tbody></table></div>
@@ -453,7 +453,25 @@ async function refreshMemeLive(){
  catch(e){$('meme-demo-message').textContent='Aggiornamento automatico non disponibile: '+e.message;}
  finally{memeLiveBusy=false;}
 }
-setInterval(refreshMemeLive,2000);
+// SSE pushes committed backend events. Polling is a fallback, not fake market ticks.
+let nexusEventsOnline=false;
+if(typeof EventSource!=='undefined'){
+  const source=new EventSource('/api/meme-events');
+  source.addEventListener('open',()=>{
+    nexusEventsOnline=true;
+    const indicator=$('nx-run');
+    if(indicator)indicator.title='Connessione SSE attiva; quote MEME REST ~10 s';
+  });
+  source.addEventListener('paper',()=>{
+    if(document.visibilityState==='visible')refreshMemeLive();
+  });
+  source.onerror=()=>{
+    nexusEventsOnline=false;
+    const indicator=$('nx-run');
+    if(indicator)indicator.title='Eventi SSE non disponibili; aggiornamento tramite polling';
+  };
+}
+setInterval(()=>{if(!nexusEventsOnline)refreshMemeLive()},2000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMemeLive();});
 
 /* NEXUS Neon Mission Control: view only, no simulated events or trades. */
