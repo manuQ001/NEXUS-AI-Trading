@@ -435,7 +435,14 @@ def market_monitor_loop(stop, interval_seconds=30):
 def meme_auto_loop(stop, interval_seconds=10):
     """Experimental MEME PAPER engine, independent of dashboard and BTC/ETH."""
     from meme_auto import tick
-    previous_event_id=0
+    with LOCK:
+        db=connect()
+        try:previous_event_id=db.execute(
+            'SELECT COALESCE(MAX(id),0) FROM meme_auto_journal'
+        ).fetchone()[0] if db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='meme_auto_journal'"
+        ).fetchone() else 0
+        finally:db.close()
     while not stop.is_set():
         try:
             with LOCK:
