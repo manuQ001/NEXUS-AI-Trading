@@ -314,7 +314,10 @@ body{background:radial-gradient(ellipse at 52% -15%,#242044 0,transparent 52%),#
    <div class="nx-v4-head">
     <div><span class="nx-live-title">✧ NEXUS 4.0 · MULTI-AGENT PAPER</span>
      <div class="nx-live-muted">500 € virtuali separati · Agenti a regole · Nessun ordine reale</div></div>
-    <span class="nx-live-chip" id="nx-v4-mode">CARICAMENTO</span>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="nx-live-chip" id="nx-v4-mode">CARICAMENTO</span>
+      <button type="button" class="btn" id="nx-v4-toggle" title="Sospendi o riprendi solo il portafoglio PAPER 4.0">SOSPENDI V4 PAPER</button>
+    </div>
    </div>
    <div class="nx-v4-kpis">
     <div><small>EQUITY VIRTUALE</small><strong id="nx-v4-equity">—</strong></div>
@@ -1265,6 +1268,7 @@ async function nxLoadV4(){
   const euro=v=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Number(v)||0);
   $('nx-v4-mode').textContent=d.risk_latched?'RISK LOCK V4 ATTIVO':
      !d.enabled?'V4 SOSPESO':'AGENT PAPER · '+String(d.last_decision||'ATTENDO QUOTE');
+  $('nx-v4-toggle').textContent=d.enabled?'SOSPENDI V4 PAPER':'RIPRENDI V4 PAPER';
   $('nx-v4-equity').textContent=euro(d.equity_eur);
   $('nx-v4-cash').textContent=euro(d.cash_eur);
   $('nx-v4-positions-count').textContent=(d.positions||[]).length+' / '+d.max_positions;
@@ -1308,6 +1312,16 @@ async function nxLoadV4(){
  }finally{nxV4InFlight=false;}
 }
 nxLoadV4();
+$('nx-v4-toggle').addEventListener('click',async()=>{
+ const button=$('nx-v4-toggle');button.disabled=true;
+ try{
+  const res=await fetch('/api/v4-toggle',{method:'POST',headers:{'X-NEXUS-Demo-Click':'1'}});
+  const state=await res.json();
+  if(!res.ok||!state.ok)throw Error(state.error||'V4 non aggiornato');
+  await nxLoadV4();
+ }catch(err){$('nx-v4-warning').textContent='Cambio stato V4 non riuscito: '+String(err.message);}
+ finally{button.disabled=false;}
+});
 setInterval(()=>{if(document.visibilityState==='visible')nxLoadV4()},10000);
 
 let nexusEventsOnline=false;
