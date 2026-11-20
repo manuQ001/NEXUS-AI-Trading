@@ -113,6 +113,17 @@ class TestMaintenance(unittest.TestCase):
         self.assertIn("if(!pts.length)",html)
         self.assertNotIn('Math.random()',html)
 
+    def test_v44_chart_period_filters_and_accessible_trade_markers(self):
+        html=(Path(__file__).resolve().parents[1]/'src'/'dashboard.html').read_text('utf-8')
+        for period in ('3600','21600','all'):
+            self.assertIn('data-v4-range="'+period+'"',html)
+        self.assertIn("let nxV4ChartRange='all';",html)
+        self.assertIn("Number(p.timestamp)>=latest-seconds",html)
+        self.assertIn('id="nx-v4-chart-selection"',html)
+        self.assertIn("marker.setAttribute('tabindex','0')",html)
+        self.assertIn("marker.addEventListener('click',reveal)",html)
+        self.assertIn("marker.addEventListener('keydown'",html)
+
     def test_hash(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)/'x';p.write_bytes(b'abc');self.assertEqual(sha256(p),hashlib.sha256(b'abc').hexdigest())
