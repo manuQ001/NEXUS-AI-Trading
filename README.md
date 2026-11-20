@@ -1,3 +1,32 @@
+## NEXUS 3.11.0 — Clean Live Dashboard (sola interfaccia)
+
+Interfaccia piu ordinata, navigazione minimale e tre viste primarie
+(Terminale, Mercato, Performance); le vecchie voci restano raggiungibili
+dal menu "Altre sezioni", senza eliminare funzionalita.
+
+Nel Terminale, le schede **Live Desk**, **Prezzi**, **Shadow**, **Risk**,
+**Agenti**, **Strumenti** isolano il contenuto rilevante; i pannelli
+non vengono piu impilati sulla stessa pagina. La sezione Strumenti
+mantiene i comandi manuali precedenti, incluso il portafoglio PAPER:
+nessuna funzione e stata rimossa dal backend. L'header continua a
+mostrare l'equity MEME e lo stato del motore.
+
+Il Live Desk ha un nuovo **Event Stream** che aggiunge una card soltanto
+dopo l'effettiva ricezione dal server di un evento SSE di tipo
+PAPER_MINT, PAPER_PROFILE, PAPER_QUOTES o PAPER_JOURNAL. I semplici
+heartbeat PAPER_TICK, il polling identico e il caricamento della pagina
+**non simulano alcuna animazione di trading**. Massimo otto eventi recenti
+nel nastro, senza nuovi database, richieste API o servizi a pagamento.
+
+Palette dark meno dispersiva, navigazione responsive, focus visibile
+per accessibilita e supporto `prefers-reduced-motion`. Le funzioni
+Shadow, Risk e la sezione prezzi continuano a essere aggiornate dai
+loro endpoint reali tramite il codice precedente. Il motore, i
+controlli di rischio, il capitale e gli ordini restano invariati.
+
+Nessuna transazione blockchain viene effettuata. Nessuna visualizzazione
+di evento GoPlus equivale a certificazione di vendibilita o sicurezza.
+
 ## NEXUS 3.10.0 — Risk Intelligence (read-only evidence)
 
 La dashboard MEME aggiunge la sezione **RISK INTELLIGENCE · SOURCE AUDIT**.
