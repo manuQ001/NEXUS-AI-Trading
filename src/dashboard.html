@@ -1,4 +1,4 @@
-<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NEXUS AI 3.8.1 • Autonomous Terminal</title>
+<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NEXUS AI 3.9.0 • Autonomous Terminal</title>
 <style>
 :root{color-scheme:dark;--bg:#080d17;--panel:#121b2a;--line:#27354a;--text:#e5efff;--muted:#94a7c1;--green:#40d6a5;--red:#f57586;--blue:#60c6f7}*{box-sizing:border-box}body{background:var(--bg);color:var(--text);margin:0;font:14px/1.5 system-ui,Segoe UI,Arial,sans-serif}.shell{max-width:1320px;padding:22px 18px;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.logo{font-size:23px;font-weight:850;letter-spacing:1px}.logo span{color:var(--blue)}.sub,.muted{color:var(--muted)}.sub{font-size:12px}.chip{border:1px solid #246047;background:#17372f;color:#72efc0;padding:7px 11px;border-radius:100px;font-size:11px;font-weight:800}.notice{padding:13px;border:1px solid #755b2e;border-radius:10px;background:#2c2318;margin:17px 0;color:#ffe2a3}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;min-width:0}.metric .name{font-size:12px;color:var(--muted)}.metric .val{font-size:clamp(21px,2.5vw,30px);font-weight:800;margin:2px 0}.green{color:var(--green)}.red{color:var(--red)}.rows{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:12px;margin-top:12px}.title{font-weight:800;font-size:15px;margin-bottom:12px}.flex{display:flex;align-items:center;justify-content:space-between;gap:10px}.btn{background:#244057;border:1px solid #3b6179;border-radius:8px;color:#fff;padding:9px 12px;cursor:pointer;font:inherit;font-weight:700}.btn:hover{background:#315b78}.btn:disabled{opacity:.6;cursor:wait}.tab{background:#1c2939;border:1px solid #314357;border-radius:8px;color:#a7bbd1;padding:7px 12px;cursor:pointer}.tab.selected{background:#193e3b;color:#75e5bf}.agents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.agent{background:#0d1522;border:1px solid #283648;border-radius:8px;padding:10px}.agent .n{font-weight:800;font-size:12px}.agent .d{color:var(--muted);font-size:11px;margin-top:3px}.status{font-size:10px;color:#ffca7c}.small{font-size:12px}.dataTable{border-collapse:collapse;width:100%;font-size:12px}.dataTable th,.dataTable td{text-align:left;border-bottom:1px solid #283447;padding:9px 6px}.dataTable th{color:var(--muted);font-weight:600}.scroll{overflow:auto;max-height:330px}.event{border-bottom:1px solid #223145;padding:9px 0;font-size:12px}.event strong{color:var(--blue)}.event .when{color:var(--muted);font-size:10px}.tag{display:inline-block;font-size:10px;border:1px solid #425267;padding:2px 6px;border-radius:5px}.chart{width:100%;height:265px;display:block}.foot{margin:20px 0;color:var(--muted);font-size:12px}.error{color:#ffb2bb;word-break:break-word}.marketline{font-weight:650}#feedback{font-size:11px;color:var(--muted)}@media(max-width:850px){.rows{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:450px){.shell{padding:14px 10px}.agents{grid-template-columns:1fr}.panel{padding:12px}}
 
@@ -136,6 +136,16 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
 .nx-pricecard path{fill:none;stroke:#b591fc;stroke-width:2;vector-effect:non-scaling-stroke}
 .nx-pricecard circle{fill:#f1c0fa}
 .nx-market-pnlwarning{font-size:11px;color:#dec9e8;margin-top:9px}
+.nx-shadow{margin:12px 0;border:1px solid #524c84;border-radius:12px;background:linear-gradient(130deg,rgba(41,35,84,.65),rgba(13,12,28,.92));padding:14px}
+.nx-shadow-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:12px 0}
+.nx-shadow-stat{padding:11px;border:1px solid #474166;border-radius:9px;background:rgba(0,0,0,.18)}
+.nx-shadow-stat small{display:block;color:#aa9dbd;font-size:10px}
+.nx-shadow-stat b{font-size:19px;color:#e7c9fd}
+.nx-shadow-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;max-height:290px;overflow:auto}
+.nx-shadow-item{border:1px solid #3c395a;background:rgba(18,17,36,.72);border-radius:9px;padding:11px;font-size:12px}
+.nx-shadow-item strong{font-size:14px;color:#f6ddff}
+.nx-shadow-item small{display:block;color:#b7a9ca;font-size:11px;margin:3px 0}
+@media(prefers-reduced-motion:reduce){.nx-shadow-item{animation:none!important}}
 </style></head><body><main class="shell"><header class="top"><div><div class="logo">◈ NEXUS <span>AI</span> <small style="font-weight:400;color:#d28caf">3.1</small></div><div class="sub">AUTONOMOUS TRADING DESK • LOCAL EDITION</div></div><div class="flex"><span class="chip">● PAPER ONLY • €150</span><button id="sync" class="btn">↻ Aggiorna mercato</button></div></header>
 <nav class="desk-nav" aria-label="Vai alla sezione"><a href="#overview">◎ Panoramica</a><a href="#market">◈ Mercato</a><a href="#agents-section">◆ Agenti</a><a href="#meme-section">◉ Meme Hunter</a><a href="#performance-section">▥ Performance</a><a href="#history-section">▤ Storico</a><a href="#lab-section">⚙ Laboratorio</a></nav>
 <section class="workspace-view" data-view="overview" id="workspace-overview">
@@ -182,6 +192,21 @@ body{background:radial-gradient(ellipse at top,#411b35 0,#09070d 60%);color:var(
     <span class="nx-live-chip" id="nx-live-engine-state" data-online="false"><span class="nx-live-dot"></span>MOTORE PAPER IN ATTESA</span>
    </div>
    <div class="nx-live-beam" id="nx-live-beam" aria-hidden="true"></div>
+   <section class="nx-shadow" id="nx-shadow-lab">
+    <div class="nx-live-head">
+     <span class="nx-live-title">◉ SMART DECISION · SHADOW TRADING</span>
+     <span class="nx-live-chip">ZERO ORDINI · SOLO OSSERVAZIONI</span>
+    </div>
+    <div class="nx-live-muted">Segnali teorici su dati REST, rivalutati dopo 5 minuti: nessun capitale, nessun fill, nessun acquisto virtuale.</div>
+    <div class="nx-shadow-stats">
+     <div class="nx-shadow-stat"><small>SEGNALI IN OSSERVAZIONE</small><b id="nx-shadow-pending">—</b></div>
+     <div class="nx-shadow-stat"><small>OSSERVAZIONI CONCLUSE</small><b id="nx-shadow-observed">—</b></div>
+     <div class="nx-shadow-stat"><small>DATI INSUFFICIENTI</small><b id="nx-shadow-missing">—</b></div>
+     <div class="nx-shadow-stat"><small>CASI POSITIVI (COSTI TEORICI)</small><b id="nx-shadow-positive">—</b></div>
+    </div>
+    <div class="nx-shadow-list" id="nx-shadow-signals"><div class="nx-live-muted">Attendo segnali osservativi dal motore...</div></div>
+    <div class="nx-market-pnlwarning" id="nx-shadow-disclaimer">I risultati non dimostrano la vendibilità o l'eseguibilità di un trade.</div>
+   </section>
    <section class="nx-market-pulse" id="nx-market-pulse">
     <div class="nx-live-head"><span class="nx-live-title">⌁ MARKET PULSE · QUOTE REALMENTE OSSERVATE</span>
      <span class="nx-live-chip" id="nx-market-mode" data-online="false"><span class="nx-live-dot"></span>REST IN ATTESA</span></div>
@@ -573,6 +598,29 @@ async function loadDeskControl(){
  ).join('')||'Non ci sono ancora osservazioni';
  $('nx-desk-disclaimer').textContent=d.disclaimer;
 }
+async function loadShadowLab(){
+ const response=await fetch('/api/meme-shadow',{cache:'no-store'});
+ if(!response.ok)throw Error('Shadow Lab non disponibile');
+ const d=await response.json(),signals=d.signals||[];
+ $('nx-shadow-pending').textContent=String(d.pending||0);
+ $('nx-shadow-observed').textContent=String(d.observed||0);
+ $('nx-shadow-missing').textContent=String(d.insufficient_data||0);
+ $('nx-shadow-positive').textContent=d.recent_positive_ratio_pct==null?'—':
+     Number(d.recent_positive_ratio_pct).toFixed(1)+'%';
+ $('nx-shadow-signals').innerHTML=signals.slice(0,12).map(x=>{
+  const done=x.status==='OBSERVED';
+  const result=done&&Number.isFinite(Number(x.modeled_net_change_pct))?
+    (Number(x.modeled_net_change_pct)>=0?'+':'')+Number(x.modeled_net_change_pct).toFixed(2)+'% modello NET':'—';
+  return '<div class="nx-shadow-item"><strong>'+esc(x.symbol||'?')+
+    '</strong><small>'+esc(x.address.slice(0,12))+'… · SCORE '+esc(String(x.score))+
+    ' · '+esc(x.status)+'</small>'+
+    '<div class="nx-live-muted">'+esc(x.rationale||'')+'</div>'+
+    '<div style="margin-top:6px">'+esc(result)+'</div>'+
+    '<small>'+new Date(Number(x.created_at)*1000).toLocaleTimeString('it-IT')+
+    ' · nessun ordine</small></div>';
+ }).join('')||'<div class="nx-live-muted">Nessun segnale finché non arrivano candidati idonei.</div>';
+ $('nx-shadow-disclaimer').textContent=d.disclaimer;
+}
 let nxLastMarketChangeId=0;
 function nxSparkline(points){
  const prices=(points||[]).map(x=>Number(x.price_usd)).filter(x=>Number.isFinite(x)&&x>0).slice(-36);
@@ -723,7 +771,7 @@ let memeLiveBusy=false;
 async function refreshMemeLive(){
  if(document.visibilityState!=='visible'||memeLiveBusy)return;
  memeLiveBusy=true;
- try{await Promise.all([loadMemeAuto(),loadMemeDemo(),loadMemeLive(),loadStrategyIntelligence(),loadDeskControl(),loadMintFeed(),loadMarketPulse()]);}
+ try{await Promise.all([loadMemeAuto(),loadMemeDemo(),loadMemeLive(),loadStrategyIntelligence(),loadDeskControl(),loadMintFeed(),loadMarketPulse(),loadShadowLab()]);}
  catch(e){$('meme-demo-message').textContent='Aggiornamento automatico non disponibile: '+e.message;}
  finally{memeLiveBusy=false;}
 }
@@ -749,7 +797,7 @@ if(typeof EventSource!=='undefined'){
   };
 }
 setInterval(()=>{if(!nexusEventsOnline)refreshMemeLive()},2000);
-setInterval(()=>{if(nexusEventsOnline&&document.visibilityState==='visible')Promise.all([loadMemeLive(),loadMintFeed(),loadMarketPulse()]).catch(()=>{});},10000);
+setInterval(()=>{if(nexusEventsOnline&&document.visibilityState==='visible')Promise.all([loadMemeLive(),loadMintFeed(),loadMarketPulse(),loadShadowLab()]).catch(()=>{});},10000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMemeLive();});
 
 /* NEXUS Neon Mission Control: view only, no simulated events or trades. */
