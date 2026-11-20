@@ -1,3 +1,46 @@
+## NEXUS 3.8.0 — Market Pulse osservato, eventi SSE e analisi dei costi
+
+NEXUS riceve i token PumpPortal/DEX Screener gia documentati nelle versioni
+precedenti. Questa release NON dichiara di possedere un feed di trade/prezzi
+WebSocket indipendente: il provider PumpPortal richiede un'API key e applica
+tariffe ai dati delle transazioni `subscribeTokenTrade` dal 1 maggio 2026.
+Nessuna sottoscrizione a pagamento viene attivata di nascosto.
+
+La nuova sezione **MARKET PULSE** all'interno del Live Command Center mostra
+prezzi USD DEX Screener REST realmente letti dal server, con ora di
+osservazione, eta del dato, fonte e grafici SVG delle variazioni osservate.
+Non crea valori intermedi, non simula tick on-chain o fill eseguibili, e
+segnala i dati non aggiornati (oltre 45 secondi).
+
+- Quando lo scanner REST valuta candidati, `meme_desk.record_scan` salva
+  i prezzi validati nella nuova tabella `meme_quote_latest`. Ogni effettiva
+  variazione, e solo quella, viene salvata in `meme_quote_changes`.
+- Il motore PAPER salva gli stessi dati sui prezzi dei token attualmente in
+  posizione; nessun cambio alle regole di BUY/SELL e di gestione del rischio.
+- Un batch di cambi osservati genera `PAPER_QUOTES` sul canale SSE locale
+  `/api/meme-events`; non viene generato per la ripetizione di un prezzo
+  identico. La dashboard anima il passaggio solo su eventi reali.
+- Il grafico conserva al massimo 36 campioni per token visualizzato;
+  il database conserva 24 ore e un massimo di 900 variazioni totali.
+- `GET /api/meme-market-pulse` restituisce 10 token piu recentemente
+  osservati, i campioni e l'eta dei dati. Nessuna chiamata a un provider
+  esterno viene effettuata da questo endpoint.
+
+La sezione mostra inoltre il costo simmetrico ipotizzato del 3% per lato:
+pareggio lordo di circa +6,19% e movimento lordo di circa +18,93% necessario
+per un target NETTO +12% (assumendo stessa base FX e percentuali fisse),
+mentre stop di movimento lordo -5% equivale a perdita netta stimata intorno
+al -10,53%. Sono conti sul modello, non costi/slippage eseguibili reali.
+
+**Protezione invariata:** il Circuit Breaker persistente della 3.6 resta
+attivo anche dopo rimbalzi o riavvii; non viene toccata nessuna somma del
+portafoglio, nessun reset, e nessuna sottoscrizione pagata o transazione reale
+viene abilitata. I processi locali continuano solo mentre il PC esegue NEXUS.
+
+Per un futuro feed di trade nativo serviranno provider, prezzi verificati e
+una decisione esplicita su chiavi API e spesa massima. Nessuna credenziale
+wallet o API fee deve essere condivisa nella dashboard.
+
 ## NEXUS 3.7.0 — Live Command Center + feed nuovi mint Pump.fun
 
 Il terminale MEME include una nuova sezione **LIVE COMMAND CENTER**:
